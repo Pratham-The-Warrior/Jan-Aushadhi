@@ -1,0 +1,95 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #006A6A;
+  --color-primary-dim: #005c5c;
+  
+  --color-surface: #f8fafa;
+  --color-surface-low: #f0f4f5;
+  --color-surface-lowest: #ffffff;
+  
+  --color-on-surface: #2a3435;
+  
+  --color-outline-variant: rgba(42, 52, 53, 0.15);
+
+  --font-display: 'Manrope', system-ui, sans-serif;
+  --font-body: 'Public Sans', system-ui, sans-serif;
+}
+
+@layer base {
+  html {
+    font-family: var(--font-body);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    scroll-behavior: smooth;
+    background-color: var(--color-surface);
+    color: var(--color-on-surface);
+  }
+}
+
+@layer utilities {
+  .safe-area-pb {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  
+  .ghost-border {
+    border: 1px solid var(--color-outline-variant);
+  }
+  
+  .clinical-shadow {
+    box-shadow: 0 8px 24px rgba(42, 52, 53, 0.04);
+  }
+  
+  /* Buttons */
+  .btn-primary {
+    background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dim));
+    color: white;
+    border-radius: 0.375rem; /* md */
+    font-weight: 600;
+    transition: all 0.2s ease;
+  }
+  .btn-primary:active {
+    opacity: 0.9;
+  }
+  
+  .btn-secondary {
+    background: transparent;
+    border: 1px solid var(--color-outline-variant);
+    color: var(--color-primary);
+    border-radius: 0.375rem; /* md */
+    font-weight: 600;
+    transition: all 0.2s ease;
+  }
+  .btn-secondary:hover {
+    background: rgba(0, 106, 106, 0.04);
+  }
+}
+
+/* Slide-up animation for map popups and modals */
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-slideUp { animation: slideUp 0.3s ease-out; }
+
+/* Pulse animation for cart badge */
+@keyframes subtlePulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+}
+
+/* Custom scrollbar for sidebars */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+/* Mobile input zoom prevention */
+@media (max-width: 768px) {
+  input, select, textarea { font-size: 16px !important; }
+}
+
+/* Print-safe: hide nav and footer on print */
+@media print {
+  nav, footer { display: none !important; }
+}
