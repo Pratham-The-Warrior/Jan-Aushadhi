@@ -10,9 +10,17 @@ let twilioClient: any = null;
 
 // ---- SDK Initialization ----
 
-if (config.twilioAccountSid && !config.twilioAccountSid.includes('mock')) {
+/**
+ * Initialize the Twilio client using ESM dynamic import.
+ * Called during app startup from buildApp().
+ */
+export async function initTwilio(): Promise<void> {
+  if (!config.twilioAccountSid || config.twilioAccountSid.includes('mock')) {
+    return;
+  }
+
   try {
-    const twilio = require('twilio');
+    const { default: twilio } = await import('twilio');
     twilioClient = twilio(config.twilioAccountSid, config.twilioAuthToken);
     console.log('✅ Twilio WhatsApp Bridge Initialized');
   } catch {

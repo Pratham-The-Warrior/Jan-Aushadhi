@@ -8,6 +8,9 @@ import useAuthStore from '../store/authStore';
 /** Base URL for all API calls */
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
+/** Request timeout in milliseconds */
+const REQUEST_TIMEOUT_MS = 15_000;
+
 /**
  * Structured API error.
  * Parses the backend's `{ error: { code, message, statusCode } }` response.
@@ -76,6 +79,7 @@ async function handleResponse(res) {
 export async function apiGet(path, auth = false) {
   const res = await fetch(`${API_BASE}${path}`, {
     headers: buildHeaders(auth),
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
   return handleResponse(res);
 }
@@ -91,6 +95,7 @@ export async function apiPost(path, body, auth = false) {
     method: 'POST',
     headers: buildHeaders(auth),
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
   return handleResponse(res);
 }
@@ -106,6 +111,7 @@ export async function apiPut(path, body, auth = false) {
     method: 'PUT',
     headers: buildHeaders(auth),
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
   return handleResponse(res);
 }

@@ -18,6 +18,7 @@ const Fulfillment = lazy(() => import('./pages/Fulfillment'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Wellness = lazy(() => import('./pages/Wellness'));
 const Checkout = lazy(() => import('./pages/Checkout'));
+const NotFound = lazy(() => import('./pages/NotFound'));
 
 /** Suspense wrapper for lazy-loaded routes */
 function LazyPage({ children }) {
@@ -63,6 +64,9 @@ export default function App() {
               </ErrorBoundary>
             }
           />
+
+          {/* 404 Catch-all */}
+          <Route path="*" element={<AppRoute><NotFound /></AppRoute>} />
         </Routes>
       </div>
     </BrowserRouter>

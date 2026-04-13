@@ -5,10 +5,12 @@
 // Pure business logic, no HTTP concerns.
 // ============================================================
 
+import crypto from 'crypto';
 import { queryDB } from '../../shared/infra/database';
-import { NotFoundError, ValidationError } from '../../shared/errors';
+import { NotFoundError, ValidationError, ExternalServiceError } from '../../shared/errors';
 import type {
   AuthUser,
+  BasketItem,
   CreateRequirementPayload,
   DashboardStats,
   MonthlySavings,
@@ -47,8 +49,8 @@ export class FulfillmentService {
       throw new ValidationError('Cart is empty');
     }
 
-    // Generate unique ticket ID
-    const ticketId = `TKT-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+    // Generate unique ticket ID using cryptographically secure random
+    const ticketId = `TKT-${crypto.randomUUID().replace(/-/g, '').slice(0, 12).toUpperCase()}`;
 
     // Calculate totals and savings
     let totalBrandedValue = 0;
@@ -133,8 +135,10 @@ export class FulfillmentService {
         [userId],
       );
       return { count: result.rows.length, requirements: result.rows };
-    } catch {
-      return { count: 0, requirements: [] };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown database error';
+      console.error('Failed to fetch user requirements:', message);
+      throw new ExternalServiceError('PostgreSQL', 'Failed to fetch requirements history');
     }
   }
 
@@ -280,7 +284,11 @@ export class FulfillmentService {
       }
 
       return result.rows[0];
-    } catch {
+    } catch (err) {
+      // Graceful degradation: fall back to Firebase token data
+      // but log the error for operational visibility
+      const message = err instanceof Error ? err.message : 'Unknown database error';
+      console.error('Failed to fetch user profile from DB, using token fallback:', message);
       return { uid: user.uid, name: user.name, phone: user.phone_number };
     }
   }
@@ -292,7 +300,7 @@ export class FulfillmentService {
    * @param userId  Firebase UID
    * @param basket  Cart items array
    */
-  async updateBasket(userId: string, basket: unknown[]): Promise<{ success: boolean }> {
+  async updateBasket(userId: string, basket: BasketItem[]): Promise<{ success: boolean }> {
     await queryDB(
       'UPDATE users SET medical_basket = $1 WHERE firebase_uid = $2',
       [JSON.stringify(basket || []), userId],

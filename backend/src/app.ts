@@ -7,6 +7,7 @@
 
 import Fastify, { FastifyInstance, FastifyError } from 'fastify';
 import cors from '@fastify/cors';
+import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
 
 import { config } from './shared/config';
@@ -18,7 +19,7 @@ import { checkDatabaseHealth } from './shared/infra/database';
 import { initRedis, checkRedisHealth } from './shared/infra/redis';
 import { checkMeiliHealth } from './shared/infra/meilisearch';
 import { isFirebaseReady } from './shared/infra/firebase';
-import { isTwilioReady } from './shared/infra/twilio';
+import { isTwilioReady, initTwilio } from './shared/infra/twilio';
 
 // Lifecycle Hooks
 import { requestContextHook } from './hooks/request-context';
@@ -45,6 +46,9 @@ export async function buildApp(): Promise<FastifyInstance> {
   });
 
   // ---- Global Middleware ----
+  await server.register(helmet, {
+    contentSecurityPolicy: false, // CSP managed by frontend build
+  });
   await server.register(cors, { origin: config.corsOrigin });
   await server.register(rateLimit, {
     max: config.rateLimitMax,
@@ -97,6 +101,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await checkDatabaseHealth();
   await initRedis();
   await checkMeiliHealth();
+  await initTwilio();
 
   // ---- Health Check Endpoint ----
   server.get('/api/v1/health', async () => ({

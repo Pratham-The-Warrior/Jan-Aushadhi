@@ -141,7 +141,19 @@ export interface CreateRequirementPayload {
   payment_mode?: string;
 }
 
+/** Cart item stored in the user's medical basket */
+export interface BasketItem {
+  drug_code: string;
+  name: string;
+  mrp: number;
+  branded_name?: string;
+  branded_mrp?: number;
+  unit_size?: string;
+  group_name?: string;
+  quantity: number;
+}
+
 /** PUT /user/basket request body */
 export interface UpdateBasketPayload {
-  medical_basket: unknown[];
+  medical_basket: BasketItem[];
 }

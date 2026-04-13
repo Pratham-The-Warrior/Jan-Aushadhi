@@ -72,7 +72,7 @@ export async function verifyAuth(request: FastifyRequest, reply: FastifyReply): 
       name: decodedToken.name,
     };
 
-    (request as any).user = user;
+    request.user = user;
 
     // Sync user to local PostgreSQL on first login (non-blocking)
     syncUserToDatabase(user).catch(() => {

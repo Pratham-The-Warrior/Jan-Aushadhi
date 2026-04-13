@@ -24,13 +24,13 @@ export async function requestContextHook(server: FastifyInstance): Promise<void>
     const correlationId =
       (request.headers['x-request-id'] as string) || crypto.randomUUID();
 
-    (request as any).correlationId = correlationId;
-    (request as any).startTime = process.hrtime.bigint();
+    request.correlationId = correlationId;
+    request.startTime = process.hrtime.bigint();
   });
 
   server.addHook('onResponse', async (request: FastifyRequest, reply: FastifyReply) => {
-    const correlationId = (request as any).correlationId || 'unknown';
-    const startTime = (request as any).startTime as bigint | undefined;
+    const correlationId = request.correlationId || 'unknown';
+    const startTime = request.startTime;
 
     // Set correlation ID on response for client tracing
     reply.header('x-request-id', correlationId);

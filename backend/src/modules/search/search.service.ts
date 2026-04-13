@@ -7,21 +7,9 @@
 
 import { getMeiliIndex } from '../../shared/infra/meilisearch';
 import { ExternalServiceError } from '../../shared/errors';
+import { extractForm } from '../../shared/utils';
+import { APP_CONSTANTS } from '../../shared/constants';
 import type { SearchSuggestion } from '../../shared/types';
-
-/** Dosage form extraction from medicine name */
-function extractForm(name: string): string {
-  const n = name.toLowerCase();
-  if (/\binj(ection)?\b|\bvial\b|\bwfi\b|\binfusion\b/.test(n)) return 'Injection';
-  if (/\bsyr(up)?\b/.test(n)) return 'Syrup';
-  if (/\bsuspension\b/.test(n)) return 'Suspension';
-  if (/\bdrop(s)?\b/.test(n)) return 'Drops';
-  if (/\bcream\b|\boint(ment)?\b|\bgel\b|\blotion\b/.test(n)) return 'Topical';
-  if (/\bpowder\b/.test(n)) return 'Powder';
-  if (/\bcap(sule)?s?\b/.test(n)) return 'Capsule';
-  if (/\btab(let)?s?\b/.test(n)) return 'Tablet';
-  return 'Other';
-}
 
 /**
  * Raw Meilisearch hit shape — used internally before
@@ -40,7 +28,7 @@ interface MeiliHit {
 }
 
 export class SearchService {
-  private readonly indexName = 'medicines';
+  private readonly indexName = APP_CONSTANTS.MEILI_MEDICINES_INDEX;
 
   /**
    * Full-text search against the branded medicines index.

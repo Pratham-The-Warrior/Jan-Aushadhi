@@ -8,6 +8,7 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { SearchService } from './search.service';
 import { CatalogService } from '../catalog/catalog.service';
 import { searchSchema, suggestSchema } from './search.schema';
+import { APP_CONSTANTS } from '../../shared/constants';
 
 const searchService = new SearchService();
 const catalogService = new CatalogService();
@@ -83,7 +84,7 @@ export default async function searchRoutes(server: FastifyInstance): Promise<voi
         }
       }
 
-      const deduped = Array.from(nameMap.values()).slice(0, 10);
+      const deduped = Array.from(nameMap.values()).slice(0, APP_CONSTANTS.SUGGESTIONS_DEDUP_LIMIT);
       return reply.send(deduped);
     },
   );

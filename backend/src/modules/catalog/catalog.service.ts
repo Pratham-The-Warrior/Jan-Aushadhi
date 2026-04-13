@@ -9,24 +9,12 @@ import { queryDB } from '../../shared/infra/database';
 import { getCached, setCache } from '../../shared/infra/redis';
 import { NotFoundError, ExternalServiceError } from '../../shared/errors';
 import { config } from '../../shared/config';
+import { extractForm } from '../../shared/utils';
+import { APP_CONSTANTS } from '../../shared/constants';
 import type { GenericMedicine, SavingsResult } from '../../shared/types';
 
-/** Dosage form extraction from medicine name */
-function extractForm(name: string): string {
-  const n = name.toLowerCase();
-  if (/\binj(ection)?\b|\bvial\b|\bwfi\b|\binfusion\b/.test(n)) return 'Injection';
-  if (/\bsyr(up)?\b/.test(n)) return 'Syrup';
-  if (/\bsuspension\b/.test(n)) return 'Suspension';
-  if (/\bdrop(s)?\b/.test(n)) return 'Drops';
-  if (/\bcream\b|\boint(ment)?\b|\bgel\b|\blotion\b/.test(n)) return 'Topical';
-  if (/\bpowder\b/.test(n)) return 'Powder';
-  if (/\bcap(sule)?s?\b/.test(n)) return 'Capsule';
-  if (/\btab(let)?s?\b/.test(n)) return 'Tablet';
-  return 'Other';
-}
-
 export class CatalogService {
-  private readonly cachePrefix = 'generic:';
+  private readonly cachePrefix = APP_CONSTANTS.REDIS_GENERIC_PREFIX;
 
   /**
    * Lookup a generic medicine by its deterministic salt-hash.
@@ -106,9 +94,6 @@ export class CatalogService {
       generic: generic
         ? {
             ...generic,
-            indications: branded.salt_hash ? (await this.getFullGeneric(branded.salt_hash))?.indications : undefined,
-            side_effects: branded.salt_hash ? (await this.getFullGeneric(branded.salt_hash))?.side_effects : undefined,
-            storage_info: branded.salt_hash ? (await this.getFullGeneric(branded.salt_hash))?.storage_info : undefined,
           }
         : null,
       savings,
@@ -148,18 +133,6 @@ export class CatalogService {
   }
 
   // ---- Private Helpers ----
-
-  /**
-   * Get full generic record including clinical data fields.
-   * Used for discovery detail page.
-   */
-  private async getFullGeneric(saltHash: string): Promise<any | null> {
-    const result = await queryDB(
-      'SELECT * FROM generic_meds WHERE salt_hash = $1 LIMIT 1',
-      [saltHash],
-    );
-    return result.rows.length > 0 ? result.rows[0] : null;
-  }
 
   /** Map a raw PostgreSQL row to a typed GenericMedicine */
   private mapGenericRow(row: any): GenericMedicine {

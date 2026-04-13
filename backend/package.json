@@ -4,9 +4,10 @@
   "description": "Jan Aushadhi Hyper-Local Medicine Discovery & Commerce Platform API",
   "type": "module",
   "scripts": {
-    "dev": "tsx src/index.ts",
-    "start": "tsx src/index.ts",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
     "build": "tsc",
+    "typecheck": "tsc --noEmit",
     "db:setup": "tsx scripts/setup_db.ts",
     "etl:run": "tsx scripts/etl_pipeline.ts",
     "etl:stores": "tsx scripts/store_geocoding.ts"
@@ -21,6 +22,7 @@
   "license": "ISC",
   "dependencies": {
     "@fastify/cors": "^11.2.0",
+    "@fastify/helmet": "^13.0.2",
     "@fastify/rate-limit": "^10.3.0",
     "dotenv": "^17.4.1",
     "fastify": "^5.8.4",

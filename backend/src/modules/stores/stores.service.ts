@@ -7,6 +7,7 @@
 
 import { queryDB } from '../../shared/infra/database';
 import { NotFoundError } from '../../shared/errors';
+import { APP_CONSTANTS } from '../../shared/constants';
 import type { Store, StoreSearchResult } from '../../shared/types';
 
 export class StoreService {
@@ -52,7 +53,7 @@ export class StoreService {
        FROM stores
        WHERE ST_DWithin(location, ST_MakePoint($1, $2)::geography, $3)
        ORDER BY distance ASC
-       LIMIT 20`,
+       LIMIT ${APP_CONSTANTS.STORES_QUERY_LIMIT}`,
       [lng, lat, radius],
     );
 
