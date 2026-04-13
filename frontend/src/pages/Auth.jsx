@@ -10,7 +10,7 @@ export default function Auth() {
   const navigate = useNavigate();
   const location = useLocation();
   const syncWithServer = useCartStore(s => s.syncWithServer);
-  
+
   const [phoneNumber, setPhoneNumber] = useState('');
   const [otp, setOtp] = useState('');
   const [step, setStep] = useState('phone'); // 'phone' or 'otp'
@@ -51,7 +51,7 @@ export default function Auth() {
       const appVerifier = setupRecaptcha();
       // Ensure phone number has country code for India if not present
       const formattedPhone = phoneNumber.startsWith('+') ? phoneNumber : `+91${phoneNumber}`;
-      
+
       const confirmation = await signInWithPhoneNumber(auth, formattedPhone, appVerifier);
       setConfirmationResult(confirmation);
       setStep('otp');
@@ -74,10 +74,10 @@ export default function Auth() {
 
     try {
       await confirmationResult.confirm(otp);
-      
+
       // Post-auth sync
       await syncWithServer();
-      
+
       // Resume action
       navigate(from, { replace: true });
     } catch (err) {
@@ -137,8 +137,8 @@ export default function Auth() {
               {step === 'phone' ? 'Verify Identity' : 'Secure OTP Login'}
             </h2>
             <p className="text-on-surface/60 text-base leading-[1.6]">
-              {step === 'phone' 
-                ? 'Enter your phone number to receive a secure verification code.' 
+              {step === 'phone'
+                ? 'Enter your phone number to receive a secure verification code.'
                 : `We've sent a 6-digit code to your device ending in ${phoneNumber.slice(-4)}.`}
             </p>
           </div>
@@ -203,9 +203,9 @@ export default function Auth() {
                 <ArrowRight className="w-5 h-5" />
               </button>
 
-              <button 
-                type="button" 
-                onClick={() => setStep('phone')} 
+              <button
+                type="button"
+                onClick={() => setStep('phone')}
                 className="w-full text-center text-sm font-bold text-primary hover:underline mt-4"
               >
                 Change Phone Number

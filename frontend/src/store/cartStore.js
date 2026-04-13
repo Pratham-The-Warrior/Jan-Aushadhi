@@ -6,7 +6,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-import { searchMedicines, getDiscovery, getNearbyStores, getStoreByCode, createRequirement, getRequirements, getUserDashboard, getUserProfile, updateMedicalBasket, healthCheck, syncCart } from '../services/api';
+import { getUserProfile, updateMedicalBasket } from '../services/api';
 
 const useCartStore = create(
   persist(

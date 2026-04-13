@@ -9,7 +9,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import { Pool } from 'pg';
-import { MeiliSearch } from 'meilisearch';
+import { Meilisearch } from 'meilisearch';
 import * as dotenv from 'dotenv';
 
 dotenv.config();
@@ -18,14 +18,17 @@ const pool = new Pool({
   connectionString: process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/janaushadhi',
 });
 
-const meiliClient = new MeiliSearch({
+const meiliClient = new Meilisearch({
   host: process.env.MEILI_HOST || 'http://localhost:7700',
   apiKey: process.env.MEILI_MASTER_KEY || 'masterKey',
 });
 
 // ---- CSV Parser (zero dependencies) ----
 function parseCSV(filePath: string): Record<string, string>[] {
-  const content = fs.readFileSync(filePath, 'utf-8');
+  let content = fs.readFileSync(filePath, 'utf-8');
+  // Handle UTF-8 BOM
+  content = content.replace(/^\ufeff/, '');
+  
   const lines = content.split('\n').filter(l => l.trim());
   if (lines.length === 0) return [];
 
@@ -59,32 +62,70 @@ function parseCSV(filePath: string): Record<string, string>[] {
 }
 
 // ---- The Salt-Hash Algorithm ----
-function generateSaltHash(composition: string): string {
+function generateSaltHash(composition: string, nameString: string = ''): string {
   if (!composition || composition.trim() === '') return '';
 
-  // 1. Lowercase
-  let cleaned = composition.toLowerCase();
+  // 1. Lowercase and collapse whitespace
+  let cleaned = composition.toLowerCase().replace(/\s+/g, ' ').trim();
 
   // 2. Strip weights/units: mg, mcg, ml, %, w/v, w/w, units, g, iu
   cleaned = cleaned.replace(/\d+(\.\d+)?\s*(mg|mcg|ml|g|%|w\/v|w\/w|units?|iu|ip|bp|usp)\b/gi, '');
 
-  // 3. Remove symbols: ( ) / + , - .
-  cleaned = cleaned.replace(/[^a-zA-Z0-9 ]/g, '');
+  // 3. Replace symbols with spaces
+  cleaned = cleaned.replace(/[^a-zA-Z0-9 ]/g, ' ');
 
-  // 4. Tokenize: split into individual salt names
-  const tokens = cleaned
-    .split(/\s+/)
-    .map(t => t.trim())
-    .filter(t => t.length > 1); // Remove tiny noise tokens
+  // 4. Tokenize
+  let tokens = cleaned.split(/\s+/).map(t => t.trim());
 
-  // 5. Alphabetical sort
+  // 5. Strip noise words that prevent exact matching between branded/generic
+  const noiseWords = [
+    // Forms & Packaging
+    'tablet', 'tablets', 'capsule', 'capsules', 'injection', 'vial', 'wfi', 
+    'oral', 'suspension', 'syrup', 'drops', 'drop', 'cream', 'ointment', 
+    'gel', 'lotion', 'mouthwash', 'infusion', 'powder', 'dry', 'solution',
+    'inj', 'syr', 'cap', 'tab',
+    // Clinical modifers
+    'dispersible', 'gastro', 'resistant', 'prolonged', 'release', 'paediatric',
+    'sustained', 'coated', 'enteric', 'soft', 'hard', 'gelatin', 'chewable',
+    'effervescent', 'intravenous', 'intramuscular', 'topical',
+    // Chemical linkages & Salts
+    'and', 'with', 'per', 'ml', 'for', 'hydrochloride', 'sodium', 
+    'potassium', 'trihydrate', 'acid', 'base', 'anhydrous', 'hcl',
+    'dipropionate', 'stearate', 'sulphate', 'sulfate', 'maleate',
+    'mesylate', 'hydrate', 'acetate', 'mesilate'
+  ];
+  tokens = tokens.filter(t => t.length > 2 && !noiseWords.includes(t));
+
+  // 6. Synonym mapping for common salts
+  const synonymMap: Record<string, string> = {
+    'amoxicillin': 'amoxycillin',
+    'clavulanate': 'clavulanic',
+    'paracetamol': 'acetaminophen'
+  };
+  tokens = tokens.map(t => synonymMap[t] || t);
+
+  // 7. Remove duplicates (safeguard) and Alphabetical sort
+  tokens = [...new Set(tokens)];
   tokens.sort();
 
-  // 6. Join and MD5 hash
+  // 8. Extrapolate Delivery Form
+  const ns = nameString.toLowerCase();
+  let form = 'other';
+  if (ns.includes('inj') || ns.includes('vial') || ns.includes('wfi') || ns.includes('infusion')) form = 'injection';
+  else if (ns.includes('syr')) form = 'syrup';
+  else if (ns.includes('suspension')) form = 'suspension';
+  else if (ns.includes('drop')) form = 'drop';
+  else if (ns.includes('cream') || ns.includes('oint') || ns.includes('gel') || ns.includes('lotion')) form = 'topical';
+  else if (ns.includes('powder')) form = 'powder';
+  else if (ns.includes('cap')) form = 'capsule';
+  else if (ns.includes('tab')) form = 'tablet';
+
+  // 9. Join and MD5 hash
   const joined = tokens.join('_');
   if (!joined) return '';
 
-  return crypto.createHash('md5').update(joined).digest('hex');
+  const finalString = joined + '_form_' + form;
+  return crypto.createHash('md5').update(finalString).digest('hex');
 }
 
 // ---- BRANDED MEDICINES INGESTION ----
@@ -118,7 +159,12 @@ async function ingestBrandedMedicines() {
         const comp1 = row['short_composition1'] || '';
         const comp2 = row['short_composition2'] || '';
         const fullComposition = [comp1, comp2].filter(c => c).join(' ');
-        const saltHash = generateSaltHash(fullComposition);
+        const nameAndPack = (row['name'] || '') + ' ' + (row['pack_size_label'] || '');
+        const saltHash = generateSaltHash(fullComposition, nameAndPack);
+
+        // Handle price column with or without Unicode symbol
+        const priceKey = Object.keys(row).find(k => k.toLowerCase().includes('price')) || 'price';
+        const price = parseFloat(row[priceKey]) || 0;
 
         const offset = batchIdx * 9;
         placeholders.push(
@@ -126,7 +172,7 @@ async function ingestBrandedMedicines() {
         );
         values.push(
           row['name'] || 'Unknown',
-          parseFloat(row['price(₹)']) || 0,
+          price,
           row['Is_discontinued'] === 'TRUE',
           row['manufacturer_name'] || '',
           row['type'] || 'allopathy',
@@ -175,24 +221,42 @@ async function ingestGenericMedicines() {
     await client.query('DELETE FROM generic_meds');
 
     let inserted = 0;
-    for (const row of rows) {
-      const genericName = row['Generic Name'] || '';
-      const saltHash = generateSaltHash(genericName);
+    const BATCH_SIZE = 500;
 
-      await client.query(
-        `INSERT INTO generic_meds (drug_code, generic_name, unit_size, mrp, group_name, salt_hash)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [
+    for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+      const batch = rows.slice(i, i + BATCH_SIZE);
+      
+      const values: any[] = [];
+      const placeholders: string[] = [];
+
+      batch.forEach((row, batchIdx) => {
+        const genericName = row['Generic Name'] || '';
+        const saltHash = generateSaltHash(genericName, genericName);
+
+        const offset = batchIdx * 6;
+        placeholders.push(
+          `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6})`
+        );
+        values.push(
           row['Drug Code'] || '',
           genericName,
           row['Unit Size'] || '',
           parseFloat(row['MRP']) || 0,
           row['Group Name'] || '',
           saltHash
-        ]
-      );
-      inserted++;
-      if (inserted % 500 === 0) {
+        );
+      });
+
+      if (placeholders.length > 0) {
+        await client.query(
+          `INSERT INTO generic_meds (drug_code, generic_name, unit_size, mrp, group_name, salt_hash)
+           VALUES ${placeholders.join(', ')}`,
+          values
+        );
+        inserted += batch.length;
+      }
+
+      if (inserted % 2000 === 0 || i + BATCH_SIZE >= rows.length) {
         console.log(`   ✅ Generic: ${inserted}/${rows.length} inserted`);
       }
     }
@@ -241,7 +305,9 @@ async function indexMeilisearch() {
     for (let i = 0; i < documents.length; i += BATCH) {
       const batch = documents.slice(i, i + BATCH);
       await index.addDocuments(batch);
-      console.log(`   ✅ Indexed ${Math.min(i + BATCH, documents.length)}/${documents.length}`);
+      if (i % 5000 === 0) {
+        console.log(`   ✅ Indexed ${Math.min(i + BATCH, documents.length)}/${documents.length}`);
+      }
     }
 
     console.log('🎉 Meilisearch indexing complete!');
@@ -276,7 +342,7 @@ async function printStats() {
 // ---- MAIN ----
 async function runETL() {
   console.log('=== JAN AUSHADHI ETL PIPELINE ===\n');
-  console.log('Module 1A: Salt-Hash Engine');
+  console.log('Module 1B: Salt-Hash Engine');
   console.log('Module 2:  Meilisearch Indexing\n');
 
   try {

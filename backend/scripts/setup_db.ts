@@ -41,8 +41,8 @@ CREATE TABLE IF NOT EXISTS branded_meds (
   pack_size_label   VARCHAR(128),
   composition1      TEXT,
   composition2      TEXT,
-  salt_hash         VARCHAR(64),
-  category          VARCHAR(128)
+  salt_hash         VARCHAR(128),
+  category          VARCHAR(512)
 );
 
 CREATE INDEX IF NOT EXISTS idx_branded_name ON branded_meds(name);
@@ -53,15 +53,16 @@ CREATE INDEX IF NOT EXISTS idx_branded_salt_hash ON branded_meds(salt_hash);
 -- ===========================================
 CREATE TABLE IF NOT EXISTS generic_meds (
   id            SERIAL PRIMARY KEY,
-  drug_code     VARCHAR(32) NOT NULL,
+  drug_code     VARCHAR(128) NOT NULL,
   generic_name  VARCHAR(512) NOT NULL,
-  unit_size     VARCHAR(64),
+  unit_size     VARCHAR(256),
   mrp           DECIMAL(10,2) NOT NULL,
-  group_name    VARCHAR(256),
-  salt_hash     VARCHAR(64),
+  group_name    VARCHAR(512),
+  salt_hash     VARCHAR(128),
   indications   TEXT,
   side_effects  TEXT,
-  storage_info  TEXT
+  storage_info  TEXT,
+  clinical_data JSONB DEFAULT '{}'
 );
 
 CREATE INDEX IF NOT EXISTS idx_generic_drug_code ON generic_meds(drug_code);
@@ -84,6 +85,7 @@ CREATE TABLE IF NOT EXISTS stores (
 
 CREATE INDEX IF NOT EXISTS idx_stores_location ON stores USING GIST(location);
 CREATE INDEX IF NOT EXISTS idx_stores_pmbjk ON stores(pmbjk_code);
+CREATE INDEX IF NOT EXISTS idx_stores_pincode ON stores(pincode);
 
 -- ===========================================
 -- Table: requirements (Transactional Logs)

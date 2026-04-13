@@ -37,3 +37,12 @@ pnpm-debug.log*
 A_Z_medicines_dataset_of_India.csv
 kendra_11_4_2026 @ 18_38_36.pdf
 Product List_3_4_2026 @ 16_33_44.csv
+kendra_stores.csv
+
+# AI Assistant Artifacts & Scripts
+scratch/
+implementation_plan.md
+task.md
+walkthrough.md
+backend/fix_*.js
+scripts/
