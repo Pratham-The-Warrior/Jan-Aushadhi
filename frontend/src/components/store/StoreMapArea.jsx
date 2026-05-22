@@ -17,7 +17,7 @@ export default function StoreMapArea({ stores, selectedStore, onSelectStore }) {
   return (
     <div className="sticky top-24 h-[calc(100vh-200px)] rounded-xl overflow-hidden ghost-border clinical-shadow">
       {/* Background */}
-      <div className="absolute inset-0 bg-gradient-to-br from-[#e8eef0] via-[#eef2f4] to-[#e4eaec]">
+      <div className="absolute inset-0 bg-linear-to-br from-[#e8eef0] via-[#eef2f4] to-[#e4eaec]">
         {/* Dot grid */}
         <div
           className="absolute inset-0 opacity-[0.15]"

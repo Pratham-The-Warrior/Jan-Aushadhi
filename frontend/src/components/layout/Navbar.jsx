@@ -6,7 +6,7 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Search, ShoppingCart } from 'lucide-react';
-import useCartStore from '../../store/cartStore';
+import useCartStore, { selectItemCount } from '../../store/cartStore';
 
 const NAV_LINKS = [
   { href: '/discovery', label: 'Find Generics' },
@@ -18,7 +18,7 @@ const NAV_LINKS = [
 export default function Navbar() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
-  const itemCount = useCartStore((s) => s.items.reduce((sum, i) => sum + i.quantity, 0));
+  const itemCount = useCartStore(selectItemCount);
 
   return (
     <nav className="bg-surface-lowest sticky top-0 z-50 border-b border-outline-variant">

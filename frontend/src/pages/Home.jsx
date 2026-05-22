@@ -3,7 +3,7 @@
 // Reference: Image 1 (Science Hub / Landing)
 // ============================================================
 
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ShieldCheck, Search, MapPin, TrendingUp, Beaker, BookOpen, ChevronRight, FlaskConical } from 'lucide-react';
 
@@ -59,7 +59,7 @@ export default function Home() {
               <button onClick={() => navigate('/fulfillment')} className="btn-secondary py-3.5 px-8">Locate Store</button>
             </div>
           </div>
-          
+
           <div className="flex-1 relative z-10 w-full">
             <div className="bg-primary rounded-lg overflow-hidden shadow-none">
               <div className="p-12 text-white">
@@ -78,7 +78,7 @@ export default function Home() {
                 </div>
               </div>
             </div>
-            
+
             {/* Overlay Metric */}
             <div className="absolute -bottom-8 -left-8 bg-surface-lowest p-6 rounded-lg ghost-border max-w-xs z-20 clinical-shadow">
               <div className="font-display text-3xl font-bold text-primary mb-1">90%</div>
@@ -104,7 +104,7 @@ export default function Home() {
             <div className="text-xs tracking-widest font-semibold text-on-surface/60 uppercase">Districts Covered</div>
           </div>
           <div className="border-none md:border-solid">
-            <div className="font-display text-4xl font-bold text-on-surface mb-2"><AnimatedNumber target={20000} prefix="₹" suffix="Cr" /></div>
+            <div className="font-display text-4xl font-bold text-on-surface mb-2"><AnimatedNumber target={20} prefix="₹" suffix="Cr" /></div>
             <div className="text-xs tracking-widest font-semibold text-on-surface/60 uppercase">Public Savings</div>
           </div>
         </div>
@@ -116,7 +116,7 @@ export default function Home() {
           <h2 className="font-display text-3xl font-bold text-on-surface mb-4">Uncompromising Quality</h2>
           <p className="text-on-surface/70 text-lg leading-[1.6]">Every tablet dispensed under PMBJP undergoes rigorous multi-tier testing to ensure clinical efficacy and safety.</p>
         </div>
-        
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
           {[
             { icon: <ShieldCheck className="w-5 h-5 text-primary" />, title: 'NABL Lab Testing', desc: 'Each batch of medicine is tested at labs accredited by National Accreditation Board for Testing and Calibration Laboratories.' },
@@ -170,7 +170,7 @@ export default function Home() {
             <div className="inline-flex items-center gap-2 text-primary text-xs font-bold mb-6 tracking-wider uppercase"><FlaskConical className="w-3.5 h-3.5" /> Clinical Proof</div>
             <h2 className="font-display text-3xl font-bold text-on-surface mb-6">The Science of Bio-Equivalence</h2>
             <p className="text-on-surface/70 mb-8 leading-[1.6] text-lg">Generic medicines contain the same active pharmaceutical ingredient (API) in the same dose, same form, and produce the same blood concentration levels as the branded version.</p>
-            
+
             <div className="bg-surface-low rounded-lg p-6 mb-8 ghost-border">
               <div className="font-display text-sm font-semibold text-on-surface mb-3">The Generic Advantage:</div>
               <ul className="space-y-3 text-sm text-on-surface/70">
@@ -180,15 +180,15 @@ export default function Home() {
                 <li className="flex items-start gap-2"><div className="w-1.5 h-1.5 rounded-sm bg-primary mt-1.5 shrink-0" /> WHO-GMP manufacturing — strict regulation</li>
               </ul>
             </div>
-            
+
             <button onClick={() => navigate('/dashboard')} className="btn-primary py-3.5 px-8">Compare Prices Now</button>
           </div>
-          
+
           <div className="w-full md:w-5/12 bg-primary p-12 lg:p-16 flex flex-col justify-center text-white">
             <Beaker className="w-10 h-10 mb-8 text-white/80" />
             <h3 className="font-display text-2xl font-bold mb-4">CDSCO Approved</h3>
             <p className="text-white/80 text-sm leading-[1.6] mb-10">The Central Drugs Standard Control Organisation (CDSCO) ensures every generic medicine meets strict pharmacological standards before market approval.</p>
-            
+
             <div className="space-y-5">
               {[
                 'NABL Accredited Lab Testing',

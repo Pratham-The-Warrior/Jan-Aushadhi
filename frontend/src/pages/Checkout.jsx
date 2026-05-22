@@ -3,10 +3,14 @@
 // Refactored: uses AttestationModal, OrderSuccess components
 // ============================================================
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MapPin, ShieldCheck, Clock, Zap, Trash2, MessageCircle, Lock } from 'lucide-react';
-import useCartStore from '../store/cartStore';
+import useCartStore, {
+  selectSubtotal,
+  selectSavings,
+  selectItemCount,
+} from '../store/cartStore';
 import useAuthStore from '../store/authStore';
 import { createRequirement, getWhatsAppLink } from '../services/api';
 import AttestationModal from '../components/checkout/AttestationModal';
@@ -27,10 +31,9 @@ export default function Checkout() {
   const user = useAuthStore((s) => s.user);
 
   // Calculated values
-  const subtotal = items.reduce((sum, i) => sum + i.mrp * i.quantity, 0);
-  const totalBrandedValue = items.reduce((sum, i) => sum + (i.branded_mrp || 0) * i.quantity, 0);
-  const totalSavings = totalBrandedValue - subtotal;
-  const itemCount = items.reduce((sum, i) => sum + i.quantity, 0);
+  const subtotal = useCartStore(selectSubtotal);
+  const totalSavings = useCartStore(selectSavings);
+  const itemCount = useCartStore(selectItemCount);
 
   // Local state
   const [deliveryMode, setDeliveryMode] = useState('express');

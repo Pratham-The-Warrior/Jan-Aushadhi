@@ -1,9 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ShieldCheck, Database, Lock, ArrowRight, Smartphone, Key, AlertCircle } from 'lucide-react';
 import { auth } from '../firebase';
 import { RecaptchaVerifier, signInWithPhoneNumber } from 'firebase/auth';
-import useAuthStore from '../store/authStore';
 import useCartStore from '../store/cartStore';
 
 export default function Auth() {
@@ -34,7 +33,7 @@ export default function Auth() {
     if (!recaptchaRef.current) {
       recaptchaRef.current = new RecaptchaVerifier(auth, 'recaptcha-container', {
         size: 'invisible',
-        callback: (response) => {
+        callback: () => {
           // reCAPTCHA solved, allow signInWithPhoneNumber.
         }
       });

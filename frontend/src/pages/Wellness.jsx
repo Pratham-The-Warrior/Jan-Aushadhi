@@ -3,9 +3,9 @@
 // Powers the "Health Account" with Quick Reorder
 // ============================================================
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User, Clock, AlertCircle, RefreshCw, Package, Droplet, Star, Calendar, ChevronRight, Pill, History, ShieldCheck } from 'lucide-react';
+import { Clock, AlertCircle, RefreshCw, Package, Calendar, Pill, History, ShieldCheck } from 'lucide-react';
 import { getUserDashboard, getRequirements } from '../services/api';
 import useCartStore from '../store/cartStore';
 import useAuthStore from '../store/authStore';

@@ -3,7 +3,7 @@
 // Categorized comparison table, animated savings stats
 // ============================================================
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Info, CheckCircle, TrendingUp, ShieldCheck, PieChart, Activity } from 'lucide-react';
 import { getUserDashboard, getDashboardMonthly } from '../services/api';

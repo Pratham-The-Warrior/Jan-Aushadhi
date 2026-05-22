@@ -63,14 +63,6 @@ export async function updateMedicalBasket(basket) {
   return apiPut('/api/v1/user/basket', { medical_basket: basket }, true);
 }
 
-/**
- * Sync cart items to server (alias for updateMedicalBasket).
- * @param {Array} items - Cart items
- */
-export async function syncCart(items) {
-  return updateMedicalBasket(items);
-}
-
 // ---- Health Check ----
 
 /**

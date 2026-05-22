@@ -40,6 +40,7 @@ export default function useSearch() {
     if (abortRef.current) abortRef.current.abort();
 
     if (debouncedQuery.trim().length < 2) {
+      /* eslint-disable-next-line react-hooks/set-state-in-effect */
       setSuggestions([]);
       setSuggestLoading(false);
       return;
@@ -73,6 +74,7 @@ export default function useSearch() {
   // Start loading indicator as user types
   useEffect(() => {
     if (query.trim().length >= 2) {
+      /* eslint-disable-next-line react-hooks/set-state-in-effect */
       setSuggestLoading(true);
     }
   }, [query]);

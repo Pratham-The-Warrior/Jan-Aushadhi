@@ -3,7 +3,7 @@
 // Refactored: uses useSearch hook, extracted components
 // ============================================================
 
-import React, { useRef } from 'react';
+import { useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, Filter, ArrowUpDown, Plus, MapPin, Loader2, Sparkles, Clock, X, Info, Pill, Beaker } from 'lucide-react';
 import useCartStore from '../store/cartStore';

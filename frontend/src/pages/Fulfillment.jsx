@@ -3,7 +3,7 @@
 // Thin page: all UI components extracted to components/store/
 // ============================================================
 
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   MapPin, Search, AlertCircle, Locate, Building2, Globe, Map, Compass,
 } from 'lucide-react';
@@ -221,7 +221,7 @@ export default function Fulfillment() {
 
               {!loading && stores.length === 0 && !error && (
                 <div className="text-center py-16 px-6">
-                  <div className="w-20 h-20 bg-gradient-to-br from-primary/10 to-primary/5 rounded-2xl flex items-center justify-center mx-auto mb-6 border border-primary/10">
+                  <div className="w-20 h-20 bg-linear-to-br from-primary/10 to-primary/5 rounded-2xl flex items-center justify-center mx-auto mb-6 border border-primary/10">
                     <Compass className="w-10 h-10 text-primary/40" />
                   </div>
                   <h3 className="font-display font-bold text-on-surface text-xl mb-2">Find Your Nearest Kendra</h3>

@@ -1,4 +1,8 @@
-import React from 'react';
+// ============================================================
+// NotFound Page — Fallback Route handler
+// Handles invalid links with a helpful return navigation link
+// ============================================================
+
 import { useNavigate } from 'react-router-dom';
 import { FileQuestion, ArrowLeft } from 'lucide-react';
 

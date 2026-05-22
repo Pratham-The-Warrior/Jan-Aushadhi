@@ -16,7 +16,6 @@ export {
   getDashboardMonthly,
   getUserProfile,
   updateMedicalBasket,
-  syncCart,
   healthCheck,
 } from './fulfillment.api';
 

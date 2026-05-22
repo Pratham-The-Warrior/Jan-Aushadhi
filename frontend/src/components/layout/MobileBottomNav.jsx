@@ -5,7 +5,7 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Home as HomeIcon, Search, MapPin, BarChart3, User, ShoppingCart } from 'lucide-react';
-import useCartStore from '../../store/cartStore';
+import useCartStore, { selectItemCount } from '../../store/cartStore';
 
 const TABS = [
   { href: '/home', icon: HomeIcon, label: 'Home' },
@@ -18,7 +18,7 @@ const TABS = [
 export default function MobileBottomNav() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
-  const itemCount = useCartStore((s) => s.items.reduce((sum, i) => sum + i.quantity, 0));
+  const itemCount = useCartStore(selectItemCount);
 
   return (
     <div className="md:hidden fixed bottom-0 left-0 right-0 bg-surface-lowest border-t border-outline-variant z-50 safe-area-pb">

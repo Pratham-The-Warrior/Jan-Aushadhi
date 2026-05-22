@@ -71,14 +71,15 @@ const useCartStore = create(
         }
       },
 
-      // Computed
-      get subtotal() { return get().items.reduce((sum, i) => sum + i.mrp * i.quantity, 0); },
-      get totalBrandedValue() { return get().items.reduce((sum, i) => sum + (i.branded_mrp || 0) * i.quantity, 0); },
-      get totalSavings() { return get().totalBrandedValue - get().subtotal; },
-      get itemCount() { return get().items.reduce((sum, i) => sum + i.quantity, 0); },
     }),
     { name: 'janaushadhi-cart' }
   )
 );
+
+// Reusable selectors for derived cart values
+export const selectSubtotal = (s) => s.items.reduce((sum, i) => sum + i.mrp * i.quantity, 0);
+export const selectBrandedTotal = (s) => s.items.reduce((sum, i) => sum + (i.branded_mrp || 0) * i.quantity, 0);
+export const selectSavings = (s) => selectBrandedTotal(s) - selectSubtotal(s);
+export const selectItemCount = (s) => s.items.reduce((sum, i) => sum + i.quantity, 0);
 
 export default useCartStore;

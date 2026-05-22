@@ -4,7 +4,7 @@
 // Pharmacokinetics, Trust Badges (WHO-GMP, NABL, ISO 9001)
 // ============================================================
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ShieldCheck, AlertTriangle, Pill, Beaker, ThermometerSun, Clock, ArrowLeft, Plus, Heart, Info, ClipboardList } from 'lucide-react';
 import { getDiscovery } from '../services/api';
