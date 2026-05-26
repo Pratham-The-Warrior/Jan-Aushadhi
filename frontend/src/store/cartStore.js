@@ -44,29 +44,40 @@ const useCartStore = create(
       }),
 
       // Server Sync logic (Merge & Max)
+      // This is called right after authentication to reconcile the local guest cart with 
+      // the authenticated server cart.
       syncWithServer: async () => {
         try {
           const profile = await getUserProfile();
           const serverBasket = profile.medical_basket || [];
           const localItems = get().items;
 
-          // Merge & Max logic
+          // MERGE & MAX ALGORITHM RATIONALE:
+          // A classic e-commerce headache: a user adds 3 packs of a drug as a guest, then logs in.
+          // The database says they already had 1 pack in their saved basket. What do we do?
+          // We merge the two lists. For duplicate items, we take the maximum quantity (Math.max)
+          // instead of summing or overwriting. This prevents accidental duplicate orders while 
+          // ensuring the user doesn't lose items added in either session.
           const merged = [...localItems];
           serverBasket.forEach(serverItem => {
             const localIndex = merged.findIndex(i => i.drug_code === serverItem.drug_code);
             if (localIndex > -1) {
-              // Same item: take the max quantity
+              // Item exists in both: take the maximum of the two quantities.
               merged[localIndex].quantity = Math.max(merged[localIndex].quantity, serverItem.quantity);
             } else {
-              // New item from server: add to local
+              // Item only exists on server: append it to our local state.
               merged.push(serverItem);
             }
           });
 
           set({ items: merged });
-          // Update server with the combined result
+          
+          // Once reconciled in memory, we push the updated, merged basket back up to the server 
+          // to persist the resolved state in the PostgreSQL database.
           await updateMedicalBasket(merged);
         } catch (err) {
+          // If sync fails, we log it and fallback safely to the local-only cart so the user's
+          // shopping flow is uninterrupted.
           console.error("Cart sync failed:", err);
         }
       },

@@ -32,7 +32,6 @@ export default function Dashboard() {
   });
   const [chartData, setChartData] = useState([]);
   const [activePrescriptions, setActivePrescriptions] = useState([]);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function loadData() {
@@ -47,19 +46,10 @@ export default function Dashboard() {
         if (monthly?.history) setChartData(monthly.history);
       } catch (err) {
         console.error('Failed to load dashboard analytics:', err);
-      } finally {
-        setLoading(false);
       }
     }
     loadData();
   }, []);
-
-  if (loading) return (
-    <div className="flex-1 flex flex-col items-center justify-center py-40 bg-surface">
-      <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mb-6" />
-      <div className="text-on-surface/50 font-bold text-xs uppercase tracking-widest">Aggregating Financial Metrics...</div>
-    </div>
-  );
 
   return (
     <div className="flex-1 w-full bg-surface pb-20">

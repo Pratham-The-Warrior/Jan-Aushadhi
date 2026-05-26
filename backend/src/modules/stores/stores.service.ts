@@ -47,6 +47,15 @@ export class StoreService {
     radius_km: number;
     stores: (Store & { distance_km: number })[];
   }> {
+    // POSTGIS COORDINATE gotcha:
+    // ST_MakePoint($1, $2) takes parameters in (longitude, latitude) order! 
+    // This is the opposite of the standard (latitude, longitude) representation used by Leaflet 
+    // and Google Maps. Getting this wrong is a classic silent bug that queries coordinates in the 
+    // wrong hemisphere (or ocean). Here we strictly bind [lng, lat] to $1 and $2.
+    //
+    // Also, we cast the point to ::geography. This forces PostGIS to compute the ST_Distance 
+    // and ST_DWithin in meters along the curved surface of the Earth (great-circle distance), 
+    // instead of standard cartesian degrees which would vary wildly depending on the distance from the equator.
     const result = await queryDB(
       `SELECT pmbjk_code, name, phone, address, pincode, state, district,
               ST_Distance(location, ST_MakePoint($1, $2)::geography) AS distance
@@ -62,6 +71,8 @@ export class StoreService {
       radius_km: radius / 1000,
       stores: result.rows.map((s: any) => ({
         ...s,
+        // The raw distance returned by ::geography is in meters. We divide by 1000 to get kilometers,
+        // and round to a single decimal place (e.g. 2.4 km) for client rendering.
         distance_km: Math.round((parseFloat(s.distance) / 1000) * 10) / 10,
       })),
     };

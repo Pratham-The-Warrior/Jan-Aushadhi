@@ -5,7 +5,8 @@
 
 import { useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Filter, ArrowUpDown, Plus, MapPin, Loader2, Sparkles, Clock, X, Info, Pill, Beaker } from 'lucide-react';
+import { Search, Filter, ArrowUpDown, Plus, MapPin, Loader2, Sparkles, Clock, X, Info, Pill, Beaker, TrendingUp, Heart, Activity } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import useCartStore from '../store/cartStore';
 import useSearch from '../hooks/useSearch';
 import useClickOutside from '../hooks/useClickOutside';
@@ -40,6 +41,16 @@ export default function Discovery() {
     activeIndex, setActiveIndex, recentSearches,
     doSearch, handleKeyDown, clearSearch, selectSuggestion,
   } = useSearch();
+
+  const staggerContainer = {
+    hidden: { opacity: 0 },
+    show: { opacity: 1, transition: { staggerChildren: 0.1 } }
+  };
+
+  const fadeUpItem = {
+    hidden: { opacity: 0, y: 20 },
+    show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 300, damping: 24 } }
+  };
 
   useClickOutside(searchRef, () => setShowDropdown(false));
 
@@ -213,20 +224,83 @@ export default function Discovery() {
         )}
 
         <div className="space-y-8">
-          {loading && <SkeletonCard count={3} />}
-
-          {!loading && searched && results.length === 0 && (
-            <EmptyState
-              icon={<Search className="w-10 h-10 text-on-surface/10" />}
-              title="No Matching Generic Found"
-              description={`We couldn't find a direct JanAushadhi equivalent for "${query}". Try checking the spelling or searching for the primary chemical salt.`}
-              action={<button onClick={clearSearch} className="text-primary font-bold text-sm uppercase tracking-widest hover:underline">Clear Search</button>}
-            />
+          {!searched && !loading && (
+            <div className="py-8 animate-fadeIn">
+              <div className="flex items-center gap-3 mb-8">
+                <div className="w-10 h-10 bg-primary-light rounded-xl flex items-center justify-center shrink-0">
+                  <TrendingUp className="w-5 h-5 text-primary" />
+                </div>
+                <div>
+                  <h3 className="font-display text-2xl font-bold text-on-surface">Most Searched Generics</h3>
+                  <p className="text-sm text-on-surface/50 font-medium">Popular medicines people are saving on today</p>
+                </div>
+              </div>
+              
+              <motion.div 
+                variants={staggerContainer}
+                initial="hidden"
+                animate="show"
+                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6"
+              >
+                {[
+                  { query: 'Paracetamol', name: 'Paracetamol 500mg', desc: 'Fever & Pain Relief', icon: <Pill className="w-6 h-6 text-primary" />, bg: 'bg-primary-light border-primary/20', badge: 'Save ~85%' },
+                  { query: 'Telmisartan', name: 'Telmisartan 40mg', desc: 'Blood Pressure', icon: <Heart className="w-6 h-6 text-accent" />, bg: 'bg-accent-soft border-accent/20', badge: 'Save ~90%' },
+                  { query: 'Metformin', name: 'Metformin 500mg', desc: 'Diabetes Management', icon: <Activity className="w-6 h-6 text-success" />, bg: 'bg-success-soft border-success/20', badge: 'Save ~88%' },
+                  { query: 'Pantoprazole', name: 'Pantoprazole 40mg', desc: 'Acidity & Digestion', icon: <Beaker className="w-6 h-6 text-warning" />, bg: 'bg-warning-soft border-warning/20', badge: 'Save ~80%' }
+                ].map((item, idx) => (
+                  <motion.div
+                    variants={fadeUpItem}
+                    whileHover={{ y: -4, scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    key={idx}
+                    onClick={() => {
+                      setQuery(item.query);
+                      doSearch();
+                    }}
+                    className={`p-6 rounded-3xl border flex flex-col justify-between shadow-sm transition-colors cursor-pointer group ${item.bg}`}
+                  >
+                    <div className="flex justify-between items-start mb-6">
+                      <div className="w-12 h-12 bg-white/60 backdrop-blur-sm rounded-xl flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform duration-300">
+                        {item.icon}
+                      </div>
+                      <span className="text-[10px] font-bold uppercase tracking-widest bg-white/60 px-2 py-1 rounded shadow-sm text-on-surface/70">
+                        {item.badge}
+                      </span>
+                    </div>
+                    <div>
+                      <h4 className="font-display font-bold text-lg text-on-surface mb-1 group-hover:text-primary transition-colors">{item.name}</h4>
+                      <p className="text-xs font-semibold text-on-surface/50 uppercase tracking-widest">{item.desc}</p>
+                    </div>
+                  </motion.div>
+                ))}
+              </motion.div>
+            </div>
           )}
 
-          {!loading && results.map((res) => (
-            <div key={res.id} className="relative flex flex-col md:flex-row bg-surface-lowest rounded-lg ghost-border p-8 pt-10 clinical-shadow group hover:border-primary/20 transition-all">
-              {/* Branded */}
+          {loading && <SkeletonCard count={3} />}
+
+          <AnimatePresence>
+            {!loading && searched && results.length === 0 && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                <EmptyState
+                  icon={<Search className="w-10 h-10 text-on-surface/10" />}
+                  title="No Matching Generic Found"
+                  description={`We couldn't find a direct JanAushadhi equivalent for "${query}". Try checking the spelling or searching for the primary chemical salt.`}
+                  action={<button onClick={clearSearch} className="text-primary font-bold text-sm uppercase tracking-widest hover:underline">Clear Search</button>}
+                />
+              </motion.div>
+            )}
+
+            {!loading && results.length > 0 && (
+              <motion.div 
+                variants={staggerContainer}
+                initial="hidden"
+                animate="show"
+                className="space-y-8"
+              >
+                {results.map((res) => (
+                  <motion.div variants={fadeUpItem} key={res.id} className="relative flex flex-col md:flex-row bg-surface-lowest rounded-lg ghost-border p-8 pt-10 clinical-shadow group hover:border-primary/20 transition-all">
+                    {/* Branded */}
               <div className="w-full md:w-[35%] pr-8 pb-8 md:pb-0 relative z-10 border-r-0 md:border-r border-outline-variant/30">
                 <div className="text-[10px] font-bold tracking-widest text-on-surface/50 uppercase mb-3 flex items-center gap-2"><Beaker className="w-3.5 h-3.5" /> Branded Medication</div>
                 <h3 className="font-display text-2xl font-bold text-on-surface mb-2 group-hover:text-primary transition-colors">{res.branded.name}</h3>
@@ -296,16 +370,19 @@ export default function Discovery() {
                 </div>
                 {res.generic && (
                   <div className="flex flex-col sm:flex-row justify-end gap-3 mt-6">
-                    <button onClick={() => navigate('/fulfillment')} className="btn-primary flex-1 sm:flex-initial sm:w-48 py-3.5 flex items-center justify-center gap-2 text-sm uppercase tracking-widest font-bold"><MapPin className="w-4 h-4" /> Find in Store</button>
-                    <button onClick={() => navigate(`/product/${res.branded.id}`)} className="btn-secondary flex-1 sm:flex-initial sm:w-40 py-3.5 flex items-center justify-center gap-2 text-sm uppercase tracking-widest font-bold">View Details</button>
-                    <button onClick={() => handleAddToCart(res)} className="btn-secondary flex-1 sm:flex-initial sm:w-48 py-3.5 flex items-center justify-center gap-2 text-sm uppercase tracking-widest font-bold"><Plus className="w-5 h-5" /> Add to Order</button>
+                    <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={() => navigate('/fulfillment')} className="btn-primary flex-1 sm:flex-initial sm:w-48 py-3.5 flex items-center justify-center gap-2 text-sm uppercase tracking-widest font-bold"><MapPin className="w-4 h-4" /> Find in Store</motion.button>
+                    <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={() => navigate(`/product/${res.branded.id}`)} className="btn-secondary flex-1 sm:flex-initial sm:w-40 py-3.5 flex items-center justify-center gap-2 text-sm uppercase tracking-widest font-bold">View Details</motion.button>
+                    <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={() => handleAddToCart(res)} className="btn-secondary flex-1 sm:flex-initial sm:w-48 py-3.5 flex items-center justify-center gap-2 text-sm uppercase tracking-widest font-bold"><Plus className="w-5 h-5" /> Add to Order</motion.button>
                   </div>
                 )}
               </div>
-            </div>
+            </motion.div>
           ))}
-        </div>
+        </motion.div>
+        )}
+        </AnimatePresence>
       </div>
     </div>
+  </div>
   );
 }

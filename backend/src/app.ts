@@ -33,21 +33,25 @@ import fulfillmentRoutes from './modules/fulfillment/fulfillment.routes';
 /**
  * Build and configure a Fastify application instance.
  *
- * This factory pattern enables:
- * - Unit/integration testing without starting the HTTP server
- * - Multiple instances for different test scenarios
- * - Clean separation between app configuration and server lifecycle
+ * ARCHITECTURAL DECISION — The Application Factory Pattern:
+ * We decouple the creation of the server instance from its listening lifecycle (which lives in index.ts).
+ * This is a massive win for integration testing: we can boot and query the server entirely in-memory using 
+ * server.inject() inside our supertest/vitest suites. It eliminates the need to allocate physical ports on local 
+ * or CI environments, completely bypassing pesky "EADDRINUSE: port already in use" errors during parallel runs.
  */
 export async function buildApp(): Promise<FastifyInstance> {
   const server = Fastify({
     logger: getLoggerConfig() as any,
     requestIdHeader: 'x-request-id',
+    // Generate a unique request ID for distributed tracing and clean log aggregation.
     genReqId: () => crypto.randomUUID(),
   });
 
   // ---- Global Middleware ----
   await server.register(helmet, {
-    contentSecurityPolicy: false, // CSP managed by frontend build
+    // We disable standard CSP here because our frontend build system (Vite + index.html headers)
+    // manages CSP boundaries itself. This prevents static asset rendering blocks locally.
+    contentSecurityPolicy: false,
   });
   await server.register(cors, { origin: config.corsOrigin });
   await server.register(rateLimit, {
@@ -56,8 +60,9 @@ export async function buildApp(): Promise<FastifyInstance> {
   });
 
   // ---- Global Error Handler ----
+  // A centralized safety net to intercept all synchronous and asynchronous errors.
   server.setErrorHandler((error: FastifyError, request, reply) => {
-    // Handle Fastify validation errors (from JSON schemas)
+    // 1. Intercept AJV validation failures (thrown by Fastify schema validations)
     if (error.validation) {
       const message = error.message || 'Request validation failed';
       return reply.status(400).send({
@@ -69,13 +74,15 @@ export async function buildApp(): Promise<FastifyInstance> {
       });
     }
 
-    // Handle our custom AppError hierarchy
+    // 2. Intercept custom domain-driven exceptions (AppError hierarchy from our modular boundaries)
     if (error instanceof AppError) {
       const { statusCode, body } = toErrorResponse(error, config.env === 'production');
       return reply.status(statusCode).send(body);
     }
 
-    // Handle unexpected errors
+    // 3. Fallback for unhandled syntax or generic Node system errors
+    // We log the raw stack trace for internal debugging but mask the JSON response in production
+    // to avoid leaking database schemas, module structures, or variable secrets to the public.
     request.log.error(error, 'Unhandled error');
     const { statusCode, body } = toErrorResponse(error, config.env === 'production');
     return reply.status(statusCode).send(body);

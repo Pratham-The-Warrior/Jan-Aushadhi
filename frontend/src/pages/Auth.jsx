@@ -8,20 +8,29 @@ import useCartStore from '../store/cartStore';
 export default function Auth() {
   const navigate = useNavigate();
   const location = useLocation();
+  
+  // This sync hook is key: once the user logs in, we need to merge their local cart (if any)
+  // with whatever they have saved on the server database.
   const syncWithServer = useCartStore(s => s.syncWithServer);
 
   const [phoneNumber, setPhoneNumber] = useState('');
   const [otp, setOtp] = useState('');
-  const [step, setStep] = useState('phone'); // 'phone' or 'otp'
+  const [step, setStep] = useState('phone'); // Transitions from 'phone' (collect number) to 'otp' (verify code)
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [confirmationResult, setConfirmationResult] = useState(null);
+  
+  // Ref to hold the RecaptchaVerifier instance. Essential for cleanups to avoid memory leaks or duplicate DOM nodes.
   const recaptchaRef = useRef(null);
 
+  // If the user was redirected here while trying to access a secure page (like Checkout),
+  // we capture that in location.state and navigate them back there after successful login.
   const from = location.state?.from || '/discovery';
 
   useEffect(() => {
-    // Clean up recaptcha on mount/unmount
+    // FIREBASE GOTCHA: Recaptcha creates global elements in the DOM. If we unmount this page
+    // and remount it without clearing the Recaptcha instance, Firebase will throw errors
+    // complaining about a duplicate or non-existent recaptcha-container.
     return () => {
       if (recaptchaRef.current) {
         recaptchaRef.current.clear();
@@ -29,12 +38,14 @@ export default function Auth() {
     };
   }, []);
 
+  // Lazy-initialization of the reCAPTCHA verification container.
+  // Using an 'invisible' captcha provides a frictionless flow without making the user click tiles.
   const setupRecaptcha = () => {
     if (!recaptchaRef.current) {
       recaptchaRef.current = new RecaptchaVerifier(auth, 'recaptcha-container', {
         size: 'invisible',
         callback: () => {
-          // reCAPTCHA solved, allow signInWithPhoneNumber.
+          // reCAPTCHA solved; Firebase automatically handles the next action.
         }
       });
     }
@@ -48,18 +59,26 @@ export default function Auth() {
 
     try {
       const appVerifier = setupRecaptcha();
-      // Ensure phone number has country code for India if not present
+      
+      // UX Choice: Indian numbers (+91) are the primary target. If the user omits the '+' prefix,
+      // we auto-apply '+91' so standard local entries work out-of-the-box. Firebase Auth requires
+      // the phone number to be in E.164 format.
       const formattedPhone = phoneNumber.startsWith('+') ? phoneNumber : `+91${phoneNumber}`;
 
       const confirmation = await signInWithPhoneNumber(auth, formattedPhone, appVerifier);
       setConfirmationResult(confirmation);
-      setStep('otp');
+      setStep('otp'); // Advance the form wizard to the OTP verification field
     } catch (err) {
       console.error(err);
       setError('Failed to send OTP. Please check the number and try again.');
+      // Reset the recaptcha instance on failure so that the user can retry immediately.
+      // Do NOT clear() and nullify the ref, otherwise Firebase complains it's already rendered on next try.
       if (recaptchaRef.current) {
-        recaptchaRef.current.clear();
-        recaptchaRef.current = null;
+        recaptchaRef.current.render().then((widgetId) => {
+          if (window.grecaptcha) {
+            window.grecaptcha.reset(widgetId);
+          }
+        }).catch(() => {});
       }
     } finally {
       setLoading(false);
@@ -72,12 +91,14 @@ export default function Auth() {
     setLoading(true);
 
     try {
+      // Complete the SMS verification handshake with Firebase Auth
       await confirmationResult.confirm(otp);
 
-      // Post-auth sync
+      // CRITICAL STEP: Now that we are authenticated, we synchronize their local session cart with
+      // their server-side database cart, resolving conflicts by keeping the maximum quantities.
       await syncWithServer();
 
-      // Resume action
+      // Send the user back to where they started their flow
       navigate(from, { replace: true });
     } catch (err) {
       console.error(err);

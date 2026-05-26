@@ -1,11 +1,11 @@
 // ============================================================
 // OrderSuccess — Post-checkout confirmation screen
-// Extracted from Checkout.jsx
+// Redesigned with new UI primitives and semantic colors
 // ============================================================
 
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ShieldCheck, MessageCircle, Zap } from 'lucide-react';
+import { ShieldCheck, MessageCircle, ArrowRight, PackageCheck } from 'lucide-react';
 import { getWhatsAppLink } from '../../services/api';
 
 /**
@@ -26,55 +26,75 @@ export default function OrderSuccess({ order, store }) {
   };
 
   return (
-    <div className="flex-1 w-full bg-surface flex items-center justify-center py-20 pb-32">
-      <div className="bg-surface-lowest rounded-lg clinical-shadow border border-outline-variant p-12 max-w-lg text-center w-full mx-4 animate-slideUp">
+    <div className="flex-1 w-full bg-surface flex flex-col items-center justify-center py-16 md:py-24 px-4 min-h-[80vh]">
+      <div className="bg-surface-lowest rounded-3xl clinical-shadow-lg border border-outline-variant p-8 md:p-12 max-w-xl w-full text-center animate-scaleIn relative overflow-hidden">
+        
         {/* Success Icon */}
-        <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-8 border border-primary/20">
-          <ShieldCheck className="w-10 h-10 text-primary" />
+        <div className="relative w-24 h-24 mx-auto mb-8">
+          <div className="absolute inset-0 bg-success-soft rounded-full animate-pulse" />
+          <div className="absolute inset-2 bg-success/10 rounded-full flex items-center justify-center border border-success/20">
+            <PackageCheck className="w-10 h-10 text-success" />
+          </div>
+          <div className="absolute -bottom-2 -right-2 bg-surface-lowest rounded-full p-1.5">
+            <div className="bg-success text-white rounded-full p-1.5">
+              <ShieldCheck className="w-4 h-4" />
+            </div>
+          </div>
         </div>
 
-        <h2 className="font-display text-3xl font-bold text-on-surface mb-3">Requirement Sent!</h2>
-        <p className="text-on-surface/60 mb-8 leading-relaxed">
-          Your ticket has been generated and routed to <strong>{store?.name}</strong>. Please check
-          your WhatsApp to finalize delivery details.
+        <h2 className="font-display text-3xl md:text-4xl font-extrabold text-on-surface mb-4 tracking-tight">Requirement Routed!</h2>
+        <p className="text-on-surface/60 mb-10 leading-relaxed text-lg">
+          Your ticket has been generated and routed to <strong className="text-on-surface">{store?.name || 'the selected Kendra'}</strong>. Please check
+          your WhatsApp to finalize fulfillment and delivery details.
         </p>
 
         {/* Ticket Details */}
-        <div className="bg-surface-low rounded-md p-6 mb-10 text-left space-y-3 ghost-border">
-          <div className="flex justify-between text-xs font-bold uppercase tracking-widest">
-            <span className="text-on-surface/40">Ticket ID</span>
-            <span className="text-on-surface">{order.ticketId}</span>
+        <div className="bg-surface-low/50 rounded-2xl p-6 md:p-8 mb-10 text-left space-y-4 border border-outline-variant/50 relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+          
+          <div className="flex flex-wrap justify-between items-center gap-4 relative z-10">
+            <div>
+              <div className="text-[10px] font-bold uppercase tracking-widest text-on-surface/40 mb-1">Secure Ticket ID</div>
+              <div className="font-display text-xl font-bold text-on-surface">{order.ticketId}</div>
+            </div>
+            <div className="text-right">
+              <div className="text-[10px] font-bold uppercase tracking-widest text-on-surface/40 mb-1">Status</div>
+              <div className="inline-flex items-center gap-1.5 bg-success-soft text-success text-[10px] font-bold px-2.5 py-1 rounded-md uppercase tracking-wider">
+                <div className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
+                {order.status}
+              </div>
+            </div>
           </div>
-          <div className="flex justify-between text-xs font-bold uppercase tracking-widest">
-            <span className="text-on-surface/40">Status</span>
-            <span className="text-primary">{order.status}</span>
-          </div>
-          <div className="flex justify-between items-center mt-4 pt-4 border-t border-outline-variant/50">
-            <span className="text-[10px] text-on-surface/40 uppercase font-bold tracking-widest">
-              Fulfillment
-            </span>
+          
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-6 pt-6 border-t border-outline-variant/50 relative z-10">
+            <div>
+              <div className="text-[10px] font-bold uppercase tracking-widest text-on-surface/40 mb-1">Fulfillment Channel</div>
+              <div className="font-semibold text-sm text-on-surface">Direct Pharmacist WhatsApp</div>
+            </div>
             <button
               onClick={handleResendWhatsApp}
-              className="bg-[#25D366]/10 text-[#25D366] hover:bg-[#25D366]/20 border border-[#25D366]/30 transition-all font-bold text-[10px] px-3 py-1.5 rounded uppercase tracking-widest flex items-center gap-2"
+              className="bg-[#25D366]/10 hover:bg-[#25D366]/20 text-[#25D366] border border-[#25D366]/20 hover:border-[#25D366]/40 transition-all font-bold text-[11px] px-4 py-2.5 rounded-lg uppercase tracking-widest flex items-center justify-center gap-2"
             >
-              <MessageCircle className="w-3.5 h-3.5" />
-              Re-Send to WhatsApp
+              <MessageCircle className="w-4 h-4" />
+              Re-Send Ticket
             </button>
           </div>
         </div>
 
-        {/* CTA */}
-        <div className="flex flex-col gap-4">
+        {/* Actions */}
+        <div className="space-y-4">
           <button
             onClick={() => navigate('/wellness')}
-            className="btn-primary py-4 w-full text-base flex items-center justify-center gap-2"
+            className="btn-primary py-4 px-8 w-full text-sm flex items-center justify-center gap-2 shadow-lg shadow-primary/20"
           >
-            <Zap className="w-4 h-4" />
-            Track Order in Wellness
+            Track Order in My Health <ArrowRight className="w-4 h-4" />
           </button>
-          <p className="text-[10px] text-on-surface/40 uppercase tracking-[0.2em] font-bold">
-            Fulfillment via Jan Aushadhi Kendra
-          </p>
+          <button
+            onClick={() => navigate('/discovery')}
+            className="btn-ghost py-3 px-8 w-full text-[11px] uppercase tracking-widest font-bold"
+          >
+            Back to Search
+          </button>
         </div>
       </div>
     </div>

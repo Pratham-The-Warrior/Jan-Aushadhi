@@ -1,13 +1,14 @@
 // ============================================================
-// MobileBottomNav — Mobile tab bar with floating cart badge
+// MobileBottomNav — Mobile tab bar with auth-aware Profile/Sign In
 // ============================================================
 
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Home as HomeIcon, Search, MapPin, BarChart3, User, ShoppingCart } from 'lucide-react';
+import { Home as HomeIcon, Search, MapPin, BarChart3, User, LogIn, ShoppingCart } from 'lucide-react';
 import useCartStore, { selectItemCount } from '../../store/cartStore';
+import useAuthStore from '../../store/authStore';
 
-const TABS = [
+const TABS_LOGGED_IN = [
   { href: '/home', icon: HomeIcon, label: 'Home' },
   { href: '/discovery', icon: Search, label: 'Search' },
   { href: '/fulfillment', icon: MapPin, label: 'Stores' },
@@ -15,15 +16,26 @@ const TABS = [
   { href: '/wellness', icon: User, label: 'Profile' },
 ];
 
+const TABS_LOGGED_OUT = [
+  { href: '/home', icon: HomeIcon, label: 'Home' },
+  { href: '/discovery', icon: Search, label: 'Search' },
+  { href: '/fulfillment', icon: MapPin, label: 'Stores' },
+  { href: '/dashboard', icon: BarChart3, label: 'Savings' },
+  { href: '/auth', icon: LogIn, label: 'Sign In' },
+];
+
 export default function MobileBottomNav() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const itemCount = useCartStore(selectItemCount);
+  const { user, initialized } = useAuthStore();
+
+  const tabs = (initialized && user) ? TABS_LOGGED_IN : TABS_LOGGED_OUT;
 
   return (
     <div className="md:hidden fixed bottom-0 left-0 right-0 bg-surface-lowest border-t border-outline-variant z-50 safe-area-pb">
       <div className="flex justify-around items-center h-16">
-        {TABS.map((tab) => {
+        {tabs.map((tab) => {
           const active = pathname === tab.href;
           const Icon = tab.icon;
           return (

@@ -6,6 +6,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ShieldCheck, Search, MapPin, TrendingUp, Beaker, BookOpen, ChevronRight, FlaskConical } from 'lucide-react';
+import { motion } from 'framer-motion';
 
 // Animated counter
 function AnimatedNumber({ target, prefix = '', suffix = '' }) {
@@ -42,25 +43,48 @@ const BLOG_POSTS = [
 export default function Home() {
   const navigate = useNavigate();
 
+  const staggerContainer = {
+    hidden: { opacity: 0 },
+    show: {
+      opacity: 1,
+      transition: { staggerChildren: 0.1, delayChildren: 0.2 }
+    }
+  };
+
+  const fadeUpItem = {
+    hidden: { opacity: 0, y: 20 },
+    show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 300, damping: 24 } }
+  };
+
   return (
     <div className="flex-1 w-full flex flex-col">
 
       {/* Hero */}
       <div className="bg-surface relative overflow-hidden">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 md:py-32 flex flex-col md:flex-row items-center gap-16">
-          <div className="flex-1 space-y-8 z-10">
-            <div className="text-xs font-bold tracking-widest text-primary/70 uppercase">Government Initiative</div>
-            <h1 className="font-display text-5xl md:text-[3.5rem] font-bold text-on-surface leading-[1.1] tracking-tight">
+          <motion.div 
+            variants={staggerContainer}
+            initial="hidden"
+            animate="show"
+            className="flex-1 space-y-8 z-10"
+          >
+            <motion.div variants={fadeUpItem} className="text-xs font-bold tracking-widest text-primary/70 uppercase">Government Initiative</motion.div>
+            <motion.h1 variants={fadeUpItem} className="font-display text-5xl md:text-[3.5rem] font-bold text-on-surface leading-[1.1] tracking-tight">
               Quality Healthcare <br /><span className="text-primary block mt-2">For Every Citizen.</span>
-            </h1>
-            <p className="text-lg text-on-surface/70 max-w-lg leading-[1.6]">Pradhan Mantri Bhartiya Janaushadhi Pariyojana provides quality generic medicines at affordable prices through dedicated outlets across India.</p>
-            <div className="flex items-center gap-4 pt-4">
-              <button onClick={() => navigate('/discovery')} className="btn-primary py-3.5 px-8">Find Generic Medicines</button>
-              <button onClick={() => navigate('/fulfillment')} className="btn-secondary py-3.5 px-8">Locate Store</button>
-            </div>
-          </div>
+            </motion.h1>
+            <motion.p variants={fadeUpItem} className="text-lg text-on-surface/70 max-w-lg leading-[1.6]">Pradhan Mantri Bhartiya Janaushadhi Pariyojana provides quality generic medicines at affordable prices through dedicated outlets across India.</motion.p>
+            <motion.div variants={fadeUpItem} className="flex items-center gap-4 pt-4">
+              <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={() => navigate('/discovery')} className="btn-primary py-3.5 px-8">Find Generic Medicines</motion.button>
+              <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={() => navigate('/fulfillment')} className="btn-secondary py-3.5 px-8">Locate Store</motion.button>
+            </motion.div>
+          </motion.div>
 
-          <div className="flex-1 relative z-10 w-full">
+          <motion.div 
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 30, delay: 0.4 }}
+            className="flex-1 relative z-10 w-full"
+          >
             <div className="bg-primary rounded-lg overflow-hidden shadow-none">
               <div className="p-12 text-white">
                 <div className="text-xs font-bold tracking-widest text-white/70 uppercase mb-8">How It Works</div>
@@ -70,21 +94,32 @@ export default function Home() {
                     { icon: <TrendingUp className="w-5 h-5" />, title: '2. Compare & Save', desc: 'See generic equivalent and potential savings.' },
                     { icon: <MapPin className="w-5 h-5" />, title: '3. Get From Nearest Kendra', desc: 'Locate closest Jan Aushadhi Kendra and order.' },
                   ].map((s, i) => (
-                    <div key={i} className="flex gap-5">
+                    <motion.div 
+                      key={i} 
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.6 + (i * 0.1) }}
+                      className="flex gap-5"
+                    >
                       <div className="w-10 h-10 bg-white/10 rounded-md flex items-center justify-center shrink-0 border border-white/20">{s.icon}</div>
                       <div><div className="font-display font-semibold text-lg mb-1">{s.title}</div><div className="text-sm text-white/80 leading-relaxed">{s.desc}</div></div>
-                    </div>
+                    </motion.div>
                   ))}
                 </div>
               </div>
             </div>
 
             {/* Overlay Metric */}
-            <div className="absolute -bottom-8 -left-8 bg-surface-lowest p-6 rounded-lg ghost-border max-w-xs z-20 clinical-shadow">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 1, type: 'spring', stiffness: 400, damping: 25 }}
+              className="absolute -bottom-8 -left-8 bg-surface-lowest p-6 rounded-lg ghost-border max-w-xs z-20 clinical-shadow"
+            >
               <div className="font-display text-3xl font-bold text-primary mb-1">90%</div>
               <div className="text-sm font-medium text-on-surface/70">Potential cost reduction compared to branded alternatives.</div>
-            </div>
-          </div>
+            </motion.div>
+          </motion.div>
         </div>
       </div>
 
@@ -112,26 +147,38 @@ export default function Home() {
 
       {/* Feature Section - Clinical Tonal Shift */}
       <div className="w-full bg-surface max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
-        <div className="mb-16 max-w-3xl">
-          <h2 className="font-display text-3xl font-bold text-on-surface mb-4">Uncompromising Quality</h2>
-          <p className="text-on-surface/70 text-lg leading-[1.6]">Every tablet dispensed under PMBJP undergoes rigorous multi-tier testing to ensure clinical efficacy and safety.</p>
-        </div>
+        <motion.div 
+          initial="hidden"
+          whileInView="show"
+          viewport={{ once: true, margin: "-100px" }}
+          variants={staggerContainer}
+          className="mb-16 max-w-3xl"
+        >
+          <motion.h2 variants={fadeUpItem} className="font-display text-3xl font-bold text-on-surface mb-4">Uncompromising Quality</motion.h2>
+          <motion.p variants={fadeUpItem} className="text-on-surface/70 text-lg leading-[1.6]">Every tablet dispensed under PMBJP undergoes rigorous multi-tier testing to ensure clinical efficacy and safety.</motion.p>
+        </motion.div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
+        <motion.div 
+          initial="hidden"
+          whileInView="show"
+          viewport={{ once: true, margin: "-100px" }}
+          variants={staggerContainer}
+          className="grid grid-cols-1 md:grid-cols-3 gap-10"
+        >
           {[
             { icon: <ShieldCheck className="w-5 h-5 text-primary" />, title: 'NABL Lab Testing', desc: 'Each batch of medicine is tested at labs accredited by National Accreditation Board for Testing and Calibration Laboratories.' },
             { icon: <TrendingUp className="w-5 h-5 text-primary" />, title: 'Generic vs Branded', desc: 'Therapeutically equivalent to branded medicines in dosage, strength, and quality, but at a fraction of the cost.' },
             { icon: <MapPin className="w-5 h-5 text-primary" />, title: 'WHO-GMP Compliant', desc: 'All medicines are procured from World Health Organization-Good Manufacturing Practices certified suppliers only.' },
           ].map((f, i) => (
-            <div key={i} className="bg-surface-lowest p-8 rounded-lg ghost-border">
+            <motion.div variants={fadeUpItem} key={i} className="bg-surface-lowest p-8 rounded-lg ghost-border">
               <div className="w-10 h-10 bg-primary/10 rounded-md flex items-center justify-center mb-6">
                 {f.icon}
               </div>
               <h3 className="font-display text-xl font-semibold text-on-surface mb-3">{f.title}</h3>
               <p className="text-on-surface/70 text-sm leading-[1.6]">{f.desc}</p>
-            </div>
+            </motion.div>
           ))}
-        </div>
+        </motion.div>
       </div>
 
       {/* Science Hub */}
@@ -147,9 +194,20 @@ export default function Home() {
             </div>
             <button className="text-primary font-semibold text-sm flex items-center gap-1 hover:underline transition-all">View All <ChevronRight className="w-4 h-4" /></button>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <motion.div 
+            initial="hidden"
+            whileInView="show"
+            viewport={{ once: true, margin: "-100px" }}
+            variants={staggerContainer}
+            className="grid grid-cols-1 md:grid-cols-3 gap-8"
+          >
             {BLOG_POSTS.map((post, i) => (
-              <div key={i} className="bg-surface-lowest rounded-lg p-8 ghost-border transition-all hover:border-primary/30 cursor-pointer group">
+              <motion.div 
+                variants={fadeUpItem}
+                key={i} 
+                whileHover={{ y: -8 }}
+                className="bg-surface-lowest rounded-lg p-8 ghost-border transition-colors hover:border-primary/30 cursor-pointer group shadow-sm hover:shadow-md"
+              >
                 <div className="flex items-center gap-3 mb-5">
                   <span className="bg-surface-low text-primary text-[10px] font-bold px-2.5 py-1 rounded-sm uppercase tracking-wider">{post.category}</span>
                   <span className="text-[10px] text-on-surface/50 font-medium uppercase tracking-wider">{post.readTime}</span>
@@ -157,21 +215,27 @@ export default function Home() {
                 <h3 className="font-display text-lg font-semibold text-on-surface mb-3 group-hover:text-primary transition-colors leading-[1.4]">{post.title}</h3>
                 <p className="text-sm text-on-surface/70 leading-[1.6] mb-6">{post.excerpt}</p>
                 <div className="text-primary text-sm font-semibold flex items-center gap-1 group-hover:gap-2 transition-all">Read More <ChevronRight className="w-4 h-4" /></div>
-              </div>
+              </motion.div>
             ))}
-          </div>
+          </motion.div>
         </div>
       </div>
 
       {/* Bio-Equivalence Section */}
       <div className="w-full bg-surface max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
-        <div className="flex flex-col md:flex-row bg-surface-lowest rounded-lg ghost-border overflow-hidden">
+        <motion.div 
+          initial="hidden"
+          whileInView="show"
+          viewport={{ once: true, margin: "-100px" }}
+          variants={staggerContainer}
+          className="flex flex-col md:flex-row bg-surface-lowest rounded-lg ghost-border overflow-hidden"
+        >
           <div className="w-full md:w-7/12 p-12 lg:p-16">
-            <div className="inline-flex items-center gap-2 text-primary text-xs font-bold mb-6 tracking-wider uppercase"><FlaskConical className="w-3.5 h-3.5" /> Clinical Proof</div>
-            <h2 className="font-display text-3xl font-bold text-on-surface mb-6">The Science of Bio-Equivalence</h2>
-            <p className="text-on-surface/70 mb-8 leading-[1.6] text-lg">Generic medicines contain the same active pharmaceutical ingredient (API) in the same dose, same form, and produce the same blood concentration levels as the branded version.</p>
+            <motion.div variants={fadeUpItem} className="inline-flex items-center gap-2 text-primary text-xs font-bold mb-6 tracking-wider uppercase"><FlaskConical className="w-3.5 h-3.5" /> Clinical Proof</motion.div>
+            <motion.h2 variants={fadeUpItem} className="font-display text-3xl font-bold text-on-surface mb-6">The Science of Bio-Equivalence</motion.h2>
+            <motion.p variants={fadeUpItem} className="text-on-surface/70 mb-8 leading-[1.6] text-lg">Generic medicines contain the same active pharmaceutical ingredient (API) in the same dose, same form, and produce the same blood concentration levels as the branded version.</motion.p>
 
-            <div className="bg-surface-low rounded-lg p-6 mb-8 ghost-border">
+            <motion.div variants={fadeUpItem} className="bg-surface-low rounded-lg p-6 mb-8 ghost-border">
               <div className="font-display text-sm font-semibold text-on-surface mb-3">The Generic Advantage:</div>
               <ul className="space-y-3 text-sm text-on-surface/70">
                 <li className="flex items-start gap-2"><div className="w-1.5 h-1.5 rounded-sm bg-primary mt-1.5 shrink-0" /> Same molecule — identical therapeutic outcome</li>
@@ -179,12 +243,12 @@ export default function Home() {
                 <li className="flex items-start gap-2"><div className="w-1.5 h-1.5 rounded-sm bg-primary mt-1.5 shrink-0" /> Government quality oversight — bulk synthesis</li>
                 <li className="flex items-start gap-2"><div className="w-1.5 h-1.5 rounded-sm bg-primary mt-1.5 shrink-0" /> WHO-GMP manufacturing — strict regulation</li>
               </ul>
-            </div>
+            </motion.div>
 
-            <button onClick={() => navigate('/dashboard')} className="btn-primary py-3.5 px-8">Compare Prices Now</button>
+            <motion.button variants={fadeUpItem} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={() => navigate('/dashboard')} className="btn-primary py-3.5 px-8">Compare Prices Now</motion.button>
           </div>
 
-          <div className="w-full md:w-5/12 bg-primary p-12 lg:p-16 flex flex-col justify-center text-white">
+          <motion.div variants={fadeUpItem} className="w-full md:w-5/12 bg-primary p-12 lg:p-16 flex flex-col justify-center text-white">
             <Beaker className="w-10 h-10 mb-8 text-white/80" />
             <h3 className="font-display text-2xl font-bold mb-4">CDSCO Approved</h3>
             <p className="text-white/80 text-sm leading-[1.6] mb-10">The Central Drugs Standard Control Organisation (CDSCO) ensures every generic medicine meets strict pharmacological standards before market approval.</p>
@@ -201,8 +265,8 @@ export default function Home() {
                 </div>
               ))}
             </div>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       </div>
     </div>
   );

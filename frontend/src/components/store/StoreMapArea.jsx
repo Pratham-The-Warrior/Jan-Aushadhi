@@ -39,6 +39,12 @@ export default function StoreMapArea({ stores, selectedStore, onSelectStore }) {
             className={`absolute transition-all duration-300 cursor-pointer group ${
               selectedStore?.pmbjk_code === store.pmbjk_code ? 'z-30 scale-110' : 'z-10 hover:z-20 hover:scale-110'
             }`}
+            // DESIGN GOTCHA & DECISION: Instead of loading a massive external Map API (like Google Maps or Leaflet) 
+            // which bloats our bundle size and incurs API usage costs, we utilize a deterministic, trigonometric 
+            // scatter pattern. 
+            // By passing the unique array index 'idx' through Sin and Cos functions with offset phases, we distribute 
+            // the stores in a pseudo-random, visually appealing 2D clustering. It simulates map pin clusters beautifully 
+            // while remaining extremely fast and light.
             style={{
               top: `${25 + Math.abs(Math.sin(idx * 1.7 + 1)) * 50}%`,
               left: `${15 + Math.abs(Math.cos(idx * 2.1 + 0.5)) * 60}%`,

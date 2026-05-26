@@ -4,7 +4,8 @@
 // Separated from route-level concerns for clean DI.
 // ============================================================
 
-import * as admin from 'firebase-admin';
+import { initializeApp, cert, getApps } from 'firebase-admin/app';
+import { getAuth } from 'firebase-admin/auth';
 import { FastifyRequest, FastifyReply } from 'fastify';
 import { config } from '../config';
 import { queryDB } from './database';
@@ -18,16 +19,18 @@ let firebaseInitialized = false;
 try {
   if (config.firebaseServiceAccount) {
     const serviceAccount = JSON.parse(config.firebaseServiceAccount);
-    admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount),
-    });
+    if (getApps().length === 0) {
+      initializeApp({
+        credential: cert(serviceAccount),
+      });
+    }
     firebaseInitialized = true;
     console.log('✅ Firebase Admin Initialized');
   } else {
     console.warn('⚠️  Firebase not configured — auth will reject all requests');
   }
-} catch (err) {
-  console.warn('⚠️  Firebase init error — auth will reject all requests');
+} catch (err: any) {
+  console.warn('⚠️  Firebase init error — auth will reject all requests. Error details: ', err.message);
 }
 
 /**
@@ -63,7 +66,7 @@ export async function verifyAuth(request: FastifyRequest, reply: FastifyReply): 
   }
 
   try {
-    const decodedToken = await admin.auth().verifyIdToken(token);
+    const decodedToken = await getAuth().verifyIdToken(token);
 
     const user: AuthUser = {
       uid: decodedToken.uid,
