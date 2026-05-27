@@ -53,7 +53,11 @@ export async function buildApp(): Promise<FastifyInstance> {
     // manages CSP boundaries itself. This prevents static asset rendering blocks locally.
     contentSecurityPolicy: false,
   });
-  await server.register(cors, { origin: config.corsOrigin });
+  await server.register(cors, { 
+    origin: config.corsOrigin,
+    methods: ['GET', 'PUT', 'POST', 'DELETE', 'OPTIONS', 'PATCH'],
+    credentials: true
+  });
   await server.register(rateLimit, {
     max: config.rateLimitMax,
     timeWindow: config.rateLimitWindow,
