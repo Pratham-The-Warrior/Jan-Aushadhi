@@ -40,6 +40,8 @@ export class FulfillmentService {
     status: string;
     totalGenericValue: number;
     savings: number;
+    upi_vpa: string | null;
+    pmbjk_code: string;
   }> {
     if (!data.legal_attestation) {
       throw new ValidationError('Legal attestation required');
@@ -48,6 +50,77 @@ export class FulfillmentService {
     if (!data.drug_codes || data.drug_codes.length === 0) {
       throw new ValidationError('Cart is empty');
     }
+
+    const fulfillmentType = data.fulfillment_type || 'PICKUP';
+    let routedStoreCode = data.pmbjk_code;
+
+    if (fulfillmentType === 'PICKUP') {
+      if (!routedStoreCode) {
+        throw new ValidationError('Store (pmbjk_code) is required for self-pickup');
+      }
+    } else if (fulfillmentType === 'DELIVERY') {
+      if (!data.delivery_address) {
+        throw new ValidationError('Delivery address is required for home delivery');
+      }
+      if (!data.delivery_coords || data.delivery_coords.lat === undefined || data.delivery_coords.lng === undefined) {
+        throw new ValidationError('Delivery coordinates are required for home delivery');
+      }
+
+      const { lat, lng } = data.delivery_coords;
+      
+      // Auto-routing query: get active stores within 10km sorted by distance using PostGIS
+      const nearbyRes = await queryDB(
+        `SELECT pmbjk_code, name, address, pincode, state, district,
+                ST_Distance(location, ST_MakePoint($1, $2)::geography) AS distance
+         FROM stores
+         WHERE status = 'ACTIVE'
+           AND ST_DWithin(location, ST_MakePoint($1, $2)::geography, 10000)
+         ORDER BY distance ASC
+         LIMIT 20`,
+        [lng, lat],
+      );
+
+      if (nearbyRes.rows.length === 0) {
+        throw new ValidationError('No active stores found within delivery search radius (10km).');
+      }
+
+      // Check stock filters
+      const storeCodes = nearbyRes.rows.map((s: any) => s.pmbjk_code);
+      const drugCodes = data.drug_codes.map((d: any) => d.code);
+
+      const stockCheckRes = await queryDB(
+        `SELECT pmbjk_code
+         FROM store_inventory
+         WHERE pmbjk_code = ANY($1)
+           AND drug_code = ANY($2)
+           AND in_stock = false`,
+        [storeCodes, drugCodes],
+      );
+
+      const blacklistedStores = new Set(stockCheckRes.rows.map((r: any) => r.pmbjk_code));
+      
+      const routedStore = nearbyRes.rows.find((s: any) => !blacklistedStores.has(s.pmbjk_code));
+
+      if (!routedStore) {
+        throw new ValidationError('No nearby stores have all items in stock to fulfill this delivery.');
+      }
+
+      routedStoreCode = routedStore.pmbjk_code;
+    } else {
+      throw new ValidationError(`Invalid fulfillment type: ${fulfillmentType}`);
+    }
+
+    // Lookup store details (VPA, etc.)
+    const storeDetailsRes = await queryDB(
+      `SELECT name, phone, upi_vpa FROM stores WHERE pmbjk_code = $1`,
+      [routedStoreCode],
+    );
+
+    if (storeDetailsRes.rows.length === 0) {
+      throw new ValidationError(`Store ${routedStoreCode} does not exist`);
+    }
+
+    const { upi_vpa: storeUpiVpa } = storeDetailsRes.rows[0];
 
     // Generate unique ticket ID using cryptographically secure random
     const ticketId = `TKT-${crypto.randomUUID().replace(/-/g, '').slice(0, 12).toUpperCase()}`;
@@ -63,12 +136,13 @@ export class FulfillmentService {
 
     await queryDB(
       `INSERT INTO requirements
-       (id, user_id, pmbjk_code, items, status, legal_attestation, delivery_address, payment_mode, total_branded_value, total_generic_value, savings, created_at)
-       VALUES ($1, $2, $3, $4, 'SENT', $5, $6, $7, $8, $9, $10, NOW())`,
+       (id, user_id, pmbjk_code, items, status, legal_attestation, delivery_address, payment_mode, 
+        total_branded_value, total_generic_value, savings, created_at, fulfillment_type, payment_status, payment_details)
+       VALUES ($1, $2, $3, $4, 'PENDING_ACCEPTANCE', $5, $6, $7, $8, $9, $10, NOW(), $11, 'PENDING', '{}')`,
       [
         ticketId,
         user.uid,
-        data.pmbjk_code,
+        routedStoreCode,
         JSON.stringify(data.drug_codes),
         true,
         data.delivery_address || '',
@@ -76,15 +150,27 @@ export class FulfillmentService {
         totalBrandedValue,
         totalGenericValue,
         totalBrandedValue - totalGenericValue,
+        fulfillmentType,
       ],
     );
+
+    // Log initial status in audit trail
+    await queryDB(
+      `INSERT INTO order_status_log (requirement_id, from_status, to_status, changed_by, changed_by_role, notes)
+       VALUES ($1, NULL, 'PENDING_ACCEPTANCE', $2, 'CUSTOMER', 'Order placed via checkout')`,
+      [ticketId, user.uid],
+    ).catch(() => {
+      // Non-blocking — audit trail table might not exist in older deployments
+    });
 
     return {
       success: true,
       ticketId,
-      status: 'SENT',
+      status: 'PENDING_ACCEPTANCE',
       totalGenericValue,
       savings: totalBrandedValue - totalGenericValue,
+      upi_vpa: storeUpiVpa || null,
+      pmbjk_code: routedStoreCode,
     };
   }
 

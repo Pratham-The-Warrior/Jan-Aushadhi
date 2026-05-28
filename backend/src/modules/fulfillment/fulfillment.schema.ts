@@ -8,9 +8,9 @@
 export const createRequirementSchema = {
   body: {
     type: 'object' as const,
-    required: ['pmbjk_code', 'drug_codes', 'legal_attestation'],
+    required: ['drug_codes', 'legal_attestation'],
     properties: {
-      pmbjk_code: { type: 'string' as const, minLength: 1 },
+      pmbjk_code: { type: 'string' as const },
       drug_codes: {
         type: 'array' as const,
         minItems: 1,
@@ -29,6 +29,15 @@ export const createRequirementSchema = {
       legal_attestation: { type: 'boolean' as const },
       delivery_address: { type: 'string' as const },
       payment_mode: { type: 'string' as const },
+      fulfillment_type: { type: 'string' as const, enum: ['PICKUP', 'DELIVERY'] },
+      delivery_coords: {
+        type: 'object' as const,
+        required: ['lat', 'lng'],
+        properties: {
+          lat: { type: 'number' as const },
+          lng: { type: 'number' as const }
+        }
+      }
     },
   },
 };
