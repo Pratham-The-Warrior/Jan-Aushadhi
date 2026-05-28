@@ -9,6 +9,7 @@
     "build": "tsc",
     "typecheck": "tsc --noEmit",
     "db:setup": "tsx scripts/setup_db.ts",
+    "db:migrate": "tsx scripts/migrate_v2.ts",
     "etl:run": "tsx scripts/etl_pipeline.ts",
     "etl:stores": "tsx scripts/store_geocoding.ts"
   },

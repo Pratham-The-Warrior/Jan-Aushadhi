@@ -30,6 +30,10 @@ import catalogRoutes from './modules/catalog/catalog.routes';
 import storeRoutes from './modules/stores/stores.routes';
 import fulfillmentRoutes from './modules/fulfillment/fulfillment.routes';
 
+// Enterprise Modules (V2)
+import sellerRoutes from './modules/seller/seller.routes';
+import adminRoutes from './modules/admin/admin.routes';
+
 /**
  * Build and configure a Fastify application instance.
  *
@@ -136,12 +140,18 @@ export async function buildApp(): Promise<FastifyInstance> {
   await server.register(storeRoutes);
   await server.register(fulfillmentRoutes);
 
+  // Enterprise Modules (V2)
+  await server.register(sellerRoutes);
+  await server.register(adminRoutes);
+
   // ---- Route Listing ----
   console.log('\n📋 Registered Modules:');
   console.log('   🔍 Search      — GET /api/v1/search, GET /api/v1/suggest');
   console.log('   💊 Catalog     — GET /api/v1/discovery/:id, GET /api/v1/catalog/by-salt/:hash');
   console.log('   🏪 Stores      — GET /api/v1/stores/*, POST /api/v1/stores/confirm/:id');
   console.log('   📦 Fulfillment — POST /api/v1/requirements/*, GET /api/v1/user/*');
+  console.log('   🏬 Seller      — /api/v1/seller/* (STORE_OWNER protected)');
+  console.log('   👑 Admin       — /api/v1/admin/* (SUPER_ADMIN protected)');
 
   return server;
 }

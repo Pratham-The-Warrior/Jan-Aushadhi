@@ -1,9 +1,13 @@
 // ============================================================
 // Shared TypeScript Interfaces
 // Domain types used across modules for type-safe data flow.
+// V2: Extended with RBAC, expanded order lifecycle, seller/admin types.
 // ============================================================
 
-// ---- Authentication ----
+// ---- Authentication & RBAC ----
+
+/** User roles for the tri-portal ecosystem */
+export type UserRole = 'CUSTOMER' | 'STORE_OWNER' | 'SUPER_ADMIN';
 
 /** Decoded Firebase user attached to authenticated requests */
 export interface AuthUser {
@@ -11,6 +15,10 @@ export interface AuthUser {
   phone_number?: string;
   email?: string;
   name?: string;
+  /** Role resolved from PostgreSQL (not from Firebase token) */
+  role?: UserRole;
+  /** PMBJK code of the linked store (only for STORE_OWNER) */
+  linked_pmbjk_code?: string;
 }
 
 // ---- Medicine Domain ----
@@ -66,6 +74,9 @@ export interface SearchSuggestion {
 
 // ---- Store Domain ----
 
+/** Store operational status */
+export type StoreStatus = 'ACTIVE' | 'SUSPENDED' | 'CLOSED';
+
 /** PMBJK Kendra store */
 export interface Store {
   pmbjk_code: string;
@@ -76,12 +87,29 @@ export interface Store {
   state: string;
   district: string;
   distance_km?: number;
+  status?: StoreStatus;
+  operating_hours?: Record<string, string>;
+  seller_uid?: string;
+  verified_at?: string;
 }
 
 /** Store search result envelope */
 export interface StoreSearchResult {
   count: number;
   stores: Store[];
+}
+
+/** Per-store inventory entry */
+export interface StoreInventoryItem {
+  pmbjk_code: string;
+  drug_code: string;
+  in_stock: boolean;
+  last_updated: string;
+  // Joined from generic_meds for display
+  generic_name?: string;
+  mrp?: number;
+  unit_size?: string;
+  group_name?: string;
 }
 
 // ---- Fulfillment Domain ----
@@ -95,10 +123,30 @@ export interface RequirementItem {
   branded_mrp?: number;
 }
 
-/** Requirement ticket status lifecycle */
-export type RequirementStatus = 'PENDING' | 'SENT' | 'CONFIRMED' | 'FULFILLED' | 'CANCELLED';
+/** Requirement ticket status lifecycle (V2 expanded) */
+export type RequirementStatus =
+  | 'PENDING_ACCEPTANCE'
+  | 'ACCEPTED'
+  | 'PREPARING'
+  | 'READY_FOR_PICKUP'
+  | 'COMPLETED'
+  | 'CANCELLED_BY_CUSTOMER'
+  | 'CANCELLED_BY_SELLER'
+  | 'CANCELLED_BY_ADMIN';
 
-/** Requirement ticket (checkout → WhatsApp handoff) */
+/** Valid status transitions map — enforces business rules */
+export const VALID_STATUS_TRANSITIONS: Record<string, string[]> = {
+  PENDING_ACCEPTANCE: ['ACCEPTED', 'CANCELLED_BY_SELLER', 'CANCELLED_BY_CUSTOMER', 'CANCELLED_BY_ADMIN'],
+  ACCEPTED: ['PREPARING', 'CANCELLED_BY_SELLER', 'CANCELLED_BY_ADMIN'],
+  PREPARING: ['READY_FOR_PICKUP', 'CANCELLED_BY_SELLER', 'CANCELLED_BY_ADMIN'],
+  READY_FOR_PICKUP: ['COMPLETED', 'CANCELLED_BY_ADMIN'],
+  COMPLETED: [],
+  CANCELLED_BY_CUSTOMER: [],
+  CANCELLED_BY_SELLER: [],
+  CANCELLED_BY_ADMIN: [],
+};
+
+/** Requirement ticket (order) */
 export interface Requirement {
   id: string;
   user_id: string;
@@ -111,8 +159,25 @@ export interface Requirement {
   total_branded_value: number;
   total_generic_value: number;
   savings: number;
+  seller_notes: string | null;
+  accepted_at: string | null;
+  completed_at: string | null;
+  cancelled_reason: string | null;
+  cancelled_by: string | null;
   created_at: string;
   updated_at: string;
+}
+
+/** Order audit trail entry */
+export interface OrderStatusLogEntry {
+  id: number;
+  requirement_id: string;
+  from_status: string | null;
+  to_status: string;
+  changed_by: string;
+  changed_by_role: string;
+  notes: string | null;
+  created_at: string;
 }
 
 /** Dashboard aggregated statistics */
@@ -130,6 +195,42 @@ export interface MonthlySavings {
   spend: number;
 }
 
+// ---- Seller Domain ----
+
+/** Seller analytics summary */
+export interface SellerAnalyticsSummary {
+  total_orders: number;
+  orders_today: number;
+  total_revenue: number;
+  revenue_today: number;
+  avg_order_value: number;
+  pending_orders: number;
+}
+
+/** Seller daily analytics data point */
+export interface SellerDailyAnalytics {
+  date: string;
+  orders: number;
+  revenue: number;
+  savings: number;
+}
+
+// ---- Admin Domain ----
+
+/** Platform-wide statistics for the admin dashboard */
+export interface PlatformStats {
+  total_users: number;
+  total_stores: number;
+  total_orders: number;
+  total_gmv: number;
+  total_savings: number;
+  orders_today: number;
+  orders_this_week: number;
+  orders_this_month: number;
+  active_stores: number;
+  store_owners: number;
+}
+
 // ---- Request Payloads ----
 
 /** POST /requirements/create request body */
@@ -139,6 +240,8 @@ export interface CreateRequirementPayload {
   legal_attestation: boolean;
   delivery_address?: string;
   payment_mode?: string;
+  fulfillment_type?: 'PICKUP' | 'DELIVERY';
+  delivery_coords?: { lat: number; lng: number };
 }
 
 /** Cart item stored in the user's medical basket */
@@ -156,4 +259,21 @@ export interface BasketItem {
 /** PUT /user/basket request body */
 export interface UpdateBasketPayload {
   medical_basket: BasketItem[];
+}
+
+/** PATCH /seller/orders/:id/status request body */
+export interface UpdateOrderStatusPayload {
+  status: RequirementStatus;
+  notes?: string;
+}
+
+/** POST /seller/orders/:id/reject request body */
+export interface RejectOrderPayload {
+  reason: string;
+}
+
+/** PATCH /admin/users/:uid/role request body */
+export interface UpdateUserRolePayload {
+  role: UserRole;
+  linked_pmbjk_code?: string;
 }
