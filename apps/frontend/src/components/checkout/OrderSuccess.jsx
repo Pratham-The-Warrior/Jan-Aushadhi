@@ -81,6 +81,28 @@ export default function OrderSuccess({ order, store }) {
           </div>
         </div>
 
+        {/* P2P UPI Payment Option */}
+        {order.upi_vpa && (
+          <div className="mt-2 mb-10 p-6 bg-primary-light/30 border border-primary/20 rounded-2xl flex flex-col items-center animate-fadeIn">
+            <h3 className="font-display font-bold text-primary mb-2 text-base">Direct UPI Kendra Payment</h3>
+            <p className="text-xs text-on-surface/70 mb-4 text-center leading-relaxed">
+              Scan this dynamic QR code to pay the Kendra owner directly via any UPI App.
+              <br />
+              VPA: <code className="bg-white/80 px-1.5 py-0.5 rounded font-mono font-semibold text-primary">{order.upi_vpa}</code>
+            </p>
+            <div className="bg-white p-4 rounded-2xl shadow-sm border border-primary/10 mb-4">
+              <img
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(
+                  `upi://pay?pa=${order.upi_vpa}&pn=PMBJK%20Kendra&am=${order.totalGenericValue}&cu=INR&tn=${order.ticketId}`
+                )}`}
+                alt="UPI QR Code"
+                className="w-40 h-40"
+              />
+            </div>
+            <span className="text-[11px] font-bold uppercase tracking-widest text-primary">₹{Number(order.totalGenericValue).toFixed(2)} direct P2P transfer</span>
+          </div>
+        )}
+
         {/* Actions */}
         <div className="space-y-4">
           <button

@@ -41,6 +41,26 @@ export default function Checkout() {
   const [processing, setProcessing] = useState(false);
   const [orderResult, setOrderResult] = useState(null);
   const [showAttestationModal, setShowAttestationModal] = useState(false);
+  const [fulfillmentType, setFulfillmentType] = useState('PICKUP');
+  const [deliveryAddress, setDeliveryAddress] = useState('');
+  const [deliveryCoords, setDeliveryCoords] = useState({ lat: 19.0760, lng: 72.8777 });
+
+  const handleFulfillmentTypeChange = (type) => {
+    setFulfillmentType(type);
+    if (type === 'DELIVERY') {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            setDeliveryCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+          },
+          (err) => {
+            console.warn('Geolocation failed or denied, using high-fidelity default coordinates.', err);
+            setDeliveryCoords({ lat: 19.0760, lng: 72.8777 });
+          }
+        );
+      }
+    }
+  };
 
   const logisticsFee = deliveryMode === 'express' ? 40 : 20;
   const subsidy = Math.min(subtotal * 0.05, 50);
@@ -59,28 +79,34 @@ export default function Checkout() {
       return;
     }
     // 3. Validation
-    if (!selectedStore) {
+    if (items.length === 0) {
+      alert('Your cart is empty.');
+      navigate('/discovery');
+      return;
+    }
+    if (fulfillmentType === 'PICKUP' && !selectedStore) {
       alert('Please select a Jan Aushadhi Kendra for fulfillment first.');
       navigate('/fulfillment');
       return;
     }
-    if (items.length === 0) {
-      alert('Your cart is empty.');
-      navigate('/discovery');
+    if (fulfillmentType === 'DELIVERY' && !deliveryAddress.trim()) {
+      alert('Please enter a delivery address for home delivery.');
       return;
     }
 
     setProcessing(true);
     try {
       const result = await createRequirement({
-        pmbjk_code: selectedStore.pmbjk_code,
+        pmbjk_code: fulfillmentType === 'PICKUP' ? selectedStore.pmbjk_code : '',
         drug_codes: items.map((i) => ({
           code: i.drug_code, quantity: i.quantity, name: i.name,
           mrp: i.mrp, branded_mrp: i.branded_mrp,
         })),
         legal_attestation: true,
-        delivery_address: 'Verification pending via WhatsApp',
+        delivery_address: fulfillmentType === 'PICKUP' ? 'Self-Pickup at Kendra' : deliveryAddress,
         payment_mode: 'COD',
+        fulfillment_type: fulfillmentType,
+        delivery_coords: fulfillmentType === 'DELIVERY' ? deliveryCoords : undefined,
       });
 
       try {
@@ -94,14 +120,17 @@ export default function Checkout() {
       clearCart();
     } catch (err) {
       console.error(err);
-      alert('Checkout failed. Please ensure the backend services are running.');
+      alert(err.message || 'Checkout failed. Please ensure the backend services are running.');
     }
     setProcessing(false);
   };
 
   // ---- Order Success View ----
   if (orderResult) {
-    return <OrderSuccess order={orderResult} store={selectedStore} />;
+    const successStore = fulfillmentType === 'PICKUP' 
+      ? selectedStore 
+      : { name: `Auto-Routed Kendra (${orderResult.pmbjk_code})` };
+    return <OrderSuccess order={orderResult} store={successStore} />;
   }
 
   const staggerContainer = {
@@ -152,38 +181,88 @@ export default function Checkout() {
               </div>
             </motion.div>
 
-            {/* 01 Store Selection */}
+            {/* 01 Fulfillment Mode */}
             <motion.div variants={fadeUpItem}>
               <div className="flex items-center gap-4 mb-6">
                 <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-display font-bold text-sm">1</div>
-                <h2 className="font-display text-2xl font-bold text-on-surface">Target Kendra</h2>
+                <h2 className="font-display text-2xl font-bold text-on-surface">Fulfillment Mode</h2>
               </div>
-              <div className="bg-surface-lowest rounded-2xl ghost-border flex flex-col md:flex-row overflow-hidden hover:shadow-lg transition-shadow">
-                <div className="w-full md:w-5/12 bg-surface-low relative flex items-center justify-center p-12">
-                  <MapPin className="w-16 h-16 text-primary/20" />
-                  <div className="absolute bottom-4 left-4 right-4 bg-white text-primary text-[9px] font-bold px-3 py-2 rounded-lg uppercase tracking-widest text-center shadow-sm border border-primary/10">Verified Location</div>
-                </div>
-                <div className="w-full md:w-7/12 p-8 lg:p-10 bg-surface-lowest flex flex-col justify-center">
-                  {!selectedStore ? (
-                    <div className="text-center py-4">
-                      <p className="text-sm text-on-surface/60 mb-6 font-medium">No Kendra selected for fulfillment.</p>
-                      <button onClick={() => navigate('/fulfillment')} className="btn-secondary py-3 px-6 text-xs w-full">Select a Store</button>
-                    </div>
-                  ) : (
-                    <div className="space-y-6">
-                      <div>
-                        <div className="text-[10px] font-bold tracking-widest text-on-surface/40 uppercase mb-1.5">PMBJK Code</div>
-                        <div className="font-display font-bold text-primary text-xl truncate">{selectedStore.name}</div>
-                      </div>
-                      <div>
-                        <div className="text-[10px] font-bold tracking-widest text-on-surface/40 uppercase mb-1.5">Address</div>
-                        <div className="font-medium text-on-surface/80 text-sm leading-relaxed">{selectedStore.address}</div>
-                      </div>
-                      <button onClick={() => navigate('/fulfillment')} className="text-primary font-bold text-xs uppercase tracking-widest hover:underline inline-flex items-center gap-1">Change Store <ArrowRight className="w-3 h-3" /></button>
-                    </div>
-                  )}
-                </div>
+              
+              {/* Tabs */}
+              <div className="flex gap-4 p-1 bg-surface-low rounded-2xl mb-6">
+                <button
+                  onClick={() => handleFulfillmentTypeChange('PICKUP')}
+                  className={`flex-1 py-3 px-6 rounded-xl font-display font-bold text-sm transition-all ${
+                    fulfillmentType === 'PICKUP'
+                      ? 'bg-white text-primary shadow-sm'
+                      : 'text-on-surface/60 hover:text-on-surface'
+                  }`}
+                >
+                  Self-Pickup
+                </button>
+                <button
+                  onClick={() => handleFulfillmentTypeChange('DELIVERY')}
+                  className={`flex-1 py-3 px-6 rounded-xl font-display font-bold text-sm transition-all ${
+                    fulfillmentType === 'DELIVERY'
+                      ? 'bg-white text-primary shadow-sm'
+                      : 'text-on-surface/60 hover:text-on-surface'
+                  }`}
+                >
+                  Home Delivery (Auto-Routed)
+                </button>
               </div>
+
+              {/* Dynamic Content based on fulfillmentType */}
+              {fulfillmentType === 'PICKUP' ? (
+                <div className="bg-surface-lowest rounded-2xl ghost-border flex flex-col md:flex-row overflow-hidden hover:shadow-lg transition-shadow">
+                  <div className="w-full md:w-5/12 bg-surface-low relative flex items-center justify-center p-12">
+                    <MapPin className="w-16 h-16 text-primary/20" />
+                    <div className="absolute bottom-4 left-4 right-4 bg-white text-primary text-[9px] font-bold px-3 py-2 rounded-lg uppercase tracking-widest text-center shadow-sm border border-primary/10">Verified Location</div>
+                  </div>
+                  <div className="w-full md:w-7/12 p-8 lg:p-10 bg-surface-lowest flex flex-col justify-center">
+                    {!selectedStore ? (
+                      <div className="text-center py-4">
+                        <p className="text-sm text-on-surface/60 mb-6 font-medium">No Kendra selected for fulfillment.</p>
+                        <button onClick={() => navigate('/fulfillment')} className="btn-secondary py-3 px-6 text-xs w-full">Select a Store</button>
+                      </div>
+                    ) : (
+                      <div className="space-y-6">
+                        <div>
+                          <div className="text-[10px] font-bold tracking-widest text-on-surface/40 uppercase mb-1.5">PMBJK Code</div>
+                          <div className="font-display font-bold text-primary text-xl truncate">{selectedStore.name}</div>
+                        </div>
+                        <div>
+                          <div className="text-[10px] font-bold tracking-widest text-on-surface/40 uppercase mb-1.5">Address</div>
+                          <div className="font-medium text-on-surface/80 text-sm leading-relaxed">{selectedStore.address}</div>
+                        </div>
+                        <button onClick={() => navigate('/fulfillment')} className="text-primary font-bold text-xs uppercase tracking-widest hover:underline inline-flex items-center gap-1">Change Store <ArrowRight className="w-3 h-3" /></button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-surface-lowest rounded-2xl ghost-border p-6 md:p-8 hover:shadow-lg transition-shadow space-y-6">
+                  <div>
+                    <label className="block text-[10px] font-bold tracking-widest text-on-surface/40 uppercase mb-2">Delivery Address</label>
+                    <textarea
+                      rows={3}
+                      value={deliveryAddress}
+                      onChange={(e) => setDeliveryAddress(e.target.value)}
+                      placeholder="Enter your complete flat/house number, building, street, and landmark..."
+                      className="w-full px-4 py-3 rounded-xl border border-outline-variant bg-surface-low text-on-surface placeholder-on-surface/40 focus:outline-none focus:border-primary font-medium text-sm transition-colors resize-none"
+                    />
+                  </div>
+                  <div className="bg-primary-light/30 border border-primary/20 rounded-xl p-4 flex items-center gap-3">
+                    <MapPin className="w-5 h-5 text-primary shrink-0" />
+                    <div>
+                      <div className="text-[10px] font-bold uppercase tracking-widest text-primary mb-0.5">GPS Geolocation Auto-Routing</div>
+                      <div className="text-xs text-on-surface/70 font-medium">
+                        Coordinates: {deliveryCoords.lat.toFixed(5)}° N, {deliveryCoords.lng.toFixed(5)}° E
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </motion.div>
 
             {/* 02 Logistics */}
@@ -377,7 +456,7 @@ export default function Checkout() {
                   );
                 }
 
-                if (!selectedStore) {
+                if (fulfillmentType === 'PICKUP' && !selectedStore) {
                   return (
                     <button
                       onClick={() => navigate('/fulfillment')}
