@@ -4,7 +4,7 @@
 // Maps internally to virtual operator email namespace.
 // ============================================================
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { auth } from '../firebase';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { Store, ArrowRight, Lock, User } from 'lucide-react';

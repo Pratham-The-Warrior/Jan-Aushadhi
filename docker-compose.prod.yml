@@ -47,8 +47,8 @@ services:
 
   backend:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./backend/Dockerfile
     container_name: janaushadhi-backend-prod
     environment:
       - NODE_ENV=production
@@ -69,24 +69,24 @@ services:
 
   frontend:
     build:
-      context: ./apps/frontend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./apps/frontend/Dockerfile
     container_name: janaushadhi-frontend-prod
     expose:
       - "80"
 
   seller:
     build:
-      context: ./apps/seller
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./apps/seller/Dockerfile
     container_name: janaushadhi-seller-prod
     expose:
       - "80"
 
   admin:
     build:
-      context: ./apps/admin
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./apps/admin/Dockerfile
     container_name: janaushadhi-admin-prod
     expose:
       - "80"

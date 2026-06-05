@@ -4,10 +4,10 @@
 // reports for the store owner's accounting.
 // ============================================================
 
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
   FileSpreadsheet, IndianRupee, TrendingUp, ShoppingBag, PiggyBank,
-  Download, Calendar, Filter, RefreshCw, ChevronLeft, ChevronRight,
+  Download, RefreshCw, ChevronLeft, ChevronRight,
   Search
 } from 'lucide-react';
 import { exportOrders, getAnalyticsSummary } from '../services/seller.api';
@@ -22,7 +22,6 @@ const DATE_RANGE_OPTIONS = [
 
 export default function Reports() {
   const [orders, setOrders] = useState([]);
-  const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [toast, setToast] = useState(null);
@@ -37,18 +36,18 @@ export default function Reports() {
   const [page, setPage] = useState(1);
   const limit = 15;
 
-  useEffect(() => {
-    loadData();
+  const showToast = useCallback((type, message) => {
+    setToast({ type, message });
+    setTimeout(() => setToast(null), 3000);
   }, []);
 
-  async function loadData() {
+  const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [sumData, ordsData] = await Promise.all([
+      const [, ordsData] = await Promise.all([
         getAnalyticsSummary(),
         exportOrders()
       ]);
-      setSummary(sumData);
       setOrders(ordsData.orders || []);
     } catch (err) {
       console.error('Load reports error:', err);
@@ -56,12 +55,14 @@ export default function Reports() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [showToast]);
 
-  const showToast = (type, message) => {
-    setToast({ type, message });
-    setTimeout(() => setToast(null), 3000);
-  };
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      loadData();
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [loadData]);
 
   // Filter logic in frontend
   const filteredOrders = useMemo(() => {
@@ -149,10 +150,7 @@ export default function Reports() {
 
   const totalPages = Math.ceil(filteredOrders.length / limit) || 1;
 
-  // Reset page when filters change
-  useEffect(() => {
-    setPage(1);
-  }, [search, dateRange, statusFilter, paymentFilter]);
+  // Reset page when filters change (removed useEffect in favor of direct event handlers)
 
   // CSV Exporter
   const handleExportCSV = () => {
@@ -328,7 +326,7 @@ export default function Reports() {
               className="input"
               style={{ paddingLeft: '2.25rem', paddingTop: '0.45rem', paddingBottom: '0.45rem', fontSize: '0.8125rem' }}
               value={search}
-              onChange={e => setSearch(e.target.value)}
+              onChange={e => { setSearch(e.target.value); setPage(1); }}
             />
           </div>
         </div>
@@ -340,7 +338,7 @@ export default function Reports() {
             className="input" 
             style={{ paddingTop: '0.45rem', paddingBottom: '0.45rem', fontSize: '0.8125rem', background: 'var(--color-surface-700)', cursor: 'pointer' }}
             value={dateRange}
-            onChange={e => setDateRange(e.target.value)}
+            onChange={e => { setDateRange(e.target.value); setPage(1); }}
           >
             {DATE_RANGE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
@@ -353,7 +351,7 @@ export default function Reports() {
             className="input" 
             style={{ paddingTop: '0.45rem', paddingBottom: '0.45rem', fontSize: '0.8125rem', background: 'var(--color-surface-700)', cursor: 'pointer' }}
             value={statusFilter}
-            onChange={e => setStatusFilter(e.target.value)}
+            onChange={e => { setStatusFilter(e.target.value); setPage(1); }}
           >
             <option value="all">All Orders</option>
             <option value="ACTIVE">Active (In Pipeline)</option>
@@ -369,7 +367,7 @@ export default function Reports() {
             className="input" 
             style={{ paddingTop: '0.45rem', paddingBottom: '0.45rem', fontSize: '0.8125rem', background: 'var(--color-surface-700)', cursor: 'pointer' }}
             value={paymentFilter}
-            onChange={e => setPaymentFilter(e.target.value)}
+            onChange={e => { setPaymentFilter(e.target.value); setPage(1); }}
           >
             <option value="all">All Modes</option>
             <option value="COD">Cash On Delivery (COD)</option>

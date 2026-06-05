@@ -113,9 +113,17 @@ export default function Stores() {
       showToast('danger', 'Enter a valid Operator Name');
       return;
     }
-    if (!operatorPhone || operatorPhone.trim().length < 10) {
+    const cleanedPhone = operatorPhone.trim().replace(/\D/g, '');
+    if (cleanedPhone.length !== 10) {
       showToast('danger', 'Enter a valid 10-digit Phone Number');
       return;
+    }
+    if (operatorEmail.trim()) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(operatorEmail.trim())) {
+        showToast('danger', 'Enter a valid Email Address');
+        return;
+      }
     }
     if (!operatorPassword || operatorPassword.length < 6) {
       showToast('danger', 'Password must be at least 6 characters');
@@ -126,7 +134,7 @@ export default function Stores() {
     try {
       await assignSellerToStore(assignModal, {
         name: operatorName.trim(),
-        phone: operatorPhone.trim(),
+        phone: cleanedPhone,
         email: operatorEmail.trim() || undefined,
         password: operatorPassword
       });

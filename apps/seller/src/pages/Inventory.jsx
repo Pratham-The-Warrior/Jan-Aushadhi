@@ -4,10 +4,10 @@
 // pagination, and bulk update capabilities.
 // ============================================================
 
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Search, RefreshCw, ChevronLeft, ChevronRight, CheckCircle2,
-  AlertCircle, Package, Layers, Settings, Eye, Check, X
+  AlertCircle, Package, Settings
 } from 'lucide-react';
 import { getInventory, updateInventoryItem, bulkUpdateInventory } from '../services/seller.api';
 
@@ -24,6 +24,11 @@ export default function Inventory() {
   const [selectedItems, setSelectedItems] = useState(new Set());
   const [bulkActionLoading, setBulkActionLoading] = useState(false);
   const [toast, setToast] = useState(null);
+
+  const showToast = useCallback((type, message) => {
+    setToast({ type, message });
+    setTimeout(() => setToast(null), 3000);
+  }, []);
 
   const loadInventory = useCallback(async (showLoader = true) => {
     if (showLoader) setLoading(true);
@@ -42,10 +47,13 @@ export default function Inventory() {
     } finally {
       setLoading(false);
     }
-  }, [searchQuery, page]);
+  }, [searchQuery, page, showToast]);
 
   useEffect(() => {
-    loadInventory();
+    const timer = setTimeout(() => {
+      loadInventory();
+    }, 0);
+    return () => clearTimeout(timer);
   }, [loadInventory]);
 
   // Debounced search trigger
@@ -56,11 +64,6 @@ export default function Inventory() {
     }, 400);
     return () => clearTimeout(handler);
   }, [search]);
-
-  const showToast = (type, message) => {
-    setToast({ type, message });
-    setTimeout(() => setToast(null), 3000);
-  };
 
   const handleToggleStock = async (drugCode, currentStock) => {
     setTogglingId(drugCode);

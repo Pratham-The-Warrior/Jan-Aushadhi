@@ -123,8 +123,7 @@ export default function Catalog() {
 
       </div>
 
-      {/* Match rate visualization */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1.5fr', gap: '1.5rem' }} className="max-lg:!grid-cols-1">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         
         {/* Match progress bar visual */}
         <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', justifyContent: 'center' }}>

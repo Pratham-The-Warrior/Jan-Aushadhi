@@ -4,10 +4,10 @@
 // read-only licensing and location metadata.
 // ============================================================
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { 
   Store, Phone, MapPin, Clock, ShieldCheck, AlertCircle, Save,
-  CheckCircle2, AlertTriangle, Copy, Calendar
+  CheckCircle2, AlertTriangle, Copy
 } from 'lucide-react';
 import { getProfile, updateProfile } from '../services/seller.api';
 import useAuthStore from '../store/authStore';
@@ -17,7 +17,7 @@ const DAYS_OF_WEEK = [
 ];
 
 export default function StoreProfile() {
-  const { sellerProfile, refreshProfile } = useAuthStore();
+  const { refreshProfile } = useAuthStore();
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -28,11 +28,12 @@ export default function StoreProfile() {
   const [hoursState, setHoursState] = useState({});
   const [toast, setToast] = useState(null);
 
-  useEffect(() => {
-    loadProfile();
+  const showToast = useCallback((type, message) => {
+    setToast({ type, message });
+    setTimeout(() => setToast(null), 3000);
   }, []);
 
-  async function loadProfile() {
+  const loadProfile = useCallback(async () => {
     setLoading(true);
     try {
       const data = await getProfile();
@@ -68,12 +69,14 @@ export default function StoreProfile() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [showToast]);
 
-  const showToast = (type, message) => {
-    setToast({ type, message });
-    setTimeout(() => setToast(null), 3000);
-  };
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      loadProfile();
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [loadProfile]);
 
   const handleHourToggle = (day) => {
     setHoursState(prev => ({

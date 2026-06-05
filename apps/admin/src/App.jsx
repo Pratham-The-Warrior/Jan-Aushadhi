@@ -161,10 +161,9 @@ function ConsoleLayout() {
   const location = useLocation();
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh' }}>
+    <div className="flex min-h-screen">
       <Sidebar mobileOpen={mobileOpen} onClose={() => setMobileOpen(false)} />
-      <div style={{ marginLeft: 260, flex: 1, display: 'flex', flexDirection: 'column', minHeight: '100vh' }}
-        className="max-lg:!ml-0">
+      <div className="flex-1 flex flex-col min-h-screen ml-[260px] max-lg:ml-0">
         <TopBar onMenuClick={() => setMobileOpen(true)} />
         <main style={{ flex: 1, padding: '1.5rem', overflowY: 'auto' }}>
           <Suspense fallback={<Loader />}>

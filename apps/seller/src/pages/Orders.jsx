@@ -4,9 +4,9 @@
 // order detail slide-over, and action buttons.
 // ============================================================
 
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
-  RefreshCw, Search, ChevronLeft, ChevronRight, Eye, Check, X as XIcon,
+  RefreshCw, ChevronLeft, ChevronRight, Eye, Check, X as XIcon,
   Package, Truck, CheckCircle2, Phone, MessageCircle, Clock, AlertTriangle
 } from 'lucide-react';
 import { getOrders, getOrder, updateOrderStatus, rejectOrder } from '../services/seller.api';
@@ -89,7 +89,12 @@ export default function Orders() {
     }
   }, [statusFilter, page]);
 
-  useEffect(() => { loadOrders(); }, [loadOrders]);
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      loadOrders();
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [loadOrders]);
 
   // Auto-refresh every 30 seconds
   useEffect(() => {

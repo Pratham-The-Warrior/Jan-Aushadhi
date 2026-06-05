@@ -103,7 +103,7 @@ export default function Settings() {
         </button>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1.4fr', gap: '1.5rem' }} className="max-lg:!grid-cols-1">
+      <div className="grid grid-cols-1 lg:grid-cols-[1.6fr_1.4fr] gap-6">
         
         {/* Left Column: System Status Telemetry */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>

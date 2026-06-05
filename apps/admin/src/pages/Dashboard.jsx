@@ -131,8 +131,7 @@ export default function Dashboard() {
         <MetricCard icon={Users} label="Total Users" value={stats?.total_users || 0} subtitle={`${stats?.store_owners || 0} registered operators`} accent="#3b82f6" />
       </div>
 
-      {/* Main Operations Area */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.8fr', gap: '1.5rem' }} className="max-xl:!grid-cols-1">
+      <div className="grid grid-cols-1 xl:grid-cols-[1.2fr_1.8fr] gap-6">
         
         {/* Left Hand side: Distribution / Volume Charts */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>

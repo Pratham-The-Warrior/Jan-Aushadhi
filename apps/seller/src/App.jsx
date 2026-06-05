@@ -3,7 +3,7 @@
 // Sidebar layout + protected routing + role gating
 // ============================================================
 
-import React, { Suspense, lazy } from 'react';
+import { Suspense, lazy, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, NavLink, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
@@ -166,7 +166,7 @@ function TopBar({ onMenuClick }) {
 
 // Layout with sidebar
 function DashboardLayout() {
-  const [mobileOpen, setMobileOpen] = React.useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
 
   return (
@@ -221,7 +221,7 @@ function AccessDenied() {
 }
 
 export default function App() {
-  const { user, initialized, loading, roleError, sellerProfile } = useAuthStore();
+  const { user, initialized, loading, roleError } = useAuthStore();
 
   if (!initialized || loading) return <Loader />;
 

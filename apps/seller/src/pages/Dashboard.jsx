@@ -3,10 +3,10 @@
 // Summary cards, daily revenue chart, recent orders list
 // ============================================================
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  ShoppingCart, IndianRupee, TrendingUp, Clock, Package, CheckCircle2, ArrowRight
+  ShoppingCart, IndianRupee, TrendingUp, Package, CheckCircle2, ArrowRight
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { getAnalyticsSummary, getDailyAnalytics, getOrders } from '../services/seller.api';
@@ -56,11 +56,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  async function loadData() {
+  const loadData = useCallback(async () => {
     try {
       const [s, c, o] = await Promise.all([
         getAnalyticsSummary(),
@@ -79,7 +75,14 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      loadData();
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [loadData]);
 
   const formatCurrency = (v) => `₹${Number(v || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
 
