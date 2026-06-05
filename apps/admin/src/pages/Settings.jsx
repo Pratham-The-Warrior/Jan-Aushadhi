@@ -3,9 +3,9 @@
 // Infrastructure health monitoring and global server config overview.
 // ============================================================
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { 
-  Settings as SettingsIcon, Server, Database, ShieldCheck, AlertCircle,
+  Server, Database, AlertCircle,
   RefreshCw, CheckCircle2, Cpu, Globe, KeyRound, Radio
 } from 'lucide-react';
 import { getSystemHealth } from '../services/admin.api';
@@ -16,13 +16,17 @@ export default function Settings() {
   const [refreshing, setRefreshing] = useState(false);
   const [toast, setToast] = useState(null);
 
-  useEffect(() => {
-    loadHealth(true);
+  const showToast = useCallback((type, message) => {
+    setToast({ type, message });
+    setTimeout(() => setToast(null), 3000);
   }, []);
 
-  async function loadHealth(showLoader = false) {
-    if (showLoader) setLoading(true);
-    else setRefreshing(true);
+  const loadHealth = useCallback(async (showLoader = false) => {
+    if (showLoader) {
+      setTimeout(() => setLoading(true), 0);
+    } else {
+      setTimeout(() => setRefreshing(true), 0);
+    }
     try {
       const data = await getSystemHealth();
       setHealth(data);
@@ -30,15 +34,20 @@ export default function Settings() {
       console.error('Load system health error:', err);
       showToast('danger', 'Failed to connect to backend health check API');
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      setTimeout(() => {
+        setLoading(false);
+        setRefreshing(false);
+      }, 0);
     }
-  }
+  }, [showToast]);
 
-  const showToast = (type, message) => {
-    setToast({ type, message });
-    setTimeout(() => setToast(null), 3000);
-  };
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      loadHealth(true);
+    }, 0);
+    return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const getServiceStatusIcon = (statusStr) => {
     if (!statusStr) return <AlertCircle size={16} className="text-rose-500" />;

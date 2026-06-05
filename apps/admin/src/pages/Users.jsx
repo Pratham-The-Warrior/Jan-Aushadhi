@@ -4,16 +4,15 @@
 // and view customer spending/savings statistics.
 // ============================================================
 
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { 
   Users, Search, RefreshCw, ChevronLeft, ChevronRight, Eye, ShieldAlert,
-  UserCheck, Ban, ShieldCheck, X, Calendar, ShoppingBag, PiggyBank, CreditCard
+  UserCheck, Ban, ShieldCheck, X, ShoppingBag, PiggyBank, CreditCard
 } from 'lucide-react';
 import { getUsers, getUser, updateUserRole, suspendUser } from '../services/admin.api';
 
 export default function UsersPage() {
   const [users, setUsers] = useState([]);
-  const [totalCount, setTotalCount] = useState(0);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
@@ -27,14 +26,20 @@ export default function UsersPage() {
 
   // Modals
   const [selectedUser, setSelectedUser] = useState(null);
-  const [detailLoading, setDetailLoading] = useState(false);
   const [roleModal, setRoleModal] = useState(null); // stores user object
   const [newRole, setNewRole] = useState('CUSTOMER');
   const [linkedStoreCode, setLinkedStoreCode] = useState('');
   const [toast, setToast] = useState(null);
 
+  const showToast = useCallback((type, message) => {
+    setToast({ type, message });
+    setTimeout(() => setToast(null), 3000);
+  }, []);
+
   const loadUsers = useCallback(async (showLoader = true) => {
-    if (showLoader) setLoading(true);
+    if (showLoader) {
+      setTimeout(() => setLoading(true), 0);
+    }
     try {
       const data = await getUsers({
         search: searchQuery || undefined,
@@ -43,19 +48,22 @@ export default function UsersPage() {
         limit: 25
       });
       setUsers(data.users || []);
-      setTotalCount(data.count || 0);
       setTotalPages(data.totalPages || 1);
     } catch (err) {
       console.error('Load users error:', err);
       showToast('danger', 'Failed to fetch users registry');
     } finally {
-      setLoading(false);
+      setTimeout(() => setLoading(false), 0);
     }
-  }, [searchQuery, roleFilter, page]);
+  }, [searchQuery, roleFilter, page, showToast]);
 
   useEffect(() => {
-    loadUsers();
-  }, [loadUsers]);
+    const timer = setTimeout(() => {
+      loadUsers(false);
+    }, 0);
+    return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Debounce search
   useEffect(() => {
@@ -65,11 +73,6 @@ export default function UsersPage() {
     }, 400);
     return () => clearTimeout(handler);
   }, [search]);
-
-  const showToast = (type, message) => {
-    setToast({ type, message });
-    setTimeout(() => setToast(null), 3000);
-  };
 
   const handleToggleSuspend = async (uid, isCurrentlySuspended) => {
     const shouldSuspend = !isCurrentlySuspended;
@@ -92,15 +95,12 @@ export default function UsersPage() {
   };
 
   const handleOpenDetail = async (uid) => {
-    setDetailLoading(true);
     try {
       const data = await getUser(uid);
       setSelectedUser(data);
     } catch (err) {
       console.error('Fetch user detail error:', err);
       showToast('danger', 'Failed to retrieve user profile');
-    } finally {
-      setDetailLoading(false);
     }
   };
 
@@ -158,7 +158,7 @@ export default function UsersPage() {
       </div>
 
       {/* Filter toolbar */}
-      <div className="card" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1rem', padding: '1rem' }} className="max-md:!grid-cols-1">
+      <div className="card grid grid-cols-1 md:grid-cols-[2fr_1fr] gap-4 p-4">
         
         {/* Search */}
         <div style={{ position: 'relative' }}>

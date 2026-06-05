@@ -3,7 +3,7 @@
 // View stores, toggle suspension states, assign seller operators.
 // ============================================================
 
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { 
   Store, Search, RefreshCw, ChevronLeft, ChevronRight, Eye, ShieldAlert,
   UserPlus, CheckCircle, AlertTriangle, X, ShieldCheck, MapPin, Phone
@@ -12,7 +12,6 @@ import { getStores, getStore, updateStoreStatus, assignSellerToStore } from '../
 
 export default function Stores() {
   const [stores, setStores] = useState([]);
-  const [totalCount, setTotalCount] = useState(0);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   
@@ -27,7 +26,6 @@ export default function Stores() {
   
   // Modals
   const [selectedStore, setSelectedStore] = useState(null);
-  const [detailLoading, setDetailLoading] = useState(false);
   const [assignModal, setAssignModal] = useState(null); // stores store code
   const [operatorName, setOperatorName] = useState('');
   const [operatorPhone, setOperatorPhone] = useState('');
@@ -35,8 +33,15 @@ export default function Stores() {
   const [operatorPassword, setOperatorPassword] = useState('');
   const [toast, setToast] = useState(null);
 
+  const showToast = useCallback((type, message) => {
+    setToast({ type, message });
+    setTimeout(() => setToast(null), 3000);
+  }, []);
+
   const loadStores = useCallback(async (showLoader = true) => {
-    if (showLoader) setLoading(true);
+    if (showLoader) {
+      setTimeout(() => setLoading(true), 0);
+    }
     try {
       const data = await getStores({
         search: searchQuery || undefined,
@@ -46,19 +51,22 @@ export default function Stores() {
         limit: 25
       });
       setStores(data.stores || []);
-      setTotalCount(data.count || 0);
       setTotalPages(data.totalPages || 1);
     } catch (err) {
       console.error('Load stores error:', err);
       showToast('danger', 'Failed to fetch stores directory');
     } finally {
-      setLoading(false);
+      setTimeout(() => setLoading(false), 0);
     }
-  }, [searchQuery, statusFilter, stateFilter, page]);
+  }, [searchQuery, statusFilter, stateFilter, page, showToast]);
 
   useEffect(() => {
-    loadStores();
-  }, [loadStores]);
+    const timer = setTimeout(() => {
+      loadStores(false);
+    }, 0);
+    return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Debounce search
   useEffect(() => {
@@ -68,11 +76,6 @@ export default function Stores() {
     }, 400);
     return () => clearTimeout(handler);
   }, [search]);
-
-  const showToast = (type, message) => {
-    setToast({ type, message });
-    setTimeout(() => setToast(null), 3000);
-  };
 
   const handleToggleStatus = async (code, currentStatus) => {
     const nextStatus = currentStatus === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE';
@@ -95,15 +98,12 @@ export default function Stores() {
   };
 
   const handleOpenDetail = async (code) => {
-    setDetailLoading(true);
     try {
       const data = await getStore(code);
       setSelectedStore(data);
     } catch (err) {
       console.error('Fetch store detail error:', err);
       showToast('danger', 'Failed to retrieve store profile');
-    } finally {
-      setDetailLoading(false);
     }
   };
 
@@ -178,7 +178,7 @@ export default function Stores() {
       </div>
 
       {/* Filter toolbar */}
-      <div className="card" style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: '1rem', padding: '1rem' }} className="max-md:!grid-cols-1">
+      <div className="card grid grid-cols-1 md:grid-cols-[1.5fr_1fr_1fr] gap-4 p-4">
         
         {/* Search */}
         <div style={{ position: 'relative' }}>

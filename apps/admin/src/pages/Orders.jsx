@@ -4,12 +4,11 @@
 // and administrative status overrides.
 // ============================================================
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
 import { 
   RefreshCw, Search, ChevronLeft, ChevronRight, Eye, AlertTriangle,
-  Clock, MapPin, Phone, MessageCircle, X, ShieldAlert, CheckCircle2,
-  Calendar, CreditCard
+  X, ShieldAlert, CheckCircle2
 } from 'lucide-react';
 import { getAllOrders, getOrderDetails, overrideOrderStatus } from '../services/admin.api';
 
@@ -33,7 +32,6 @@ export default function Orders() {
   }, [location.search]);
 
   const [orders, setOrders] = useState([]);
-  const [totalCount, setTotalCount] = useState(0);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
@@ -50,7 +48,6 @@ export default function Orders() {
 
   // Slide-Over Detail
   const [selectedOrder, setSelectedOrder] = useState(null);
-  const [detailLoading, setDetailLoading] = useState(false);
   
   // Override Modal
   const [overrideModal, setOverrideModal] = useState(null); // stores order details
@@ -58,9 +55,17 @@ export default function Orders() {
   const [overrideNotes, setOverrideNotes] = useState('');
   const [toast, setToast] = useState(null);
 
+  const showToast = useCallback((type, message) => {
+    setToast({ type, message });
+    setTimeout(() => setToast(null), 3000);
+  }, []);
+
   const loadOrders = useCallback(async (showLoader = true) => {
-    if (showLoader) setLoading(true);
-    else setRefreshing(true);
+    if (showLoader) {
+      setTimeout(() => setLoading(true), 0);
+    } else {
+      setTimeout(() => setRefreshing(true), 0);
+    }
     try {
       const data = await getAllOrders({
         status: statusFilter || undefined,
@@ -71,36 +76,33 @@ export default function Orders() {
         limit: 20
       });
       setOrders(data.orders || []);
-      setTotalCount(data.count || 0);
       setTotalPages(data.totalPages || 1);
     } catch (err) {
       console.error('Load admin orders error:', err);
       showToast('danger', 'Failed to fetch global orders feed');
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      setTimeout(() => {
+        setLoading(false);
+        setRefreshing(false);
+      }, 0);
     }
-  }, [statusFilter, pmbjkFilter, dateFrom, dateTo, page]);
+  }, [statusFilter, pmbjkFilter, dateFrom, dateTo, page, showToast]);
 
   useEffect(() => {
-    loadOrders();
-  }, [loadOrders]);
-
-  const showToast = (type, message) => {
-    setToast({ type, message });
-    setTimeout(() => setToast(null), 3000);
-  };
+    const timer = setTimeout(() => {
+      loadOrders(false);
+    }, 0);
+    return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleOpenDetail = async (id) => {
-    setDetailLoading(true);
     try {
       const data = await getOrderDetails(id);
       setSelectedOrder(data);
     } catch (err) {
       console.error('Fetch order detail error:', err);
       showToast('danger', 'Failed to retrieve order logs');
-    } finally {
-      setDetailLoading(false);
     }
   };
 
@@ -188,7 +190,7 @@ export default function Orders() {
       </div>
 
       {/* Filter toolbar */}
-      <div className="card" style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr 1fr 1fr', gap: '0.75rem', padding: '1rem' }} className="max-xl:!grid-cols-2 max-sm:!grid-cols-1">
+      <div className="card grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-[1.5fr_1fr_1fr_1fr_1fr] gap-3 p-4">
         
         {/* Search */}
         <div style={{ position: 'relative' }}>

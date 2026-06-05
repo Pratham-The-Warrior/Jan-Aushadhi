@@ -3,11 +3,11 @@
 // Displays platform-wide metrics, live orders, and charts.
 // ============================================================
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Users, Store, ShoppingBag, PiggyBank, TrendingUp, RefreshCw, 
-  MapPin, Clock, ArrowRight, ShieldCheck, CheckCircle2, ChevronRight
+  MapPin, Clock, CheckCircle2, ChevronRight
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { getPlatformStats, getOrdersFeed } from '../services/admin.api';
@@ -37,19 +37,12 @@ export default function Dashboard() {
   const [refreshing, setRefreshing] = useState(false);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    loadData(true);
-  }, []);
-
-  // Auto-refresh feed
-  useEffect(() => {
-    const interval = setInterval(() => loadData(false), 20000);
-    return () => clearInterval(interval);
-  }, []);
-
-  async function loadData(showLoader = false) {
-    if (showLoader) setLoading(true);
-    else setRefreshing(true);
+  const loadData = useCallback(async (showLoader = false) => {
+    if (showLoader) {
+      setTimeout(() => setLoading(true), 0);
+    } else {
+      setTimeout(() => setRefreshing(true), 0);
+    }
     try {
       const [statsData, feedData] = await Promise.all([
         getPlatformStats(),
@@ -60,10 +53,27 @@ export default function Dashboard() {
     } catch (err) {
       console.error('Admin dashboard load error:', err);
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      setTimeout(() => {
+        setLoading(false);
+        setRefreshing(false);
+      }, 0);
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      loadData(true);
+    }, 0);
+    return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Auto-refresh feed
+  useEffect(() => {
+    const interval = setInterval(() => loadData(false), 20000);
+    return () => clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const formatCurrency = (val) => `₹${Number(val || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
 

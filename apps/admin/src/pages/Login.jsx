@@ -4,10 +4,10 @@
 // Bypasses phone OTP and other customer auth elements.
 // ============================================================
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { auth } from '../firebase';
 import { signInWithEmailAndPassword } from 'firebase/auth';
-import { ShieldCheck, ShieldAlert, ArrowRight, Lock, Mail } from 'lucide-react';
+import { ShieldAlert, ArrowRight, Lock, Mail } from 'lucide-react';
 
 export default function Login() {
   const [email, setEmail] = useState('');

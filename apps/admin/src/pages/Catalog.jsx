@@ -4,10 +4,10 @@
 // on running database updates.
 // ============================================================
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { 
   Database, RefreshCw, Layers, CheckCircle2, AlertCircle, FileText,
-  Activity, ArrowUpRight, Terminal
+  Activity, Terminal
 } from 'lucide-react';
 import { getCatalogStats } from '../services/admin.api';
 
@@ -16,11 +16,12 @@ export default function Catalog() {
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState(null);
 
-  useEffect(() => {
-    loadStats();
+  const showToast = useCallback((type, message) => {
+    setToast({ type, message });
+    setTimeout(() => setToast(null), 3000);
   }, []);
 
-  async function loadStats() {
+  const loadStats = useCallback(async () => {
     setLoading(true);
     try {
       const data = await getCatalogStats();
@@ -31,12 +32,15 @@ export default function Catalog() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [showToast]);
 
-  const showToast = (type, message) => {
-    setToast({ type, message });
-    setTimeout(() => setToast(null), 3000);
-  };
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      loadStats();
+    }, 0);
+    return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (loading) {
     return (
