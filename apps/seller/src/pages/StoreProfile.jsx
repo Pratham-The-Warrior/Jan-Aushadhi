@@ -179,7 +179,7 @@ export default function StoreProfile() {
         </p>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.8fr', gap: '1.5rem' }} className="max-lg:!grid-cols-1">
+      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.8fr', gap: '1.5rem' }} className="max-lg:grid-cols-1!">
         
         {/* Left Column: Store Details (Read-only mostly) */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -316,7 +316,7 @@ export default function StoreProfile() {
                     padding: '0.75rem 1rem', background: 'var(--color-surface-700)', borderRadius: '10px',
                     border: '1px solid var(--color-border)'
                   }}
-                  className="max-sm:!grid-cols-1 max-sm:!gap-2"
+                  className="max-sm:grid-cols-1! max-sm:gap-2!"
                 >
                   <span style={{ fontSize: '0.875rem', fontWeight: 600 }}>{day}</span>
                   

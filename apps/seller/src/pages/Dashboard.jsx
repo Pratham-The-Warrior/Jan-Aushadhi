@@ -130,7 +130,7 @@ export default function Dashboard() {
       </div>
 
       {/* Chart + Recent Orders */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }} className="max-lg:!grid-cols-1">
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }} className="max-lg:grid-cols-1!">
         {/* Revenue Chart */}
         <div className="card">
           <h3 style={{ fontSize: '0.9375rem', fontWeight: 600, marginBottom: '1rem' }}>

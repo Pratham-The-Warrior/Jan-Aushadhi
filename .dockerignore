@@ -1,0 +1,45 @@
+# =============================================
+# Docker Build Context Exclusions
+# Prevents secrets, data files, and dev artifacts
+# from leaking into production container images.
+# =============================================
+
+# Environment files (secrets)
+.env
+.env.*
+deploy/.env.production
+
+# Version control
+.git
+.github
+
+# Dependencies (rebuilt inside container)
+node_modules
+
+# Data files (large CSVs — mounted separately)
+*.csv
+*.pdf
+
+# Build artifacts (rebuilt inside container)
+dist/
+build/
+
+# Development artifacts
+scratch/
+*.log
+*.txt
+diff_admin.txt
+lint_seller.log
+lint_seller.txt
+
+# Documentation (not needed in images)
+TECHNICAL_DOCUMENTATION.md
+WORKFLOWS_DOCUMENTATION.md
+README.md
+
+# IDE and OS
+.vscode/
+.idea/
+.DS_Store
+*.suo
+*.sw?

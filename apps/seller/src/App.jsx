@@ -66,7 +66,7 @@ function Sidebar({ mobileOpen, onClose }) {
         <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={onClose} />
       )}
 
-      <aside className={`sidebar ${mobileOpen ? '!flex' : ''}`} style={mobileOpen ? { display: 'flex' } : undefined}>
+      <aside className={`sidebar ${mobileOpen ? 'flex!' : ''}`} style={mobileOpen ? { display: 'flex' } : undefined}>
         {/* Logo */}
         <div style={{ padding: '1.5rem 1.25rem', borderBottom: '1px solid var(--color-border)' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -173,7 +173,7 @@ function DashboardLayout() {
     <div style={{ display: 'flex', minHeight: '100vh' }}>
       <Sidebar mobileOpen={mobileOpen} onClose={() => setMobileOpen(false)} />
       <div style={{ marginLeft: 260, flex: 1, display: 'flex', flexDirection: 'column', minHeight: '100vh' }}
-        className="max-lg:!ml-0">
+        className="max-lg:ml-0!">
         <TopBar onMenuClick={() => setMobileOpen(true)} />
         <main style={{ flex: 1, padding: '1.5rem', overflowY: 'auto' }}>
           <Suspense fallback={<Loader />}>
