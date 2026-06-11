@@ -2,6 +2,7 @@
 // Seller Central — Orders Management Console
 // The core screen: filterable data table with status pipeline,
 // order detail slide-over, and action buttons.
+// (v2 — Polished table, skeletons, details panels, transitions)
 // ============================================================
 
 import { useState, useEffect, useCallback } from 'react';
@@ -57,6 +58,83 @@ function timeSince(date) {
   const h = Math.floor(m / 60);
   if (h < 24) return `${h}h ago`;
   return `${Math.floor(h / 24)}d ago`;
+}
+
+// Skeleton Components
+function SkeletonOrderRow() {
+  return (
+    <tr>
+      <td>
+        <div className="skeleton skeleton-line" style={{ width: 90, height: 14 }} />
+      </td>
+      <td>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
+          <div className="skeleton skeleton-line" style={{ width: 110, height: 14 }} />
+          <div className="skeleton skeleton-line" style={{ width: 80, height: 11 }} />
+        </div>
+      </td>
+      <td>
+        <div className="skeleton skeleton-line" style={{ width: 30, height: 14 }} />
+      </td>
+      <td>
+        <div className="skeleton skeleton-line" style={{ width: 70, height: 14 }} />
+      </td>
+      <td>
+        <div className="skeleton" style={{ width: 80, height: 22, borderRadius: 999 }} />
+      </td>
+      <td>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <div className="skeleton" style={{ width: 12, height: 12, borderRadius: '50%' }} />
+          <div className="skeleton skeleton-line" style={{ width: 50, height: 12 }} />
+        </div>
+      </td>
+      <td>
+        <div style={{ display: 'flex', gap: '0.375rem' }}>
+          <div className="skeleton" style={{ width: 32, height: 32, borderRadius: 10 }} />
+          <div className="skeleton" style={{ width: 80, height: 32, borderRadius: 10 }} />
+        </div>
+      </td>
+    </tr>
+  );
+}
+
+function SkeletonDetail() {
+  return (
+    <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <div className="skeleton skeleton-line" style={{ width: 60, height: 10 }} />
+          <div className="skeleton skeleton-line" style={{ width: 160, height: 14, marginTop: 6 }} />
+        </div>
+        <div className="skeleton" style={{ width: 80, height: 22, borderRadius: 999 }} />
+      </div>
+      
+      <div className="card" style={{ gap: '0.75rem', display: 'flex', flexDirection: 'column' }}>
+        <div className="skeleton skeleton-line" style={{ width: 80, height: 10 }} />
+        <div className="skeleton skeleton-line" style={{ width: 120, height: 14 }} />
+        <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.25rem' }}>
+          <div className="skeleton" style={{ width: 60, height: 28, borderRadius: 10 }} />
+          <div className="skeleton" style={{ width: 80, height: 28, borderRadius: 10 }} />
+        </div>
+      </div>
+      
+      <div className="card" style={{ gap: '0.75rem', display: 'flex', flexDirection: 'column' }}>
+        <div className="skeleton skeleton-line" style={{ width: 80, height: 10 }} />
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+          <div className="skeleton skeleton-line" style={{ width: 140, height: 14 }} />
+          <div className="skeleton skeleton-line" style={{ width: 50, height: 14 }} />
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+          <div className="skeleton skeleton-line" style={{ width: 110, height: 14 }} />
+          <div className="skeleton skeleton-line" style={{ width: 50, height: 14 }} />
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--color-border)', paddingTop: '0.75rem', marginTop: '0.25rem' }}>
+          <div className="skeleton skeleton-line" style={{ width: 50, height: 16 }} />
+          <div className="skeleton skeleton-line" style={{ width: 70, height: 16 }} />
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export default function Orders() {
@@ -155,7 +233,7 @@ export default function Orders() {
             {totalCount} total orders
           </p>
         </div>
-        <button onClick={() => loadOrders(false)} className="btn-secondary" disabled={refreshing}>
+        <button onClick={() => loadOrders(false)} className="btn-secondary" disabled={loading || refreshing}>
           <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
           {refreshing ? 'Refreshing...' : 'Refresh'}
         </button>
@@ -183,16 +261,19 @@ export default function Orders() {
 
       {/* Orders Table */}
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-        {loading ? (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 300 }}>
-            <div style={{ width: 32, height: 32, border: '3px solid var(--color-surface-600)', borderTopColor: 'var(--color-brand-500)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-            <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
-          </div>
-        ) : orders.length === 0 ? (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 300, color: 'var(--color-text-muted)' }}>
-            <Package size={40} style={{ marginBottom: 12, opacity: 0.4 }} />
-            <p style={{ fontSize: '0.9375rem', fontWeight: 500 }}>No orders found</p>
-            <p style={{ fontSize: '0.8125rem', marginTop: 4 }}>Try changing the filter or wait for new orders</p>
+        {orders.length === 0 && !loading ? (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 320, color: 'var(--color-text-muted)', gap: '1rem', padding: '2rem' }}>
+            <div style={{
+              width: 64, height: 64, borderRadius: '50%',
+              background: 'rgba(16, 185, 129, 0.06)', border: '1px solid rgba(16, 185, 129, 0.12)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 4,
+            }}>
+              <Package size={32} style={{ color: 'var(--color-brand-500)' }} />
+            </div>
+            <p style={{ fontSize: '0.9375rem', fontWeight: 600, color: 'var(--color-text-primary)' }}>No Orders Found</p>
+            <p style={{ fontSize: '0.8125rem', color: 'var(--color-text-muted)', textAlign: 'center', maxWidth: 300 }}>
+              No orders are currently present in this view. As soon as customers place orders, they will appear here.
+            </p>
           </div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
@@ -208,77 +289,86 @@ export default function Orders() {
                   <th>Actions</th>
                 </tr>
               </thead>
-              <tbody>
-                {orders.map((order) => {
-                  const items = Array.isArray(order.items) ? order.items : (typeof order.items === 'string' ? JSON.parse(order.items) : []);
-                  const actions = STATUS_ACTIONS[order.status] || [];
-                  return (
-                    <tr key={order.id}>
-                      <td>
-                        <button
-                          onClick={() => openDetail(order.id)}
-                          style={{ background: 'none', border: 'none', color: 'var(--color-brand-400)', cursor: 'pointer', fontWeight: 600, fontSize: '0.8125rem' }}
-                        >
-                          {order.id.slice(0, 12)}...
-                        </button>
-                      </td>
-                      <td>
-                        <div>
-                          <p style={{ fontWeight: 600, color: 'var(--color-text-primary)', fontSize: '0.8125rem' }}>{order.customer_name || '—'}</p>
-                          <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>{order.customer_phone || ''}</p>
-                        </div>
-                      </td>
-                      <td style={{ fontWeight: 500 }}>{items.length}</td>
-                      <td style={{ fontWeight: 600, color: 'var(--color-brand-400)' }}>
-                        ₹{Number(order.total_generic_value || 0).toLocaleString('en-IN')}
-                      </td>
-                      <td><StatusBadge status={order.status} /></td>
-                      <td>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: 'var(--color-text-muted)', fontSize: '0.75rem' }}>
-                          <Clock size={12} />
-                          {timeSince(order.created_at)}
-                        </div>
-                      </td>
-                      <td>
-                        <div style={{ display: 'flex', gap: '0.375rem', flexWrap: 'wrap' }}>
-                          <button onClick={() => openDetail(order.id)} className="btn-icon" title="View Details" aria-label="View order details">
-                            <Eye size={14} />
+              <tbody className={loading ? '' : 'stagger-children'}>
+                {loading ? (
+                  <>
+                    <SkeletonOrderRow />
+                    <SkeletonOrderRow />
+                    <SkeletonOrderRow />
+                    <SkeletonOrderRow />
+                  </>
+                ) : (
+                  orders.map((order) => {
+                    const items = Array.isArray(order.items) ? order.items : (typeof order.items === 'string' ? JSON.parse(order.items) : []);
+                    const actions = STATUS_ACTIONS[order.status] || [];
+                    return (
+                      <tr key={order.id}>
+                        <td>
+                          <button
+                            onClick={() => openDetail(order.id)}
+                            style={{ background: 'none', border: 'none', color: 'var(--color-brand-400)', cursor: 'pointer', fontWeight: 600, fontSize: '0.8125rem' }}
+                          >
+                            {order.id.slice(0, 12)}...
                           </button>
-                          {actions.map((a) => (
-                            <button
-                              key={a.status}
-                              onClick={() => handleStatusUpdate(order.id, a.status)}
-                              className={a.cls}
-                              style={{ padding: '0.375rem 0.625rem', fontSize: '0.75rem' }}
-                              disabled={actionLoading === order.id + a.status}
-                            >
-                              <a.icon size={12} />
-                              {a.label}
+                        </td>
+                        <td>
+                          <div>
+                            <p style={{ fontWeight: 600, color: 'var(--color-text-primary)', fontSize: '0.8125rem' }}>{order.customer_name || '—'}</p>
+                            <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>{order.customer_phone || ''}</p>
+                          </div>
+                        </td>
+                        <td style={{ fontWeight: 500 }}>{items.length}</td>
+                        <td style={{ fontWeight: 600, color: 'var(--color-brand-400)' }}>
+                          ₹{Number(order.total_generic_value || 0).toLocaleString('en-IN')}
+                        </td>
+                        <td><StatusBadge status={order.status} /></td>
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: 'var(--color-text-muted)', fontSize: '0.75rem' }}>
+                            <Clock size={12} />
+                            {timeSince(order.created_at)}
+                          </div>
+                        </td>
+                        <td>
+                          <div style={{ display: 'flex', gap: '0.375rem', flexWrap: 'wrap' }}>
+                            <button onClick={() => openDetail(order.id)} className="btn-icon" title="View Details" aria-label="View order details">
+                              <Eye size={14} />
                             </button>
-                          ))}
-                          {!order.status.startsWith('CANCELLED') && order.status !== 'COMPLETED' && (
-                            <button
-                              onClick={() => setRejectModal(order.id)}
-                              className="btn-icon"
-                              style={{ color: 'var(--color-danger-500)' }}
-                              title="Reject Order"
-                              aria-label="Reject order"
-                            >
-                              <XIcon size={14} />
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
+                            {actions.map((a) => (
+                              <button
+                                key={a.status}
+                                onClick={() => handleStatusUpdate(order.id, a.status)}
+                                className={a.cls}
+                                style={{ padding: '0.375rem 0.625rem', fontSize: '0.75rem' }}
+                                disabled={actionLoading === order.id + a.status}
+                              >
+                                <a.icon size={12} />
+                                {a.label}
+                              </button>
+                            ))}
+                            {!order.status.startsWith('CANCELLED') && order.status !== 'COMPLETED' && (
+                              <button
+                                onClick={() => setRejectModal(order.id)}
+                                className="btn-icon"
+                                style={{ color: 'var(--color-danger-500)' }}
+                                title="Reject Order"
+                                aria-label="Reject order"
+                              >
+                                <XIcon size={14} />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
           </div>
         )}
 
         {/* Pagination */}
-        {totalPages > 1 && (
+        {!loading && totalPages > 1 && (
           <div style={{
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem',
             padding: '1rem', borderTop: '1px solid var(--color-border)',
@@ -341,9 +431,7 @@ export default function Orders() {
             </div>
 
             {detailLoading ? (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 300 }}>
-                <div style={{ width: 32, height: 32, border: '3px solid var(--color-surface-600)', borderTopColor: 'var(--color-brand-500)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-              </div>
+              <SkeletonDetail />
             ) : selectedOrder?.order && (
               <div style={{ padding: '1.5rem' }}>
                 {/* Order Header */}

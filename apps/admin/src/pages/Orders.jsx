@@ -2,6 +2,7 @@
 // Admin Console — Global Order Operations
 // Global directory of order tickets, detailed audit trails,
 // and administrative status overrides.
+// (v2 — Polished table, skeletons, details panels, transitions)
 // ============================================================
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -21,6 +22,81 @@ const ALL_ORDER_STATUSES = [
   'CANCELLED_BY_SELLER',
   'CANCELLED_BY_CUSTOMER'
 ];
+
+// Skeleton Components
+function SkeletonOrderRow() {
+  return (
+    <tr>
+      <td>
+        <div className="skeleton skeleton-line" style={{ width: 90, height: 14 }} />
+      </td>
+      <td>
+        <div className="skeleton skeleton-line" style={{ width: 110, height: 14 }} />
+      </td>
+      <td>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
+          <div className="skeleton skeleton-line" style={{ width: 100, height: 14 }} />
+          <div className="skeleton skeleton-line" style={{ width: 80, height: 11 }} />
+        </div>
+      </td>
+      <td>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
+          <div className="skeleton skeleton-line" style={{ width: 120, height: 14 }} />
+          <div className="skeleton skeleton-line" style={{ width: 70, height: 11 }} />
+        </div>
+      </td>
+      <td>
+        <div className="skeleton" style={{ width: 80, height: 22, borderRadius: 999 }} />
+      </td>
+      <td>
+        <div className="skeleton skeleton-line" style={{ width: 60, height: 14 }} />
+      </td>
+      <td>
+        <div className="skeleton skeleton-line" style={{ width: 60, height: 14 }} />
+      </td>
+      <td>
+        <div style={{ display: 'flex', gap: '0.375rem', justifyContent: 'flex-end' }}>
+          <div className="skeleton" style={{ width: 32, height: 32, borderRadius: 10 }} />
+          <div className="skeleton" style={{ width: 32, height: 32, borderRadius: 10 }} />
+        </div>
+      </td>
+    </tr>
+  );
+}
+
+function SkeletonDetail() {
+  return (
+    <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div className="skeleton skeleton-line" style={{ width: 100, height: 16 }} />
+        <div className="skeleton" style={{ width: 32, height: 32, borderRadius: 10 }} />
+      </div>
+      
+      <div className="card" style={{ gap: '0.75rem', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+          <div className="skeleton skeleton-line" style={{ width: 60, height: 10 }} />
+          <div className="skeleton" style={{ width: 80, height: 22, borderRadius: 999 }} />
+        </div>
+        <div className="skeleton skeleton-line" style={{ width: 180, height: 14 }} />
+        <hr style={{ border: 'none', borderBottom: '1px solid var(--color-border)' }} />
+        <div className="skeleton skeleton-line" style={{ width: 130, height: 12 }} />
+        <div className="skeleton skeleton-line" style={{ width: 150, height: 12 }} />
+      </div>
+      
+      <div className="card" style={{ gap: '0.75rem', display: 'flex', flexDirection: 'column' }}>
+        <div className="skeleton skeleton-line" style={{ width: 100, height: 12 }} />
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+          <div className="skeleton skeleton-line" style={{ width: 140, height: 14 }} />
+          <div className="skeleton skeleton-line" style={{ width: 50, height: 14 }} />
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--color-border)', paddingTop: '0.75rem', marginTop: '0.25rem' }}>
+          <div className="skeleton skeleton-line" style={{ width: 80, height: 16 }} />
+          <div className="skeleton skeleton-line" style={{ width: 60, height: 16 }} />
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function Orders() {
   const location = useLocation();
@@ -48,6 +124,7 @@ export default function Orders() {
 
   // Slide-Over Detail
   const [selectedOrder, setSelectedOrder] = useState(null);
+  const [detailLoading, setDetailLoading] = useState(false);
   
   // Override Modal
   const [overrideModal, setOverrideModal] = useState(null); // stores order details
@@ -90,19 +167,23 @@ export default function Orders() {
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      loadOrders(false);
+      loadOrders(true);
     }, 0);
     return () => clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleOpenDetail = async (id) => {
+    setDetailLoading(true);
+    setSelectedOrder(null);
     try {
       const data = await getOrderDetails(id);
       setSelectedOrder(data);
     } catch (err) {
       console.error('Fetch order detail error:', err);
       showToast('danger', 'Failed to retrieve order logs');
+    } finally {
+      setDetailLoading(false);
     }
   };
 
@@ -183,7 +264,7 @@ export default function Orders() {
             Global audit center. Resolve disputes, check lifecycle histories, and override statuses.
           </p>
         </div>
-        <button onClick={() => loadOrders(false)} className="btn-secondary" disabled={refreshing}>
+        <button onClick={() => loadOrders(false)} className="btn-secondary" disabled={loading || refreshing}>
           <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
           {refreshing ? 'Refreshing...' : 'Refresh'}
         </button>
@@ -251,14 +332,19 @@ export default function Orders() {
 
       {/* Main Table */}
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-        {loading ? (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 320 }}>
-            <div style={{ width: 36, height: 36, border: '3px solid var(--color-surface-600)', borderTopColor: 'var(--color-brand-500)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-          </div>
-        ) : filteredOrders.length === 0 ? (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 320, color: 'var(--color-text-muted)' }}>
-            <AlertTriangle size={44} style={{ marginBottom: 12, opacity: 0.4 }} />
-            <p style={{ fontSize: '0.9375rem', fontWeight: 600 }}>No orders match query criteria</p>
+        {filteredOrders.length === 0 && !loading ? (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 320, color: 'var(--color-text-muted)', gap: '1rem', padding: '2rem' }}>
+            <div style={{
+              width: 64, height: 64, borderRadius: '50%',
+              background: 'rgba(99, 102, 241, 0.06)', border: '1px solid rgba(99, 102, 241, 0.12)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 4,
+            }}>
+              <AlertTriangle size={32} style={{ color: 'var(--color-brand-500)' }} />
+            </div>
+            <p style={{ fontSize: '0.9375rem', fontWeight: 600, color: 'var(--color-text-primary)' }}>No Orders Match Query</p>
+            <p style={{ fontSize: '0.8125rem', color: 'var(--color-text-muted)', textAlign: 'center', maxWidth: 300 }}>
+              We couldn't find any orders matching your search filters. Try clearing some criteria.
+            </p>
           </div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
@@ -275,56 +361,66 @@ export default function Orders() {
                   <th style={{ textAlign: 'right' }}>Actions</th>
                 </tr>
               </thead>
-              <tbody>
-                {filteredOrders.map((order) => (
-                  <tr key={order.id}>
-                    <td>
-                      <button
-                        onClick={() => handleOpenDetail(order.id)}
-                        style={{ background: 'none', border: 'none', color: 'var(--color-brand-400)', cursor: 'pointer', fontWeight: 700, fontSize: '0.8125rem', fontFamily: 'monospace' }}
-                      >
-                        {order.id.slice(0, 12)}...
-                      </button>
-                    </td>
-                    <td style={{ fontSize: '0.8125rem' }}>
-                      {new Date(order.created_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                    </td>
-                    <td>
-                      <div>
-                        <p style={{ fontWeight: 600, color: 'var(--color-text-primary)' }}>{order.customer_name || 'Anonymous'}</p>
-                        <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>{order.customer_phone || ''}</p>
-                      </div>
-                    </td>
-                    <td>
-                      <div>
-                        <p style={{ fontWeight: 600, fontSize: '0.8125rem' }}>{order.store_name}</p>
-                        <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontFamily: 'monospace' }}>{order.pmbjk_code}</p>
-                      </div>
-                    </td>
-                    <td>{getStatusBadge(order.status)}</td>
-                    <td style={{ fontWeight: 700, color: 'var(--color-brand-400)' }}>
-                      ₹{parseFloat(order.total_generic_value || 0).toFixed(2)}
-                    </td>
-                    <td style={{ fontWeight: 600, color: '#8b5cf6' }}>
-                      ₹{parseFloat(order.savings || 0).toFixed(2)}
-                    </td>
-                    <td>
-                      <div style={{ display: 'flex', gap: '0.375rem', justifyContent: 'flex-end' }}>
-                        <button onClick={() => handleOpenDetail(order.id)} className="btn-icon" title="Audit Log Dossier" aria-label="View logs">
-                          <Eye size={14} />
-                        </button>
-                        <button 
-                          onClick={() => { setOverrideModal(order); setOverrideStatusVal(order.status); }} 
-                          className="btn-icon text-rose-500" 
-                          title="Administrative Override"
-                          aria-label="Override status"
+              <tbody className={loading ? '' : 'stagger-children'}>
+                {loading ? (
+                  <>
+                    <SkeletonOrderRow />
+                    <SkeletonOrderRow />
+                    <SkeletonOrderRow />
+                    <SkeletonOrderRow />
+                  </>
+                ) : (
+                  filteredOrders.map((order) => (
+                    <tr key={order.id}>
+                      <td>
+                        <button
+                          onClick={() => handleOpenDetail(order.id)}
+                          style={{ background: 'none', border: 'none', color: 'var(--color-brand-400)', cursor: 'pointer', fontWeight: 700, fontSize: '0.8125rem', fontFamily: 'monospace' }}
                         >
-                          <ShieldAlert size={14} />
+                          {order.id.slice(0, 12)}...
                         </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td style={{ fontSize: '0.8125rem' }}>
+                        {new Date(order.created_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                      </td>
+                      <td>
+                        <div>
+                          <p style={{ fontWeight: 600, color: 'var(--color-text-primary)' }}>{order.customer_name || 'Anonymous'}</p>
+                          <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>{order.customer_phone || ''}</p>
+                        </div>
+                      </td>
+                      <td>
+                        <div>
+                          <p style={{ fontWeight: 600, fontSize: '0.8125rem' }}>{order.store_name}</p>
+                          <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontFamily: 'monospace' }}>{order.pmbjk_code}</p>
+                        </div>
+                      </td>
+                      <td>{getStatusBadge(order.status)}</td>
+                      <td style={{ fontWeight: 700, color: 'var(--color-brand-400)' }}>
+                        ₹{parseFloat(order.total_generic_value || 0).toFixed(2)}
+                      </td>
+                      <td style={{ fontWeight: 600, color: '#8b5cf6' }}>
+                        ₹{parseFloat(order.savings || 0).toFixed(2)}
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', gap: '0.375rem', justifyContent: 'flex-end' }}>
+                          <button onClick={() => handleOpenDetail(order.id)} className="btn-icon" title="Audit Log Dossier" aria-label="View logs">
+                            <Eye size={14} />
+                          </button>
+                          <button 
+                            onClick={() => { setOverrideModal(order); setOverrideStatusVal(order.status); }} 
+                            className="btn-icon" 
+                            style={{ color: 'var(--color-danger-500)' }}
+                            title="Administrative Override"
+                            aria-label="Override status"
+                          >
+                            <ShieldAlert size={14} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
@@ -406,92 +502,97 @@ export default function Orders() {
       )}
 
       {/* Order Detail Slide-Over */}
-      {selectedOrder && (
+      {(selectedOrder || detailLoading) && (
         <>
           <div className="fixed inset-0 bg-black/50 z-40" onClick={() => setSelectedOrder(null)} />
-          <div className="slide-over animate-fade-in" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--color-border)', paddingBottom: '1rem' }}>
+          <div className="slide-over animate-fade-in">
+            <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <h2 style={{ fontSize: '1.125rem', fontWeight: 700 }}>Order Docket</h2>
               <button onClick={() => setSelectedOrder(null)} className="btn-icon"><X size={18} /></button>
             </div>
 
-            {/* General Docket Details */}
-            <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>TICKET ID</span>
-                {getStatusBadge(selectedOrder.order.status)}
-              </div>
-              <p style={{ fontSize: '0.875rem', fontFamily: 'monospace', fontWeight: 700 }}>{selectedOrder.order.id}</p>
-              <hr style={{ border: 'none', borderBottom: '1px solid var(--color-border)' }} />
-              
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.8125rem' }}>
-                <p><span style={{ color: 'var(--color-text-muted)' }}>Customer:</span> {selectedOrder.order.customer_name || 'Anonymous'}</p>
-                {selectedOrder.order.customer_phone && <p><span style={{ color: 'var(--color-text-muted)' }}>Customer Phone:</span> {selectedOrder.order.customer_phone}</p>}
-                <p><span style={{ color: 'var(--color-text-muted)' }}>Store Name:</span> {selectedOrder.order.store_name} ({selectedOrder.order.pmbjk_code})</p>
-                <p><span style={{ color: 'var(--color-text-muted)' }}>Store Contact:</span> {selectedOrder.order.store_phone || 'None'}</p>
-                <p><span style={{ color: 'var(--color-text-muted)' }}>Created at:</span> {new Date(selectedOrder.order.created_at).toLocaleString('en-IN')}</p>
-              </div>
-            </div>
-
-            {/* Medicine Items Breakdown */}
-            <div className="card">
-              <h4 style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--color-text-muted)', marginBottom: '0.75rem' }}>DRUGS BREAKDOWN</h4>
-              {(() => {
-                const items = Array.isArray(selectedOrder.order.items) ? selectedOrder.order.items : (typeof selectedOrder.order.items === 'string' ? JSON.parse(selectedOrder.order.items) : []);
-                return items.map((item, index) => (
-                  <div key={index} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: index < items.length - 1 ? '1px solid var(--color-border)' : 'none' }}>
-                    <div>
-                      <p style={{ fontSize: '0.8125rem', fontWeight: 600 }}>{item.name || item.code}</p>
-                      <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>Qty: {item.quantity}</p>
-                    </div>
-                    <span style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--color-brand-400)' }}>₹{parseFloat(item.mrp || 0).toFixed(2)}</span>
+            {detailLoading ? (
+              <SkeletonDetail />
+            ) : selectedOrder?.order && (
+              <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                {/* General Docket Details */}
+                <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>TICKET ID</span>
+                    {getStatusBadge(selectedOrder.order.status)}
                   </div>
-                ));
-              })()}
-
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.75rem', borderTop: '1px solid var(--color-border)', paddingTop: '0.75rem', fontWeight: 700 }}>
-                <span>Total Generic Cost</span>
-                <span style={{ color: 'var(--color-brand-400)' }}>₹{parseFloat(selectedOrder.order.total_generic_value || 0).toFixed(2)}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.25rem', fontSize: '0.8125rem', color: '#8b5cf6', fontWeight: 600 }}>
-                <span>Patient Savings Generated</span>
-                <span>₹{parseFloat(selectedOrder.order.savings || 0).toFixed(2)}</span>
-              </div>
-            </div>
-
-            {/* Order status log audit trail */}
-            <div className="card">
-              <h4 style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--color-text-muted)', marginBottom: '0.75rem' }}>STATUS HISTORY LOG</h4>
-              {selectedOrder.audit_trail && selectedOrder.audit_trail.length > 0 ? selectedOrder.audit_trail.map((entry, index) => (
-                <div key={entry.id} style={{ display: 'flex', gap: '0.75rem', paddingBottom: '0.75rem', marginBottom: '0.75rem', borderBottom: index < selectedOrder.audit_trail.length - 1 ? '1px solid var(--color-border)' : 'none' }}>
-                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--color-brand-500)', marginTop: 6, flexShrink: 0 }} />
-                  <div>
-                    <p style={{ fontSize: '0.8125rem', fontWeight: 600 }}>
-                      {entry.from_status ? `${entry.from_status} → ` : ''}{entry.to_status}
-                    </p>
-                    <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: 1 }}>
-                      {new Date(entry.created_at).toLocaleString('en-IN')} • by {entry.changed_by_name || entry.changed_by_role} ({entry.changed_by_role})
-                    </p>
-                    {entry.notes && <p style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', background: 'var(--color-surface-900)', padding: '0.25rem 0.5rem', borderRadius: 4, marginTop: 4 }}>{entry.notes}</p>}
+                  <p style={{ fontSize: '0.875rem', fontFamily: 'monospace', fontWeight: 700 }}>{selectedOrder.order.id}</p>
+                  <hr style={{ border: 'none', borderBottom: '1px solid var(--color-border)' }} />
+                  
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.8125rem' }}>
+                    <p><span style={{ color: 'var(--color-text-muted)' }}>Customer:</span> {selectedOrder.order.customer_name || 'Anonymous'}</p>
+                    {selectedOrder.order.customer_phone && <p><span style={{ color: 'var(--color-text-muted)' }}>Customer Phone:</span> {selectedOrder.order.customer_phone}</p>}
+                    <p><span style={{ color: 'var(--color-text-muted)' }}>Store Name:</span> {selectedOrder.order.store_name} ({selectedOrder.order.pmbjk_code})</p>
+                    <p><span style={{ color: 'var(--color-text-muted)' }}>Store Contact:</span> {selectedOrder.order.store_phone || 'None'}</p>
+                    <p><span style={{ color: 'var(--color-text-muted)' }}>Created at:</span> {new Date(selectedOrder.order.created_at).toLocaleString('en-IN')}</p>
                   </div>
                 </div>
-              )) : (
-                <p style={{ fontSize: '0.8125rem', color: 'var(--color-text-muted)', fontStyle: 'italic' }}>No audit logs logged for this order ticket.</p>
-              )}
-            </div>
 
-            {/* Override Action triggers */}
-            <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', borderStyle: 'dashed' }}>
-              <h4 style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--color-text-muted)' }}>OPERATIONS CONSOLE</h4>
-              <button 
-                onClick={() => { setOverrideModal(selectedOrder.order); setOverrideStatusVal(selectedOrder.order.status); setSelectedOrder(null); }} 
-                className="btn-danger" 
-                style={{ width: '100%', marginTop: '0.5rem' }}
-              >
-                Trigger Force Override
-              </button>
-            </div>
+                {/* Medicine Items Breakdown */}
+                <div className="card">
+                  <h4 style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--color-text-muted)', marginBottom: '0.75rem' }}>DRUGS BREAKDOWN</h4>
+                  {(() => {
+                    const items = Array.isArray(selectedOrder.order.items) ? selectedOrder.order.items : (typeof selectedOrder.order.items === 'string' ? JSON.parse(selectedOrder.order.items) : []);
+                    return items.map((item, index) => (
+                      <div key={index} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: index < items.length - 1 ? '1px solid var(--color-border)' : 'none' }}>
+                        <div>
+                          <p style={{ fontSize: '0.8125rem', fontWeight: 600 }}>{item.name || item.code}</p>
+                          <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>Qty: {item.quantity}</p>
+                        </div>
+                        <span style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--color-brand-400)' }}>₹{parseFloat(item.mrp || 0).toFixed(2)}</span>
+                      </div>
+                    ));
+                  })()}
 
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.75rem', borderTop: '1px solid var(--color-border)', paddingTop: '0.75rem', fontWeight: 700 }}>
+                    <span>Total Generic Cost</span>
+                    <span style={{ color: 'var(--color-brand-400)' }}>₹{parseFloat(selectedOrder.order.total_generic_value || 0).toFixed(2)}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.25rem', fontSize: '0.8125rem', color: '#8b5cf6', fontWeight: 600 }}>
+                    <span>Patient Savings Generated</span>
+                    <span>₹{parseFloat(selectedOrder.order.savings || 0).toFixed(2)}</span>
+                  </div>
+                </div>
+
+                {/* Order status log audit trail */}
+                <div className="card">
+                  <h4 style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--color-text-muted)', marginBottom: '0.75rem' }}>STATUS HISTORY LOG</h4>
+                  {selectedOrder.audit_trail && selectedOrder.audit_trail.length > 0 ? selectedOrder.audit_trail.map((entry, index) => (
+                    <div key={entry.id} style={{ display: 'flex', gap: '0.75rem', paddingBottom: '0.75rem', marginBottom: '0.75rem', borderBottom: index < selectedOrder.audit_trail.length - 1 ? '1px solid var(--color-border)' : 'none' }}>
+                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--color-brand-500)', marginTop: 6, flexShrink: 0 }} />
+                      <div>
+                        <p style={{ fontSize: '0.8125rem', fontWeight: 600 }}>
+                          {entry.from_status ? `${entry.from_status} → ` : ''}{entry.to_status}
+                        </p>
+                        <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: 1 }}>
+                          {new Date(entry.created_at).toLocaleString('en-IN')} • by {entry.changed_by_name || entry.changed_by_role} ({entry.changed_by_role})
+                        </p>
+                        {entry.notes && <p style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', background: 'var(--color-surface-900)', padding: '0.25rem 0.5rem', borderRadius: 4, marginTop: 4 }}>{entry.notes}</p>}
+                      </div>
+                    </div>
+                  )) : (
+                    <p style={{ fontSize: '0.8125rem', color: 'var(--color-text-muted)', fontStyle: 'italic' }}>No audit logs logged for this order ticket.</p>
+                  )}
+                </div>
+
+                {/* Override Action triggers */}
+                <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', borderStyle: 'dashed' }}>
+                  <h4 style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--color-text-muted)' }}>OPERATIONS CONSOLE</h4>
+                  <button 
+                    onClick={() => { setOverrideModal(selectedOrder.order); setOverrideStatusVal(selectedOrder.order.status); setSelectedOrder(null); }} 
+                    className="btn-danger" 
+                    style={{ width: '100%', marginTop: '0.5rem' }}
+                  >
+                    Trigger Force Override
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </>
       )}

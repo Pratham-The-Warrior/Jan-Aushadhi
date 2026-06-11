@@ -1,6 +1,7 @@
 // ============================================================
 // Admin Console — Store Management (Kendra Registry)
 // View stores, toggle suspension states, assign seller operators.
+// (v2 — Polished table, skeletons, details panels, transitions)
 // ============================================================
 
 import { useState, useEffect, useCallback } from 'react';
@@ -9,6 +10,73 @@ import {
   UserPlus, CheckCircle, AlertTriangle, X, ShieldCheck, MapPin, Phone
 } from 'lucide-react';
 import { getStores, getStore, updateStoreStatus, assignSellerToStore } from '../services/admin.api';
+
+// Skeleton Components
+function SkeletonStoreRow() {
+  return (
+    <tr>
+      <td>
+        <div className="skeleton skeleton-line" style={{ width: 80, height: 14 }} />
+      </td>
+      <td>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
+          <div className="skeleton skeleton-line" style={{ width: 140, height: 14 }} />
+          <div className="skeleton skeleton-line" style={{ width: 90, height: 11 }} />
+        </div>
+      </td>
+      <td>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
+          <div className="skeleton skeleton-line" style={{ width: 100, height: 14 }} />
+          <div className="skeleton skeleton-line" style={{ width: 80, height: 11 }} />
+        </div>
+      </td>
+      <td>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
+          <div className="skeleton skeleton-line" style={{ width: 110, height: 14 }} />
+          <div className="skeleton skeleton-line" style={{ width: 70, height: 11 }} />
+        </div>
+      </td>
+      <td>
+        <div className="skeleton" style={{ width: 70, height: 22, borderRadius: 999 }} />
+      </td>
+      <td>
+        <div className="skeleton skeleton-line" style={{ width: 80, height: 14 }} />
+      </td>
+      <td>
+        <div style={{ display: 'flex', gap: '0.375rem', justifyContent: 'flex-end' }}>
+          <div className="skeleton" style={{ width: 32, height: 32, borderRadius: 10 }} />
+          <div className="skeleton" style={{ width: 32, height: 32, borderRadius: 10 }} />
+          <div className="skeleton" style={{ width: 32, height: 32, borderRadius: 10 }} />
+        </div>
+      </td>
+    </tr>
+  );
+}
+
+function SkeletonDetail() {
+  return (
+    <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+      <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        <div className="skeleton skeleton-line" style={{ width: 180, height: 16 }} />
+        <div className="skeleton skeleton-line" style={{ width: 90, height: 12 }} />
+        <hr style={{ border: 'none', borderBottom: '1px solid var(--color-border)' }} />
+        <div className="skeleton skeleton-line" style={{ width: 220, height: 14 }} />
+        <div className="skeleton skeleton-line" style={{ width: 120, height: 14 }} />
+      </div>
+      
+      <div className="card" style={{ gap: '0.75rem', display: 'flex', flexDirection: 'column' }}>
+        <div className="skeleton skeleton-line" style={{ width: 110, height: 12 }} />
+        <div className="skeleton skeleton-line" style={{ width: 140, height: 14 }} />
+        <div className="skeleton skeleton-line" style={{ width: 160, height: 12 }} />
+      </div>
+
+      <div className="card" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+        <div className="skeleton" style={{ height: 60, borderRadius: '8px' }} />
+        <div className="skeleton" style={{ height: 60, borderRadius: '8px' }} />
+      </div>
+    </div>
+  );
+}
 
 export default function Stores() {
   const [stores, setStores] = useState([]);
@@ -26,6 +94,7 @@ export default function Stores() {
   
   // Modals
   const [selectedStore, setSelectedStore] = useState(null);
+  const [detailLoading, setDetailLoading] = useState(false);
   const [assignModal, setAssignModal] = useState(null); // stores store code
   const [operatorName, setOperatorName] = useState('');
   const [operatorPhone, setOperatorPhone] = useState('');
@@ -62,7 +131,7 @@ export default function Stores() {
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      loadStores(false);
+      loadStores(true);
     }, 0);
     return () => clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -98,12 +167,17 @@ export default function Stores() {
   };
 
   const handleOpenDetail = async (code) => {
+    setDetailLoading(true);
+    setSelectedStore({ pmbjk_code: code }); // instantly slide open, showing skeleton
     try {
       const data = await getStore(code);
       setSelectedStore(data);
     } catch (err) {
       console.error('Fetch store detail error:', err);
       showToast('danger', 'Failed to retrieve store profile');
+      setSelectedStore(null);
+    } finally {
+      setDetailLoading(false);
     }
   };
 
@@ -180,8 +254,8 @@ export default function Stores() {
             Overview of all PMBJK Kendra stores. Update activation states and link user accounts.
           </p>
         </div>
-        <button onClick={() => loadStores(true)} className="btn-secondary" aria-label="Refresh Registry">
-          <RefreshCw size={16} />
+        <button onClick={() => loadStores(true)} className="btn-secondary" aria-label="Refresh Registry" disabled={loading}>
+          <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
         </button>
       </div>
 
@@ -227,14 +301,19 @@ export default function Stores() {
 
       {/* Table */}
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-        {loading ? (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 320 }}>
-            <div style={{ width: 36, height: 36, border: '3px solid var(--color-surface-600)', borderTopColor: 'var(--color-brand-500)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-          </div>
-        ) : stores.length === 0 ? (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 320, color: 'var(--color-text-muted)' }}>
-            <Store size={44} style={{ marginBottom: 12, opacity: 0.4 }} />
-            <p style={{ fontSize: '0.9375rem', fontWeight: 600 }}>No Kendras matching criteria</p>
+        {stores.length === 0 && !loading ? (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 320, color: 'var(--color-text-muted)', gap: '1rem', padding: '2rem' }}>
+            <div style={{
+              width: 64, height: 64, borderRadius: '50%',
+              background: 'rgba(99, 102, 241, 0.06)', border: '1px solid rgba(99, 102, 241, 0.12)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 4,
+            }}>
+              <Store size={32} style={{ color: 'var(--color-brand-500)' }} />
+            </div>
+            <p style={{ fontSize: '0.9375rem', fontWeight: 600, color: 'var(--color-text-primary)' }}>No Kendras Registered</p>
+            <p style={{ fontSize: '0.8125rem', color: 'var(--color-text-muted)', textAlign: 'center', maxWidth: 300 }}>
+              We couldn't find any registered Kendra stores matching your search filters.
+            </p>
           </div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
@@ -250,73 +329,83 @@ export default function Stores() {
                   <th style={{ textAlign: 'right' }}>Actions</th>
                 </tr>
               </thead>
-              <tbody>
-                {stores.map((s) => (
-                  <tr key={s.pmbjk_code}>
-                    <td style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '0.8125rem' }}>{s.pmbjk_code}</td>
-                    <td>
-                      <div>
-                        <p style={{ fontWeight: 600, color: 'var(--color-text-primary)' }}>{s.name}</p>
-                        <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>{s.phone || 'No phone linked'}</p>
-                      </div>
-                    </td>
-                    <td>
-                      <p style={{ fontSize: '0.8125rem', fontWeight: 500 }}>{s.district}</p>
-                      <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>{s.state}</p>
-                    </td>
-                    <td>
-                      {s.seller_uid ? (
+              <tbody className={loading ? '' : 'stagger-children'}>
+                {loading ? (
+                  <>
+                    <SkeletonStoreRow />
+                    <SkeletonStoreRow />
+                    <SkeletonStoreRow />
+                    <SkeletonStoreRow />
+                    <SkeletonStoreRow />
+                  </>
+                ) : (
+                  stores.map((s) => (
+                    <tr key={s.pmbjk_code}>
+                      <td style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '0.8125rem' }}>{s.pmbjk_code}</td>
+                      <td>
                         <div>
-                          <p style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'white' }}>{s.seller_name}</p>
-                          <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontFamily: 'monospace' }}>{s.seller_uid.slice(0, 10)}...</p>
+                          <p style={{ fontWeight: 600, color: 'var(--color-text-primary)' }}>{s.name}</p>
+                          <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>{s.phone || 'No phone linked'}</p>
                         </div>
-                      ) : (
-                        <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontStyle: 'italic' }}>No seller linked</span>
-                      )}
-                    </td>
-                    <td>
-                      <span className={`badge ${s.status === 'ACTIVE' ? 'badge-ready' : 'badge-cancelled'}`}>
-                        {s.status}
-                      </span>
-                    </td>
-                    <td>
-                      {s.verified_at ? (
-                        <span style={{ fontSize: '0.75rem', color: 'var(--color-brand-400)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
-                          <ShieldCheck size={12} /> Verified
+                      </td>
+                      <td>
+                        <p style={{ fontSize: '0.8125rem', fontWeight: 500 }}>{s.district}</p>
+                        <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>{s.state}</p>
+                      </td>
+                      <td>
+                        {s.seller_uid ? (
+                          <div>
+                            <p style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'white' }}>{s.seller_name}</p>
+                            <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontFamily: 'monospace' }}>{s.seller_uid.slice(0, 10)}...</p>
+                          </div>
+                        ) : (
+                          <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontStyle: 'italic' }}>No seller linked</span>
+                        )}
+                      </td>
+                      <td>
+                        <span className={`badge ${s.status === 'ACTIVE' ? 'badge-ready' : 'badge-cancelled'}`}>
+                          {s.status}
                         </span>
-                      ) : (
-                        <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
-                          <AlertTriangle size={12} /> Unverified
-                        </span>
-                      )}
-                    </td>
-                    <td>
-                      <div style={{ display: 'flex', gap: '0.375rem', justifyContent: 'flex-end' }}>
-                        <button onClick={() => handleOpenDetail(s.pmbjk_code)} className="btn-icon" title="View Kendra Profile" aria-label="View details">
-                          <Eye size={14} />
-                        </button>
-                        <button 
-                          onClick={() => setAssignModal(s.pmbjk_code)} 
-                          className="btn-icon" 
-                          style={{ color: '#3b82f6' }}
-                          title="Assign Operator Account"
-                          aria-label="Assign operator"
-                        >
-                          <UserPlus size={14} />
-                        </button>
-                        <button
-                          onClick={() => handleToggleStatus(s.pmbjk_code, s.status)}
-                          className={`btn-icon ${s.status === 'ACTIVE' ? 'text-amber-500' : 'text-emerald-500'}`}
-                          title={s.status === 'ACTIVE' ? 'Suspend Store' : 'Activate Store'}
-                          disabled={actionLoading === s.pmbjk_code + 'ACTIVE' || actionLoading === s.pmbjk_code + 'SUSPENDED'}
-                          aria-label={s.status === 'ACTIVE' ? 'Suspend' : 'Activate'}
-                        >
-                          {s.status === 'ACTIVE' ? <ShieldAlert size={14} /> : <CheckCircle size={14} />}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td>
+                        {s.verified_at ? (
+                          <span style={{ fontSize: '0.75rem', color: 'var(--color-brand-400)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <ShieldCheck size={12} /> Verified
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <AlertTriangle size={12} /> Unverified
+                          </span>
+                        )}
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', gap: '0.375rem', justifyContent: 'flex-end' }}>
+                          <button onClick={() => handleOpenDetail(s.pmbjk_code)} className="btn-icon" title="View Kendra Profile" aria-label="View details">
+                            <Eye size={14} />
+                          </button>
+                          <button 
+                            onClick={() => setAssignModal(s.pmbjk_code)} 
+                            className="btn-icon" 
+                            style={{ color: '#3b82f6' }}
+                            title="Assign Operator Account"
+                            aria-label="Assign operator"
+                          >
+                            <UserPlus size={14} />
+                          </button>
+                          <button
+                            onClick={() => handleToggleStatus(s.pmbjk_code, s.status)}
+                            className={`btn-icon ${s.status === 'ACTIVE' ? 'text-amber-500' : 'text-emerald-500'}`}
+                            title={s.status === 'ACTIVE' ? 'Suspend Store' : 'Activate Store'}
+                            disabled={actionLoading === s.pmbjk_code + 'ACTIVE' || actionLoading === s.pmbjk_code + 'SUSPENDED'}
+                            aria-label={s.status === 'ACTIVE' ? 'Suspend' : 'Activate'}
+                          >
+                            {s.status === 'ACTIVE' ? <ShieldAlert size={14} /> : <CheckCircle size={14} />}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
@@ -424,7 +513,7 @@ export default function Stores() {
 
             <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
               <button type="button" onClick={() => setAssignModal(null)} className="btn-secondary">Cancel</button>
-              <button type="submit" className="btn-primary" style={{ background: '#3b82f6' }} disabled={actionLoading === 'assign'}>
+              <button type="submit" className="btn-primary" style={{ background: 'var(--color-brand-500)' }} disabled={actionLoading === 'assign'}>
                 {actionLoading === 'assign' ? 'Provisioning...' : 'Provision Operator'}
               </button>
             </div>
@@ -442,59 +531,65 @@ export default function Stores() {
               <button onClick={() => setSelectedStore(null)} className="btn-icon"><X size={18} /></button>
             </div>
 
-            {/* Profile Info */}
-            <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <h3 style={{ fontSize: '1.0625rem', fontWeight: 700, color: 'var(--color-text-primary)' }}>{selectedStore.name}</h3>
-              <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontFamily: 'monospace' }}>Code: {selectedStore.pmbjk_code}</p>
-              
-              <hr style={{ border: 'none', borderBottom: '1px solid var(--color-border)' }} />
+            {detailLoading ? (
+              <SkeletonDetail />
+            ) : (
+              <>
+                {/* Profile Info */}
+                <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <h3 style={{ fontSize: '1.0625rem', fontWeight: 700, color: 'var(--color-text-primary)' }}>{selectedStore.name}</h3>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontFamily: 'monospace' }}>Code: {selectedStore.pmbjk_code}</p>
+                  
+                  <hr style={{ border: 'none', borderBottom: '1px solid var(--color-border)' }} />
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  <MapPin size={14} style={{ color: 'var(--color-text-muted)', flexShrink: 0, marginTop: 3 }} />
-                  <span style={{ fontSize: '0.8125rem' }}>{selectedStore.address}, {selectedStore.district}, {selectedStore.state} - {selectedStore.pincode}</span>
-                </div>
-                {selectedStore.phone && (
-                  <div style={{ display: 'flex', gap: '0.5rem' }}>
-                    <Phone size={14} style={{ color: 'var(--color-text-muted)', flexShrink: 0 }} />
-                    <span style={{ fontSize: '0.8125rem' }}>{selectedStore.phone}</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <MapPin size={14} style={{ color: 'var(--color-text-muted)', flexShrink: 0, marginTop: 3 }} />
+                      <span style={{ fontSize: '0.8125rem' }}>{selectedStore.address}, {selectedStore.district}, {selectedStore.state} - {selectedStore.pincode}</span>
+                    </div>
+                    {selectedStore.phone && (
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <Phone size={14} style={{ color: 'var(--color-text-muted)', flexShrink: 0 }} />
+                        <span style={{ fontSize: '0.8125rem' }}>{selectedStore.phone}</span>
+                      </div>
+                    )}
+                    {selectedStore.upi_vpa && (
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <CheckCircle size={14} style={{ color: 'var(--color-brand-400)', flexShrink: 0 }} />
+                        <span style={{ fontSize: '0.8125rem', fontFamily: 'monospace' }}>UPI: {selectedStore.upi_vpa}</span>
+                      </div>
+                    )}
                   </div>
-                )}
-                {selectedStore.upi_vpa && (
-                  <div style={{ display: 'flex', gap: '0.5rem' }}>
-                    <CheckCircle size={14} style={{ color: 'var(--color-brand-400)', flexShrink: 0 }} />
-                    <span style={{ fontSize: '0.8125rem', fontFamily: 'monospace' }}>UPI: {selectedStore.upi_vpa}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Seller Info */}
-            <div className="card">
-              <h4 style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--color-text-muted)', marginBottom: '0.75rem' }}>LINKED OPERATOR</h4>
-              {selectedStore.seller_uid ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  <p style={{ fontWeight: 600, fontSize: '0.875rem' }}>{selectedStore.seller_name}</p>
-                  <p style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Email: {selectedStore.seller_email || 'No email linked'}</p>
-                  <p style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Phone: {selectedStore.seller_phone || 'N/A'}</p>
-                  <p style={{ fontSize: '0.725rem', color: 'var(--color-text-muted)', fontFamily: 'monospace', wordBreak: 'break-all', marginTop: 4 }}>UID: {selectedStore.seller_uid}</p>
                 </div>
-              ) : (
-                <p style={{ fontSize: '0.8125rem', color: 'var(--color-text-muted)', fontStyle: 'italic' }}>No administrator assigned to this Kendra yet.</p>
-              )}
-            </div>
 
-            {/* Performance Stats */}
-            <div className="card" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-              <div style={{ textAlign: 'center', padding: '0.5rem', background: 'var(--color-surface-700)', borderRadius: '8px' }}>
-                <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>Fulfillment count</span>
-                <p style={{ fontSize: '1.25rem', fontWeight: 800, color: 'white', marginTop: 4 }}>{selectedStore.stats?.total_orders || 0}</p>
-              </div>
-              <div style={{ textAlign: 'center', padding: '0.5rem', background: 'var(--color-surface-700)', borderRadius: '8px' }}>
-                <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>Store GMV</span>
-                <p style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--color-brand-400)', marginTop: 4 }}>₹{selectedStore.stats?.total_revenue?.toLocaleString('en-IN')}</p>
-              </div>
-            </div>
+                {/* Seller Info */}
+                <div className="card">
+                  <h4 style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--color-text-muted)', marginBottom: '0.75rem' }}>LINKED OPERATOR</h4>
+                  {selectedStore.seller_uid ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                      <p style={{ fontWeight: 600, fontSize: '0.875rem' }}>{selectedStore.seller_name}</p>
+                      <p style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Email: {selectedStore.seller_email || 'No email linked'}</p>
+                      <p style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Phone: {selectedStore.seller_phone || 'N/A'}</p>
+                      <p style={{ fontSize: '0.725rem', color: 'var(--color-text-muted)', fontFamily: 'monospace', wordBreak: 'break-all', marginTop: 4 }}>UID: {selectedStore.seller_uid}</p>
+                    </div>
+                  ) : (
+                    <p style={{ fontSize: '0.8125rem', color: 'var(--color-text-muted)', fontStyle: 'italic' }}>No administrator assigned to this Kendra yet.</p>
+                  )}
+                </div>
+
+                {/* Performance Stats */}
+                <div className="card" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <div style={{ textAlign: 'center', padding: '0.5rem', background: 'var(--color-surface-700)', borderRadius: '8px' }}>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>Fulfillment count</span>
+                    <p style={{ fontSize: '1.25rem', fontWeight: 800, color: 'white', marginTop: 4 }}>{selectedStore.stats?.total_orders || 0}</p>
+                  </div>
+                  <div style={{ textAlign: 'center', padding: '0.5rem', background: 'var(--color-surface-700)', borderRadius: '8px' }}>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>Store GMV</span>
+                    <p style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--color-brand-400)', marginTop: 4 }}>₹{selectedStore.stats?.total_revenue?.toLocaleString('en-IN')}</p>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </>
       )}

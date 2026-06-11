@@ -2,6 +2,7 @@
 // Seller Central — Inventory Manager
 // Searchable generic medicines directory with stock status toggles,
 // pagination, and bulk update capabilities.
+// (v2 — Polished table, skeletons, stagger, and empty states)
 // ============================================================
 
 import { useState, useEffect, useCallback } from 'react';
@@ -10,6 +11,43 @@ import {
   AlertCircle, Package, Settings
 } from 'lucide-react';
 import { getInventory, updateInventoryItem, bulkUpdateInventory } from '../services/seller.api';
+
+// Table Skeleton Row
+function SkeletonRow({ showBulkCheckbox }) {
+  return (
+    <tr>
+      {showBulkCheckbox && (
+        <td>
+          <div className="skeleton" style={{ width: 16, height: 16, borderRadius: 4 }} />
+        </td>
+      )}
+      <td>
+        <div className="skeleton skeleton-line" style={{ width: 80, height: 14 }} />
+      </td>
+      <td>
+        <div className="skeleton skeleton-line" style={{ width: 180, height: 14 }} />
+      </td>
+      <td>
+        <div className="skeleton skeleton-line" style={{ width: 70, height: 20, borderRadius: 4 }} />
+      </td>
+      <td>
+        <div className="skeleton skeleton-line" style={{ width: 60, height: 14 }} />
+      </td>
+      <td>
+        <div className="skeleton skeleton-line" style={{ width: 50, height: 14 }} />
+      </td>
+      <td>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <div className="skeleton" style={{ width: 44, height: 24, borderRadius: 999 }} />
+          <div className="skeleton skeleton-line" style={{ width: 40, height: 12 }} />
+        </div>
+      </td>
+      <td>
+        <div className="skeleton skeleton-line" style={{ width: 110, height: 12 }} />
+      </td>
+    </tr>
+  );
+}
 
 export default function Inventory() {
   const [items, setItems] = useState([]);
@@ -168,8 +206,8 @@ export default function Inventory() {
             <Settings size={16} />
             {bulkMode ? 'Cancel Bulk' : 'Bulk Edit'}
           </button>
-          <button onClick={() => loadInventory(true)} className="btn-secondary" aria-label="Refresh list">
-            <RefreshCw size={16} />
+          <button onClick={() => loadInventory(true)} className="btn-secondary" aria-label="Refresh list" disabled={loading}>
+            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
           </button>
         </div>
       </div>
@@ -235,15 +273,19 @@ export default function Inventory() {
 
       {/* Main Table */}
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-        {loading ? (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 320 }}>
-            <div style={{ width: 36, height: 36, border: '3px solid var(--color-surface-600)', borderTopColor: 'var(--color-brand-500)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-          </div>
-        ) : items.length === 0 ? (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 320, color: 'var(--color-text-muted)' }}>
-            <Package size={44} style={{ marginBottom: 12, opacity: 0.4 }} />
-            <p style={{ fontSize: '0.9375rem', fontWeight: 600 }}>No medicines found</p>
-            <p style={{ fontSize: '0.8125rem', marginTop: 4 }}>Try clearing the search query or load again.</p>
+        {items.length === 0 && !loading ? (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 320, color: 'var(--color-text-muted)', gap: '1rem', padding: '2rem' }}>
+            <div style={{
+              width: 64, height: 64, borderRadius: '50%',
+              background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.12)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 4,
+            }}>
+              <Package size={32} style={{ color: 'var(--color-status-pending)' }} />
+            </div>
+            <p style={{ fontSize: '0.9375rem', fontWeight: 600, color: 'var(--color-text-primary)' }}>No Medicines Found</p>
+            <p style={{ fontSize: '0.8125rem', color: 'var(--color-text-muted)', textAlign: 'center', maxWidth: 300 }}>
+              We couldn't find any medicine matching "{search}". Try searching for another name or category.
+            </p>
           </div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
@@ -260,58 +302,68 @@ export default function Inventory() {
                   <th>Last Updated</th>
                 </tr>
               </thead>
-              <tbody>
-                {items.map((item) => (
-                  <tr key={item.drug_code}>
-                    {bulkMode && (
+              <tbody className={loading ? '' : 'stagger-children'}>
+                {loading ? (
+                  <>
+                    <SkeletonRow showBulkCheckbox={bulkMode} />
+                    <SkeletonRow showBulkCheckbox={bulkMode} />
+                    <SkeletonRow showBulkCheckbox={bulkMode} />
+                    <SkeletonRow showBulkCheckbox={bulkMode} />
+                    <SkeletonRow showBulkCheckbox={bulkMode} />
+                  </>
+                ) : (
+                  items.map((item) => (
+                    <tr key={item.drug_code}>
+                      {bulkMode && (
+                        <td>
+                          <input
+                            type="checkbox"
+                            checked={selectedItems.has(item.drug_code)}
+                            onChange={() => handleSelectItem(item.drug_code)}
+                            style={{ width: 16, height: 16, cursor: 'pointer', accentColor: 'var(--color-brand-500)' }}
+                          />
+                        </td>
+                      )}
+                      <td style={{ fontFamily: 'monospace', fontSize: '0.75rem', fontWeight: 600 }}>{item.drug_code}</td>
                       <td>
-                        <input
-                          type="checkbox"
-                          checked={selectedItems.has(item.drug_code)}
-                          onChange={() => handleSelectItem(item.drug_code)}
-                          style={{ width: 16, height: 16, cursor: 'pointer', accentColor: 'var(--color-brand-500)' }}
-                        />
+                        <div>
+                          <p style={{ fontWeight: 600, color: 'var(--color-text-primary)', fontSize: '0.875rem' }}>{item.generic_name}</p>
+                        </div>
                       </td>
-                    )}
-                    <td style={{ fontFamily: 'monospace', fontSize: '0.75rem', fontWeight: 600 }}>{item.drug_code}</td>
-                    <td>
-                      <div>
-                        <p style={{ fontWeight: 600, color: 'var(--color-text-primary)', fontSize: '0.875rem' }}>{item.generic_name}</p>
-                      </div>
-                    </td>
-                    <td>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', background: 'var(--color-surface-700)', padding: '0.15rem 0.5rem', borderRadius: 4 }}>
-                        {item.group_name || 'General'}
-                      </span>
-                    </td>
-                    <td style={{ fontWeight: 700, color: 'var(--color-brand-400)' }}>
-                      ₹{item.mrp.toFixed(2)}
-                    </td>
-                    <td style={{ fontSize: '0.8125rem' }}>{item.unit_size || '—'}</td>
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <input
-                          type="checkbox"
-                          checked={item.in_stock}
-                          disabled={togglingId === item.drug_code || bulkMode}
-                          onChange={() => handleToggleStock(item.drug_code, item.in_stock)}
-                          className="toggle-switch"
-                          style={{ opacity: togglingId === item.drug_code ? 0.5 : 1 }}
-                        />
-                        {togglingId === item.drug_code ? (
-                          <div style={{ width: 12, height: 12, border: '2px solid var(--color-surface-400)', borderTopColor: 'var(--color-brand-500)', borderRadius: '50%', animation: 'spin 0.6s linear infinite' }} />
-                        ) : (
-                          <span style={{ fontSize: '0.75rem', fontWeight: 600, color: item.in_stock ? 'var(--color-brand-400)' : 'var(--color-danger-500)' }}>
-                            {item.in_stock ? 'In Stock' : 'OOS'}
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
-                      {item.last_updated ? new Date(item.last_updated).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'Never'}
-                    </td>
-                  </tr>
-                ))}
+                      <td>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', background: 'var(--color-surface-700)', padding: '0.15rem 0.5rem', borderRadius: 4 }}>
+                          {item.group_name || 'General'}
+                        </span>
+                      </td>
+                      <td style={{ fontWeight: 700, color: 'var(--color-brand-400)' }}>
+                        ₹{item.mrp.toFixed(2)}
+                      </td>
+                      <td style={{ fontSize: '0.8125rem' }}>{item.unit_size || '—'}</td>
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <input
+                            type="checkbox"
+                            checked={item.in_stock}
+                            disabled={togglingId === item.drug_code || bulkMode}
+                            onChange={() => handleToggleStock(item.drug_code, item.in_stock)}
+                            className="toggle-switch"
+                            style={{ opacity: togglingId === item.drug_code ? 0.5 : 1 }}
+                          />
+                          {togglingId === item.drug_code ? (
+                            <div style={{ width: 12, height: 12, border: '2px solid var(--color-surface-400)', borderTopColor: 'var(--color-brand-500)', borderRadius: '50%', animation: 'spin 0.6s linear infinite' }} />
+                          ) : (
+                            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: item.in_stock ? 'var(--color-brand-400)' : 'var(--color-danger-500)' }}>
+                              {item.in_stock ? 'In Stock' : 'OOS'}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
+                        {item.last_updated ? new Date(item.last_updated).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'Never'}
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
