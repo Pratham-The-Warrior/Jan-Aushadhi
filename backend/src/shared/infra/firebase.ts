@@ -66,7 +66,10 @@ export async function verifyAuth(request: FastifyRequest, reply: FastifyReply): 
   }
 
   try {
-    const decodedToken = await getAuth().verifyIdToken(token);
+    // checkRevoked: true performs a server-side token revocation check on every
+    // request. Without this flag, calling revokeRefreshTokens() in Firebase has
+    // no effect for up to 1 hour — the full remaining lifetime of the ID token.
+    const decodedToken = await getAuth().verifyIdToken(token, true);
 
     const user: AuthUser = {
       uid: decodedToken.uid,
@@ -81,7 +84,13 @@ export async function verifyAuth(request: FastifyRequest, reply: FastifyReply): 
     syncUserToDatabase(user).catch(() => {
       // Non-blocking — user table might not exist yet
     });
-  } catch (error) {
+  } catch (error: any) {
+    // Dedicated branch for revoked tokens — gives the client an actionable message
+    // rather than the generic "invalid token" response.
+    if (error?.code === 'auth/id-token-revoked') {
+      request.log.warn({ uid: error?.uid }, 'Revoked Firebase token presented');
+      throw new AuthenticationError('Your session has been revoked. Please log in again.');
+    }
     request.log.error(error as any, 'Firebase Auth verification failed');
     throw new AuthenticationError('Invalid or expired token');
   }

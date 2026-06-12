@@ -22,8 +22,13 @@ export async function initRedis(): Promise<void> {
     isConnected = false;
   });
 
-  redis.on('connect', () => {
+  // Use 'ready' instead of 'connect': 'connect' fires when the TCP socket opens,
+  // before AUTH/SELECT complete. 'ready' fires only after the client is fully
+  // authenticated and prepared to serve commands — preventing a race where
+  // isConnected is true but cache writes silently fail on reconnect.
+  redis.on('ready', () => {
     isConnected = true;
+    console.log('✅ Redis ready');
   });
 
   redis.on('reconnecting', () => {
