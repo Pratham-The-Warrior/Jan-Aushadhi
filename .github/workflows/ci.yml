@@ -2,9 +2,9 @@ name: Jan Aushadhi CI/CD
 
 on:
   push:
-    branches: [ main ]
+    branches: [ master ]
   pull_request:
-    branches: [ main ]
+    branches: [ master ]
 
 jobs:
   validate:
@@ -41,7 +41,7 @@ jobs:
   docker-build:
     name: Build & Push Docker Images to GHCR
     needs: validate
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -128,7 +128,7 @@ jobs:
   deploy:
     name: Deploy to Production
     needs: docker-build
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - name: Deploy via SSH
@@ -139,7 +139,7 @@ jobs:
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           script: |
             cd ~/Jan-Aushadhi
-            git pull origin main
+            git pull origin master
             export $(grep -v '^#' deploy/.env.production | xargs)
             docker compose -f docker-compose.prod.yml up --build -d
             echo "--- Container Status ---"
