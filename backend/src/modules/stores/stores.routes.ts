@@ -44,10 +44,18 @@ export default async function storeRoutes(server: FastifyInstance): Promise<void
         radius?: string;
       };
 
+      // Clamp radius to a safe range before it reaches the PostGIS query.
+      // An unbounded radius causes ST_DWithin to ignore the GIST index and
+      // perform a full sequential scan — a trivial DoS vector.
+      const MIN_RADIUS_METERS = 500;
+      const MAX_RADIUS_METERS = 50_000; // 50 km hard cap
+      const rawRadius = parseInt(radius || '10000', 10);
+      const safeRadius = Math.min(Math.max(rawRadius, MIN_RADIUS_METERS), MAX_RADIUS_METERS);
+
       const result = await storeService.findNearby(
         parseFloat(lat),
         parseFloat(lng),
-        parseInt(radius || '10000', 10),
+        safeRadius,
       );
 
       return reply.send(result);
