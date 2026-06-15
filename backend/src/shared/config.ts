@@ -52,8 +52,8 @@ export interface AppConfig {
   /** Global rate limit: time window */
   readonly rateLimitWindow: string;
 
-  /** CORS allowed origins */
-  readonly corsOrigin: string;
+  /** CORS allowed origins — '*' in development, string[] of domains in production */
+  readonly corsOrigin: string | string[];
 }
 
 function parseEnv(): AppConfig {
@@ -90,8 +90,11 @@ function parseEnv(): AppConfig {
     rateLimitMax: parseInt(process.env.RATE_LIMIT_MAX || '100', 10),
     rateLimitWindow: process.env.RATE_LIMIT_WINDOW || '1 minute',
 
-    // CORS
-    corsOrigin: process.env.CORS_ORIGIN || '*',
+    // CORS — split comma-separated origins into an array so @fastify/cors receives the
+    // correct type. A single '*' wildcard is kept as-is for local development.
+    corsOrigin: process.env.CORS_ORIGIN
+      ? process.env.CORS_ORIGIN.split(',').map((o) => o.trim())
+      : '*',
   });
 }
 
