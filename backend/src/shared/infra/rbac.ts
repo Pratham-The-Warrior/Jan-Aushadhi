@@ -6,7 +6,7 @@
 
 import { FastifyRequest, FastifyReply } from 'fastify';
 import { queryDB } from './database';
-import { getCached, setCache } from './redis';
+import { getCached, setCache, invalidateCache } from './redis';
 import { AuthorizationError, AuthenticationError } from '../errors';
 import { APP_CONSTANTS } from '../constants';
 import type { UserRole } from '../types';
@@ -105,10 +105,25 @@ export function requireRole(...allowedRoles: UserRole[]) {
 
 /**
  * Invalidate a user's cached role.
- * Call this after an admin changes a user's role to ensure
- * the new role takes effect immediately.
+ * Call this after an admin changes a user's role or suspends an account to
+ * ensure the change takes effect immediately rather than after the 5-min TTL.
+ *
+ * Uses a static import (not dynamic) to avoid per-call module resolution.
+ * Logs loudly on failure — a silent failure here means a suspended user
+ * retains access for up to REDIS_USER_ROLE_TTL seconds.
  */
 export async function invalidateRoleCache(uid: string): Promise<void> {
-  const { invalidateCache } = await import('./redis');
-  await invalidateCache(`${APP_CONSTANTS.REDIS_USER_ROLE_PREFIX}${uid}`);
+  const key = `${APP_CONSTANTS.REDIS_USER_ROLE_PREFIX}${uid}`;
+  try {
+    await invalidateCache(key);
+    console.log(`[RBAC] Role cache invalidated for UID: ${uid}`);
+  } catch (err) {
+    // Log loudly — ops must investigate if invalidation fails on a suspension.
+    // The user's stale cached role will persist until the TTL expires.
+    console.error(
+      `[SECURITY] Failed to invalidate role cache for UID ${uid}. ` +
+      `Stale role may persist for up to ${APP_CONSTANTS.REDIS_USER_ROLE_TTL}s.`,
+      err,
+    );
+  }
 }
