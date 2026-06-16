@@ -61,6 +61,15 @@ export class SellerService {
       values.push(updates.phone);
     }
     if (updates.upi_vpa !== undefined) {
+      // Strict allowlist: <localpart>@<provider>
+      // Blocks ampersands, equals signs, and other characters that could be
+      // used to inject additional parameters into the UPI deep-link URL.
+      const UPI_VPA_REGEX = /^[a-zA-Z0-9._\-]{2,50}@[a-zA-Z]{2,20}$/;
+      if (!UPI_VPA_REGEX.test(updates.upi_vpa)) {
+        throw new ValidationError(
+          'Invalid UPI VPA format. Must be in the format user@bank (e.g. merchant@upi).',
+        );
+      }
       setClauses.push(`upi_vpa = $${paramIdx++}`);
       values.push(updates.upi_vpa);
     }

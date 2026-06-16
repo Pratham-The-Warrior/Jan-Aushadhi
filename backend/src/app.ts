@@ -49,6 +49,10 @@ export async function buildApp(): Promise<FastifyInstance> {
     requestIdHeader: 'x-request-id',
     // Generate a unique request ID for distributed tracing and clean log aggregation.
     genReqId: () => crypto.randomUUID(),
+    // Trust the X-Forwarded-For header set by Nginx so that request.ip resolves to
+    // the real client IP rather than the Docker bridge network IP. Without this,
+    // @fastify/rate-limit treats every user as the same IP and is completely ineffective.
+    trustProxy: true,
   });
 
   // ---- Global Middleware ----
