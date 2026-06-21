@@ -3,15 +3,16 @@
 // Refactored: uses useSearch hook, extracted components
 // ============================================================
 
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Filter, ArrowUpDown, Plus, MapPin, Loader2, Sparkles, Clock, X, Info, Pill, Beaker, TrendingUp, Heart, Activity } from 'lucide-react';
+import { Search, Filter, ArrowUpDown, Plus, MapPin, Loader2, Sparkles, Clock, X, Info, Pill, Beaker, TrendingUp, Heart, Activity, SlidersHorizontal } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import useCartStore from '../store/cartStore';
 import useSearch from '../hooks/useSearch';
 import useClickOutside from '../hooks/useClickOutside';
 import SkeletonCard from '../components/common/SkeletonCard';
 import EmptyState from '../components/common/EmptyState';
+import FilterSortPanel, { applyFiltersAndSort } from '../components/common/FilterSortPanel';
 
 // ---- Inline Helpers ----
 
@@ -42,6 +43,17 @@ export default function Discovery() {
     doSearch, handleKeyDown, clearSearch, selectSuggestion,
   } = useSearch();
 
+  // Filter & sort state
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [filters, setFilters] = useState({ sortKey: 'savings_desc', savingsRange: 'all' });
+
+  // Apply filters + sort to results
+  const displayResults = applyFiltersAndSort(results, filters);
+  const activeFilterCount = [
+    filters.sortKey !== 'savings_desc',
+    filters.savingsRange !== 'all',
+  ].filter(Boolean).length;
+
   const staggerContainer = {
     hidden: { opacity: 0 },
     show: { opacity: 1, transition: { staggerChildren: 0.1 } }
@@ -69,6 +81,12 @@ export default function Discovery() {
 
   return (
     <div className="flex-1 w-full bg-surface pb-20">
+      <FilterSortPanel
+        isOpen={filterOpen}
+        onClose={() => setFilterOpen(false)}
+        filters={filters}
+        setFilters={setFilters}
+      />
       {/* Search Header */}
       <div className="bg-surface-low py-16 w-full px-4 border-b border-outline-variant">
         <div className="max-w-4xl mx-auto text-center">
@@ -212,12 +230,31 @@ export default function Discovery() {
           <div className="flex flex-col md:flex-row justify-between items-end mb-10">
             <div>
               <h2 className="font-display text-2xl font-bold text-on-surface mb-2">Search Results</h2>
-              <p className="text-sm text-on-surface/60">Found {results.length} pharmaceutical equivalents for "{query}"</p>
+              <p className="text-sm text-on-surface/60">
+                Showing {displayResults.length} of {results.length} pharmaceutical equivalents for &quot;{query}&quot;
+              </p>
             </div>
             {results.length > 0 && (
               <div className="flex gap-3 mt-4 md:mt-0">
-                <button className="btn-secondary py-2.5 px-5 flex items-center gap-2 text-xs uppercase tracking-widest font-bold"><Filter className="w-4 h-4" /> Filter</button>
-                <button className="btn-secondary py-2.5 px-5 flex items-center gap-2 text-xs uppercase tracking-widest font-bold"><ArrowUpDown className="w-4 h-4" /> Sort</button>
+                <button
+                  onClick={() => setFilterOpen(true)}
+                  className={`btn-secondary py-2.5 px-5 flex items-center gap-2 text-xs uppercase tracking-widest font-bold relative ${
+                    activeFilterCount > 0 ? 'border-primary text-primary bg-primary/5' : ''
+                  }`}
+                >
+                  <Filter className="w-4 h-4" /> Filter
+                  {activeFilterCount > 0 && (
+                    <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-primary text-white text-[9px] font-bold rounded-full flex items-center justify-center">
+                      {activeFilterCount}
+                    </span>
+                  )}
+                </button>
+                <button
+                  onClick={() => setFilterOpen(true)}
+                  className="btn-secondary py-2.5 px-5 flex items-center gap-2 text-xs uppercase tracking-widest font-bold"
+                >
+                  <ArrowUpDown className="w-4 h-4" /> Sort
+                </button>
               </div>
             )}
           </div>
@@ -298,7 +335,13 @@ export default function Discovery() {
                 animate="show"
                 className="space-y-8"
               >
-                {results.map((res) => (
+                {displayResults.length === 0 ? (
+                  <div className="py-12 text-center">
+                    <p className="text-on-surface/50 font-medium">No results match your current filters.</p>
+                    <button onClick={() => setFilters({ sortKey: 'savings_desc', savingsRange: 'all' })} className="text-primary font-bold text-sm mt-3 hover:underline">Clear Filters</button>
+                  </div>
+                ) : (
+                  displayResults.map((res) => (
                   <motion.div variants={fadeUpItem} key={res.id} className="relative flex flex-col md:flex-row bg-surface-lowest rounded-lg ghost-border p-8 pt-10 clinical-shadow group hover:border-primary/20 transition-all">
                     {/* Branded */}
               <div className="w-full md:w-[35%] pr-8 pb-8 md:pb-0 relative z-10 border-r-0 md:border-r border-outline-variant/30">
@@ -377,12 +420,13 @@ export default function Discovery() {
                 )}
               </div>
             </motion.div>
-          ))}
-        </motion.div>
-        )}
-        </AnimatePresence>
+                  ))
+                )}
+                </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
       </div>
     </div>
-  </div>
   );
 }
