@@ -1,10 +1,10 @@
 // ============================================================
 // AttestationModal — Legal prescription attestation dialog
-// Now includes optional prescription image upload for compliance
+// Redesigned with glassmorphism and modern UI
 // ============================================================
 
-import React, { useState, useRef } from 'react';
-import { AlertTriangle, ShieldCheck, Upload, X, ImageIcon } from 'lucide-react';
+import React from 'react';
+import { AlertTriangle, ShieldCheck } from 'lucide-react';
 
 /**
  * @param {object}  props
@@ -15,28 +15,7 @@ import { AlertTriangle, ShieldCheck, Upload, X, ImageIcon } from 'lucide-react';
  * @param {function} props.onConfirm      - Confirm and close callback
  */
 export default function AttestationModal({ isOpen, attested, onAttest, onClose, onConfirm }) {
-  const [prescriptionImage, setPrescriptionImage] = useState(null);
-  const [imagePreview, setImagePreview] = useState(null);
-  const fileInputRef = useRef(null);
-
   if (!isOpen) return null;
-
-  const handleFileSelect = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!file.type.startsWith('image/')) return;
-    setPrescriptionImage(file);
-    const reader = new FileReader();
-    reader.onload = (ev) => setImagePreview(ev.target.result);
-    reader.readAsDataURL(file);
-  };
-
-  const clearImage = (e) => {
-    e.stopPropagation();
-    setPrescriptionImage(null);
-    setImagePreview(null);
-    if (fileInputRef.current) fileInputRef.current.value = '';
-  };
 
   return (
     <div
@@ -47,7 +26,7 @@ export default function AttestationModal({ isOpen, attested, onAttest, onClose, 
       aria-labelledby="attestation-title"
     >
       <div
-        className="bg-surface-lowest rounded-2xl clinical-shadow-lg max-w-lg w-full p-8 md:p-10 border border-white/20 animate-scaleIn max-h-[90vh] overflow-y-auto"
+        className="bg-surface-lowest rounded-2xl clinical-shadow-lg max-w-lg w-full p-8 md:p-10 border border-white/20 animate-scaleIn"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -64,64 +43,12 @@ export default function AttestationModal({ isOpen, attested, onAttest, onClose, 
         </div>
 
         {/* Legal Notice */}
-        <div className="bg-warning-soft/50 border border-warning/20 rounded-xl p-5 mb-6">
+        <div className="bg-warning-soft/50 border border-warning/20 rounded-xl p-5 mb-8">
           <p className="text-sm text-warning/90 leading-relaxed font-medium">
             As per the <strong className="text-warning">Drugs and Cosmetics Act, 1940</strong>, Schedule H and H1 medicines
             can only be dispensed against a valid prescription. By proceeding, you confirm possession
             of a physical prescription for all items.
           </p>
-        </div>
-
-        {/* Prescription Image Upload */}
-        <div className="mb-6">
-          <div className="text-[10px] font-bold uppercase tracking-widest text-on-surface/40 mb-3 flex items-center gap-2">
-            <ImageIcon className="w-3.5 h-3.5" /> Attach Prescription (Optional)
-          </div>
-
-          {imagePreview ? (
-            <div className="relative rounded-xl overflow-hidden border border-outline-variant">
-              <img
-                src={imagePreview}
-                alt="Prescription preview"
-                className="w-full max-h-48 object-cover"
-              />
-              <button
-                onClick={clearImage}
-                className="absolute top-2 right-2 w-7 h-7 bg-on-surface/70 text-white rounded-full flex items-center justify-center hover:bg-on-surface transition-colors"
-                aria-label="Remove image"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent px-4 py-3">
-                <p className="text-white text-[11px] font-semibold truncate">{prescriptionImage?.name}</p>
-              </div>
-            </div>
-          ) : (
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="w-full border-2 border-dashed border-outline-variant rounded-xl p-6 flex flex-col items-center gap-2 hover:border-primary/40 hover:bg-primary/5 transition-all group"
-            >
-              <div className="w-10 h-10 bg-surface-low rounded-xl flex items-center justify-center group-hover:bg-primary/10 transition-colors">
-                <Upload className="w-5 h-5 text-on-surface/40 group-hover:text-primary transition-colors" />
-              </div>
-              <div className="text-center">
-                <p className="text-sm font-semibold text-on-surface/60 group-hover:text-on-surface transition-colors">
-                  Tap to upload prescription photo
-                </p>
-                <p className="text-[10px] text-on-surface/40 mt-0.5">JPG, PNG up to 10MB</p>
-              </div>
-            </button>
-          )}
-
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            capture="environment"
-            onChange={handleFileSelect}
-            className="hidden"
-            aria-label="Upload prescription image"
-          />
         </div>
 
         {/* Checkbox */}
