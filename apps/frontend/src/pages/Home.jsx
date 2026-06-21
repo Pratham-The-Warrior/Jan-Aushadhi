@@ -192,7 +192,7 @@ export default function Home() {
               <h2 className="font-display text-3xl font-bold text-on-surface">Medicine Transparency</h2>
               <p className="text-on-surface/70 mt-2 text-lg">Educational resources to help you make informed healthcare decisions.</p>
             </div>
-            <button className="text-primary font-semibold text-sm flex items-center gap-1 hover:underline transition-all">View All <ChevronRight className="w-4 h-4" /></button>
+            <button onClick={() => navigate('/discovery')} className="text-primary font-semibold text-sm flex items-center gap-1 hover:underline transition-all">Explore More <ChevronRight className="w-4 h-4" /></button>
           </div>
           <motion.div 
             initial="hidden"
@@ -245,7 +245,7 @@ export default function Home() {
               </ul>
             </motion.div>
 
-            <motion.button variants={fadeUpItem} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={() => navigate('/dashboard')} className="btn-primary py-3.5 px-8">Compare Prices Now</motion.button>
+            <motion.button variants={fadeUpItem} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={() => navigate('/discovery')} className="btn-primary py-3.5 px-8">Compare Prices Now</motion.button>
           </div>
 
           <motion.div variants={fadeUpItem} className="w-full md:w-5/12 bg-primary p-12 lg:p-16 flex flex-col justify-center text-white">
