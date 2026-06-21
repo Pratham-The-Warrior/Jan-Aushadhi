@@ -14,11 +14,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { getUserDashboard, getRequirements } from '../services/api';
 import useCartStore from '../store/cartStore';
 import useAuthStore from '../store/authStore';
+import { toast } from '../store/toastStore';
 
 export default function Wellness() {
   const navigate = useNavigate();
   const addItem = useCartStore(s => s.addItem);
   const user = useAuthStore(s => s.user);
+  const logout = useAuthStore(s => s.logout);
   const [dashData, setDashData] = useState(null);
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -121,13 +123,28 @@ export default function Wellness() {
                 </div>
               </div>
 
-              <div className="flex flex-col sm:flex-row items-center gap-6 shrink-0 w-full md:w-auto">
+              <div className="flex flex-col sm:flex-row items-center gap-4 shrink-0 w-full md:w-auto">
                 <div className="bg-white/10 backdrop-blur-md rounded-2xl p-5 border border-white/10 text-center sm:text-right w-full sm:w-auto">
                   <div className="text-[10px] uppercase tracking-widest text-white/60 font-bold mb-1">Total Lifetime Savings</div>
                   <div className="font-display text-3xl md:text-4xl font-extrabold tracking-tighter text-white">
                     ₹{(stats.lifetime_savings || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
                   </div>
                 </div>
+                <button
+                  onClick={async () => {
+                    try {
+                      await logout();
+                      toast.success('Signed out successfully.');
+                    } catch {
+                      toast.error('Sign out failed. Please try again.');
+                    }
+                  }}
+                  title="Sign out"
+                  className="w-11 h-11 bg-white/10 hover:bg-white/20 border border-white/20 rounded-xl flex items-center justify-center transition-colors shrink-0"
+                  aria-label="Sign out"
+                >
+                  <LogOut className="w-5 h-5 text-white/80" />
+                </button>
               </div>
             </div>
           </motion.div>
@@ -304,7 +321,12 @@ export default function Wellness() {
                 </p>
               </div>
             </div>
-            <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} className="bg-success text-white px-6 py-3 rounded-xl text-sm font-bold uppercase tracking-widest hover:bg-success/90 transition-colors shrink-0 shadow-sm shadow-success/20">
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => toast.info('Auto-Refill setup coming soon! We\'ll notify you when it\'s live.')}
+              className="bg-success text-white px-6 py-3 rounded-xl text-sm font-bold uppercase tracking-widest hover:bg-success/90 transition-colors shrink-0 shadow-sm shadow-success/20"
+            >
               Setup Auto-Refill
             </motion.button>
           </motion.div>

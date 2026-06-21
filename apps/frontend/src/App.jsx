@@ -11,6 +11,7 @@ import Footer from './components/layout/Footer';
 import MobileBottomNav from './components/layout/MobileBottomNav';
 import ErrorBoundary from './components/common/ErrorBoundary';
 import LoadingSpinner from './components/common/LoadingSpinner';
+import ToastContainer from './components/common/ToastContainer';
 import useAuthStore from './store/authStore';
 
 // ---- Lazy-loaded Pages (code splitting) ----
@@ -147,6 +148,7 @@ export default function App() {
       <div className="min-h-screen flex flex-col pb-16 md:pb-0">
         <RootLayout />
       </div>
+      <ToastContainer />
     </BrowserRouter>
   );
 }

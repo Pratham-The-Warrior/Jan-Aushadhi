@@ -5,7 +5,7 @@
 
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MapPin, ShieldCheck, Clock, Zap, Trash2, MessageCircle, Lock, Package, ArrowRight, Search } from 'lucide-react';
+import { MapPin, ShieldCheck, Clock, Zap, Trash2, MessageCircle, Lock, Package, ArrowRight, Search, Sparkles } from 'lucide-react';
 import { motion } from 'framer-motion';
 import useCartStore, {
   selectSubtotal,
@@ -16,6 +16,7 @@ import useAuthStore from '../store/authStore';
 import { createRequirement, getWhatsAppLink } from '../services/api';
 import AttestationModal from '../components/checkout/AttestationModal';
 import OrderSuccess from '../components/checkout/OrderSuccess';
+import { toast } from '../store/toastStore';
 
 export default function Checkout() {
   const navigate = useNavigate();
@@ -80,17 +81,17 @@ export default function Checkout() {
     }
     // 3. Validation
     if (items.length === 0) {
-      alert('Your cart is empty.');
+      toast.warning('Your cart is empty. Add some medicines first.');
       navigate('/discovery');
       return;
     }
     if (fulfillmentType === 'PICKUP' && !selectedStore) {
-      alert('Please select a Jan Aushadhi Kendra for fulfillment first.');
+      toast.warning('Please select a Jan Aushadhi Kendra before continuing.');
       navigate('/fulfillment');
       return;
     }
     if (fulfillmentType === 'DELIVERY' && !deliveryAddress.trim()) {
-      alert('Please enter a delivery address for home delivery.');
+      toast.warning('Please enter a delivery address for home delivery.');
       return;
     }
 
@@ -118,9 +119,10 @@ export default function Checkout() {
 
       setOrderResult(result);
       clearCart();
+      toast.success('Order created successfully! Check your WhatsApp.');
     } catch (err) {
       console.error(err);
-      alert(err.message || 'Checkout failed. Please ensure the backend services are running.');
+      toast.error(err.message || 'Checkout failed. Please ensure the backend services are running.');
     }
     setProcessing(false);
   };
@@ -493,14 +495,5 @@ export default function Checkout() {
         </div>
       </div>
     </div>
-  );
-}
-
-function Sparkles(props) {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
-      <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>
-      <path d="M5 3v4"/><path d="M19 17v4"/><path d="M3 5h4"/><path d="M17 19h4"/>
-    </svg>
   );
 }

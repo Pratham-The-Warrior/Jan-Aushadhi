@@ -7,6 +7,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ShieldCheck, MessageCircle, ArrowRight, PackageCheck } from 'lucide-react';
 import { getWhatsAppLink } from '../../services/api';
+import { toast } from '../../store/toastStore';
 
 /**
  * @param {object} props
@@ -21,7 +22,7 @@ export default function OrderSuccess({ order, store }) {
       const { whatsappUrl } = await getWhatsAppLink(order.ticketId);
       window.open(whatsappUrl, '_blank');
     } catch {
-      alert('Could not fetch WhatsApp link');
+      toast.error('Could not fetch WhatsApp link. Please try again.');
     }
   };
 
