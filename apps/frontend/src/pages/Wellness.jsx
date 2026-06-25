@@ -61,8 +61,8 @@ export default function Wellness() {
     navigate('/checkout');
   };
 
-  const initials = user?.displayName?.substring(0, 2).toUpperCase() 
-    || user?.phoneNumber?.slice(-2) 
+  const initials = user?.displayName?.substring(0, 2).toUpperCase()
+    || user?.phoneNumber?.slice(-2)
     || 'JA';
 
   const staggerContainer = {
@@ -78,9 +78,9 @@ export default function Wellness() {
   return (
     <div className="flex-1 w-full bg-surface min-h-screen pb-32">
       <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12">
-        
+
         {/* Bento Grid Container */}
-        <motion.div 
+        <motion.div
           variants={staggerContainer}
           initial="hidden"
           animate="show"
@@ -90,11 +90,11 @@ export default function Wellness() {
           {/* ═══════════════════════════════════════════════════ */}
           {/* HORIZONTAL PROFILE BANNER (Spans 12 cols)           */}
           {/* ═══════════════════════════════════════════════════ */}
-          <motion.div variants={fadeUpItem} className="md:col-span-12 bg-gradient-to-r from-primary via-primary-dim to-[#003d3d] rounded-3xl p-6 md:p-8 text-white relative overflow-hidden shadow-xl shadow-primary/20 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 group hover:shadow-2xl hover:shadow-primary/30 transition-all duration-500">
+          <motion.div variants={fadeUpItem} className="md:col-span-12 bg-linear-to-r from-primary via-primary-dim to-[#003d3d] rounded-3xl p-6 md:p-8 text-white relative overflow-hidden shadow-xl shadow-primary/20 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 group hover:shadow-2xl hover:shadow-primary/30 transition-all duration-500">
             {/* Background patterns */}
-            <div className="absolute inset-0 opacity-[0.05] bg-[radial-gradient(circle_at_50%_120%,_white_40%,_transparent_80%)]" />
+            <div className="absolute inset-0 opacity-[0.05] bg-[radial-gradient(circle_at_50%_120%,white_40%,transparent_80%)]" />
             <div className="absolute -top-20 -right-20 w-64 h-64 bg-white/10 rounded-full blur-3xl group-hover:bg-white/20 transition-colors duration-500" />
-            
+
             <div className="relative z-10 flex flex-col sm:flex-row items-center sm:items-start md:items-center gap-6 w-full">
               <div className="relative shrink-0">
                 <div className="w-24 h-24 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center text-4xl font-extrabold font-display border border-white/20 shadow-lg">
@@ -153,28 +153,28 @@ export default function Wellness() {
           {/* STATS BENTO (Spans 12 cols, 4 inline cards)         */}
           {/* ═══════════════════════════════════════════════════ */}
           <motion.div variants={fadeUpItem} className="md:col-span-12 grid grid-cols-2 lg:grid-cols-4 gap-6">
-            <StatBento 
+            <StatBento
               icon={<TrendingUp className="w-6 h-6 text-primary" />}
               label="Savings Rate"
               value={`${Math.round(stats.average_savings_percent)}%`}
               sub="Avg vs Branded"
               color="primary"
             />
-            <StatBento 
+            <StatBento
               icon={<Package className="w-6 h-6 text-accent" />}
               label="Orders"
               value={stats.total_orders}
               sub="Lifetime Orders"
               color="accent"
             />
-            <StatBento 
+            <StatBento
               icon={<Activity className="w-6 h-6 text-success" />}
               label="Active Meds"
               value={activeMeds.length}
               sub="Monitored"
               color="success"
             />
-            <StatBento 
+            <StatBento
               icon={<Heart className="w-6 h-6 text-warning" />}
               label="Annual Proj."
               value={`₹${((stats.annual_savings_projection || 0) / 1000).toFixed(1)}k`}
@@ -279,13 +279,12 @@ export default function Wellness() {
                             {new Date(order.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
                           </div>
                         </div>
-                        <div className={`text-[9px] font-bold px-2 py-1 rounded uppercase tracking-widest ${
-                          isConfirmed ? 'bg-success-soft text-success' : 'bg-surface-low text-on-surface/60'
-                        }`}>
+                        <div className={`text-[9px] font-bold px-2 py-1 rounded uppercase tracking-widest ${isConfirmed ? 'bg-success-soft text-success' : 'bg-surface-low text-on-surface/60'
+                          }`}>
                           {order.status}
                         </div>
                       </div>
-                      
+
                       <div className="flex items-center justify-between mt-4">
                         <div className="text-xs font-semibold text-on-surface/70">
                           {itemCount} {itemCount === 1 ? 'item' : 'items'} • ₹{parseFloat(order.total_generic_value).toFixed(2)}
@@ -342,7 +341,7 @@ function StatBento({ icon, label, value, sub, color }) {
   const colorMap = {
     primary: 'bg-primary-light border-primary/20',
     success: 'bg-success-soft border-success/20',
-    accent:  'bg-accent-soft border-accent/20',
+    accent: 'bg-accent-soft border-accent/20',
     warning: 'bg-warning-soft border-warning/20',
   };
   const bgClass = colorMap[color] || colorMap.primary;

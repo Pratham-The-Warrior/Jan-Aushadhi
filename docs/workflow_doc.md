@@ -9,30 +9,30 @@ It details exactly how data flows across the monorepo packages—from the consum
 ## Workflow Directory Map
 
 ```
-                     ┌──────────────────────┐
-                     │ 1. Molecule Search   │
-                     │  & Drug Discovery    │
-                     └──────────┬───────────┘
-                                │
-                     ┌──────────▼───────────┐
-                     │ 2. Cart Sync Logic   │
-                     │   (Merge & Max)      │
-                     └──────────┬───────────┘
-                                │
-                     ┌──────────▼───────────┐
-                     │ 3. Checkout Gates    │
-                     │  & Spatial Routing   │
-                     └──────────┬───────────┘
-                                │
-                     ┌──────────▼───────────┐
-                     │ 4. UPI Payment QR    │
-                     │   & P2P Settlement   │
-                     └──────────┬───────────┘
-                                │
-                     ┌──────────▼───────────┐
-                     │ 5. Seller Onboarding │
-                     │   & Dashboard Flow   │
-                     └──────────────────────┘
+                      ┌──────────────────────┐
+                      │ 1. Molecule Search   │
+                      │  & Drug Discovery    │
+                      └──────────┬───────────┘
+                                 │
+                      ┌──────────▼───────────┐
+                      │ 2. Cart Sync Logic   │
+                      │   (Merge & Max)      │
+                      └──────────┬───────────┘
+                                 │
+                      ┌──────────▼───────────┐
+                      │ 3. Checkout Gates    │
+                      │  & Spatial Routing   │
+                      └──────────┬───────────┘
+                                 │
+                      ┌──────────▼───────────┐
+                      │ 4. UPI Payment QR    │
+                      │   & P2P Settlement   │
+                      └──────────┬───────────┘
+                                 │
+                      ┌──────────▼───────────┐
+                      │ 5. Seller Onboarding │
+                      │   & Dashboard Flow   │
+                      └──────────────────────┘
 ```
 
 ---
@@ -170,7 +170,7 @@ sequenceDiagram
         DB-->>API: Returns out-of-stock store intersections
         API->>API: Identify closest store with ALL items in stock
     end
-
+ 
     alt Store Allocated
         API->>DB: Query store VPA & phone details
         API->>DB: INSERT INTO requirements (status = PENDING_ACCEPTANCE)
@@ -266,7 +266,7 @@ sequenceDiagram
     Admin->>API: POST /api/v1/admin/stores/:code/assign (Operator Details)
     API->>DB: Check if store exists & is unassigned
     DB-->>API: Store confirmed
-
+ 
     rect rgb(235, 245, 235)
         note right of API: Firebase Auth Provisioning
         API->>Firebase: Query for account under code@seller.janaushadhi.local
@@ -277,7 +277,7 @@ sequenceDiagram
         end
         Firebase-->>API: Returns Firebase uid
     end
-
+ 
     rect rgb(245, 240, 245)
         note right of API: PostgreSQL Assignment Transaction
         API->>DB: BEGIN Transaction
@@ -285,7 +285,7 @@ sequenceDiagram
         API->>DB: Update stores table: seller_uid = uid, verified_at = NOW()
         API->>DB: COMMIT Transaction
     end
-
+ 
     API->>Cache: Invalidate Redis Cache: user:role:uid
     Cache-->>API: Cache purged
     API-->>Admin: Onboarding Successful!
@@ -319,11 +319,11 @@ flowchart TD
     D --> E[Log status change to order_status_log]
     E --> B
     
-    C -- Toggle Stock Override --> F[Search catalog generic drug code]
+    C -- Toggle Stock Override F[Search catalog generic drug code]
     F --> G[Toggle In-Stock checkbox status]
     G --> H[Execute SQL UPSERT store_inventory]
     H --> B
-
+ 
     C -- Update Store Settings --> I[Modify operating hours or upi_vpa]
     I --> J[Save changes directly to stores row]
     J --> B

@@ -29,7 +29,7 @@ export default function StoreMapArea({ stores, selectedStore, onSelectStore }) {
         {/* Range rings */}
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] rounded-full border-2 border-primary/5" />
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[200px] h-[200px] rounded-full border-2 border-primary/8" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[100px] h-[100px] rounded-full border-2 border-primary/12 bg-primary/[0.03]" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[100px] h-[100px] rounded-full border-2 border-primary/12 bg-primary/3" />
 
         {/* Pins */}
         {stores.map((store, idx) => (
@@ -91,7 +91,7 @@ export default function StoreMapArea({ stores, selectedStore, onSelectStore }) {
       {/* Empty map branding */}
       {stores.length === 0 && (
         <div className="absolute inset-0 flex flex-col items-center justify-center z-20">
-          <div className="w-24 h-24 bg-primary/[0.06] rounded-2xl flex items-center justify-center mb-6 border border-primary/10">
+          <div className="w-24 h-24 bg-primary/6 rounded-2xl flex items-center justify-center mb-6 border border-primary/10">
             <Map className="w-12 h-12 text-primary/25" />
           </div>
           <div className="text-on-surface/30 font-display font-bold text-xl mb-2">Store Locations</div>

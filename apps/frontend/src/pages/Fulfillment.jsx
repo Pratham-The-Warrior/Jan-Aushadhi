@@ -18,25 +18,25 @@ export default function Fulfillment() {
   // We keep track of discovered stores, loading states, and search selections.
   const [stores, setStores] = useState([]);
   const [loading, setLoading] = useState(false);
-  
+
   // The app supports searching by 'pincode' (fastest & most common) or 'district' (within a selected state).
   const [searchMode, setSearchMode] = useState('pincode');
   const [pincode, setPincode] = useState('');
-  
+
   // State dropdown data loaded from the backend on mount.
   const [statesList, setStatesList] = useState([]);
   const [selectedState, setSelectedState] = useState('');
   const [districtText, setDistrictText] = useState('');
-  
+
   // Error handling, tracking selected store on the map, and GPS fetch state.
   const [error, setError] = useState('');
   const [selectedStore, setSelectedStore] = useState(null);
   const [gpsLoading, setGpsLoading] = useState(false);
   const [searchedLabel, setSearchedLabel] = useState('');
-  
+
   // Sync the selected store to the global cart store so the checkout page knows where to fulfill the order.
   const setCartStore = useCartStore((s) => s.setStore);
-  
+
   // Ref to the pincode input, used to programmatically submit the form after auto-detecting location.
   const inputRef = useRef(null);
 
@@ -66,19 +66,19 @@ export default function Fulfillment() {
       let data;
       if (searchMode === 'pincode') {
         // Basic length check; Indian pincodes are strictly 6 digits.
-        if (pincode.length !== 6) { 
-          setError('Please enter a valid 6-digit pincode'); 
-          setLoading(false); 
-          return; 
+        if (pincode.length !== 6) {
+          setError('Please enter a valid 6-digit pincode');
+          setLoading(false);
+          return;
         }
         setSearchedLabel(`Pincode ${pincode}`);
         data = await getStoresByPincode(pincode);
       } else {
         // District search requires a parent state to avoid ambiguity (e.g. Bilaspur is in HP and Chhattisgarh).
-        if (!selectedState || !districtText) { 
-          setError('Please select a state and enter a district name'); 
-          setLoading(false); 
-          return; 
+        if (!selectedState || !districtText) {
+          setError('Please select a state and enter a district name');
+          setLoading(false);
+          return;
         }
         setSearchedLabel(`${districtText}, ${selectedState}`);
         data = await getStoresByDistrict(selectedState, districtText.toUpperCase());
@@ -113,13 +113,13 @@ export default function Fulfillment() {
   // Leveraging HTML5 Geolocation to grab coordinates, then reverse-geocoding via OpenStreetMap's Nominatim
   // API to determine the user's pincode. Once found, we automatically trigger a pincode search.
   const handleUseLocation = () => {
-    if (!navigator.geolocation) { 
-      setError('Geolocation is not supported by your browser.'); 
-      return; 
+    if (!navigator.geolocation) {
+      setError('Geolocation is not supported by your browser.');
+      return;
     }
     setGpsLoading(true);
     setError('');
-    
+
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         try {
@@ -129,7 +129,7 @@ export default function Fulfillment() {
           );
           const data = await res.json();
           const pc = data?.address?.postcode;
-          
+
           if (pc) {
             setPincode(pc);
             setSearchMode('pincode');
@@ -139,14 +139,14 @@ export default function Fulfillment() {
           } else {
             setError('Could not determine your pincode. Please enter it manually.');
           }
-        } catch { 
-          setError('Location lookup failed. Please enter your pincode manually.'); 
+        } catch {
+          setError('Location lookup failed. Please enter your pincode manually.');
         }
         setGpsLoading(false);
       },
-      () => { 
-        setError('Location access denied. Please enter your pincode manually.'); 
-        setGpsLoading(false); 
+      () => {
+        setError('Location access denied. Please enter your pincode manually.');
+        setGpsLoading(false);
       },
       { timeout: 10000 }, // 10s timeout keeps it from hanging indefinitely if GPS is slow
     );
@@ -231,7 +231,7 @@ export default function Fulfillment() {
                 )}
 
                 <button type="button" onClick={handleUseLocation} disabled={gpsLoading}
-                  className="w-full py-3 rounded-lg text-xs font-bold uppercase tracking-widest flex items-center justify-center gap-2 text-primary bg-primary/[0.06] hover:bg-primary/10 border border-primary/15 transition-all disabled:opacity-50">
+                  className="w-full py-3 rounded-lg text-xs font-bold uppercase tracking-widest flex items-center justify-center gap-2 text-primary bg-primary/6 hover:bg-primary/10 border border-primary/15 transition-all disabled:opacity-50">
                   {gpsLoading
                     ? <><div className="w-3.5 h-3.5 border-2 border-primary border-t-transparent rounded-full animate-spin" /> Detecting...</>
                     : <><Locate className="w-3.5 h-3.5" /> Use My Location</>}

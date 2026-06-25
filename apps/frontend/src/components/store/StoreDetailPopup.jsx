@@ -56,7 +56,7 @@ export default function StoreDetailPopup({ store }) {
         </p>
 
         {/* Certification */}
-        <div className="flex items-center gap-2 mb-5 bg-primary/[0.04] rounded-lg p-3 border border-primary/10">
+        <div className="flex items-center gap-2 mb-5 bg-primary/4 rounded-lg p-3 border border-primary/10">
           <ShieldCheck className="w-4 h-4 text-primary shrink-0" />
           <span className="text-[10px] text-primary font-bold uppercase tracking-wider">
             Government Certified PMBJK Outlet

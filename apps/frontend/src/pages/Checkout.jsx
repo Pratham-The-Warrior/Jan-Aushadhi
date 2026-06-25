@@ -438,7 +438,7 @@ export default function Checkout() {
                       onClick={handleCheckout}
                       className="w-full btn-primary py-4 rounded-xl transition-all flex flex-col items-center justify-center gap-1 shadow-lg shadow-primary/20 hover:-translate-y-0.5 group"
                     >
-                      <div className="flex items-center gap-2 text-sm font-bold uppercase tracking-[0.05em]">
+                      <div className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider">
                         Sign In to Checkout <Lock className="w-4 h-4" />
                       </div>
                     </button>
@@ -451,7 +451,7 @@ export default function Checkout() {
                       disabled
                       className="w-full btn-secondary py-4 rounded-xl opacity-50 cursor-not-allowed transition-all flex flex-col items-center justify-center gap-1"
                     >
-                      <div className="flex items-center gap-2 text-sm font-bold uppercase tracking-[0.05em]">
+                      <div className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider">
                         Cart is Empty
                       </div>
                     </button>
@@ -464,7 +464,7 @@ export default function Checkout() {
                       onClick={() => navigate('/fulfillment')}
                       className="w-full btn-primary py-4 rounded-xl transition-all flex flex-col items-center justify-center gap-1 shadow-lg shadow-primary/20 hover:-translate-y-0.5 group"
                     >
-                      <div className="flex items-center gap-2 text-sm font-bold uppercase tracking-[0.05em]">
+                      <div className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider">
                         Select Kendra to Continue <ArrowRight className="w-4 h-4" />
                       </div>
                     </button>
@@ -477,7 +477,7 @@ export default function Checkout() {
                     onClick={handleCheckout}
                     className="w-full btn-primary py-4 rounded-xl disabled:opacity-40 disabled:cursor-not-allowed transition-all flex flex-col items-center justify-center gap-1 shadow-lg shadow-primary/20 hover:-translate-y-0.5 group"
                   >
-                    <div className="flex items-center gap-2 text-sm font-bold uppercase tracking-[0.05em]">
+                    <div className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider">
                       {processing ? 'Processing...' : 'Generate Order'} <MessageCircle className="w-4 h-4 group-hover:animate-subtlePulse" />
                     </div>
                     {!processing && <span className="text-[9px] text-white/70 uppercase tracking-widest font-bold">Via Encrypted WhatsApp</span>}

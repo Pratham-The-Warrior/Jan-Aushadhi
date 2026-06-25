@@ -1,6 +1,6 @@
 # Jan Aushadhi Platform: Comprehensive Technical Documentation & Architecture Deep-Dive
 
-This document serves as the absolute, single-source-of-truth technical blueprint and reference manual for the **Jan Aushadhi** hyper-local generic drug discovery and commerce platform. It details every module, spatial database schema, background service, local loopback routing, caching configuration, dependency, and data workflow within the codebase.
+This document serves as the absolute technical blueprint and reference manual for the **Jan Aushadhi** hyper-local generic drug discovery and commerce platform. It details every module, spatial database schema, background service, local loopback routing, caching configuration, dependencies, testing, and production deployment specifications within the codebase.
 
 ---
 
@@ -14,16 +14,20 @@ The Jan Aushadhi platform is engineered as a unified **npm Workspaces Monorepo**
 JAN-AUSHADHI/
 ├── package.json               # Root monorepo configuration & runner scripts
 ├── package-lock.json          # Unified lockfile for all packages
+├── docker-compose.yml         # Local developer infrastructure (Postgres, Redis, Meilisearch)
 ├── docker-compose.prod.yml    # Production container orchestration
-├── nginx-proxy.conf           # Local loopback Nginx subdomain reverse proxy
+├── nginx-proxy.conf           # Production Nginx reverse proxy subdomain routing configuration
 ├── .github/
 │   └── workflows/
 │       └── ci.yml             # Automated GitHub Actions validation pipeline
+├── docs/
+│   ├── workflow_doc.md        # Deep-dive business logic workflows & sequences
+│   └── technical_doc.md       # [This File] Detailed architecture & technical setup guide
 ├── scratch/                   # Developer scripts & verification tools
-├── scripts/                   # PDF & CSV data extraction scripts
-├── backend/                   # [Package: janaushadhi-backend] Node/Fastify API
+├── scripts/                   # Root-level helper scripts (e.g. PDF to CSV extraction)
+├── backend/                   # [Package: janaushadhi-backend] Fastify REST API server
 └── apps/
-    ├── frontend/              # [Package: frontend] Consumer Discovery React App
+    ├── frontend/              # [Package: frontend] Patient Discovery React App
     ├── seller/                # [Package: seller] Kendra Pharmacist React App
     └── admin/                 # [Package: admin] Operations Control React App
 ```
@@ -64,14 +68,15 @@ The root `package.json` coordinates execution across all workspaces using standa
 
 ## 2. PostgreSQL + PostGIS Spatial Database Schema
 
-The database utilizes **PostGIS** spatial extensions to map, calculate, and route orders to the closest physical store. The topology ensures high referential integrity and strict auditing of order fulfillment states.
+The database utilizes **PostGIS** spatial extensions to map, calculate, and route orders to the closest physical store. The database schema is initialized using [setup_db.ts](file:///c:/Users/Prathmesh%20Sarda/JAN-AUSHADHI/backend/scripts/setup_db.ts).
 
 ```mermaid
 erDiagram
     USERS {
-      VARCHAR(128) firebase_uid PK
+      INTEGER id PK
+      VARCHAR(128) firebase_uid UNIQUE
       VARCHAR(255) name
-      VARCHAR(32) phone
+      VARCHAR(20) phone
       VARCHAR(255) email
       VARCHAR(32) role
       BOOLEAN is_suspended
@@ -79,13 +84,14 @@ erDiagram
       TIMESTAMP created_at
     }
     STORES {
-      VARCHAR(32) pmbjk_code PK
+      INTEGER id PK
+      VARCHAR(32) pmbjk_code UNIQUE
       VARCHAR(255) name
       VARCHAR(32) phone
       TEXT address
       VARCHAR(10) pincode
-      VARCHAR(64) state
-      VARCHAR(64) district
+      VARCHAR(128) state
+      VARCHAR(128) district
       GEOGRAPHY location
       VARCHAR(32) status
       JSONB operating_hours
@@ -95,24 +101,29 @@ erDiagram
     }
     BRANDED_MEDS {
       INTEGER id PK
-      VARCHAR(255) name
+      VARCHAR(512) name
       NUMERIC mrp
-      VARCHAR(255) manufacturer
+      BOOLEAN is_discontinued
+      VARCHAR(512) manufacturer
+      VARCHAR(64) type
       VARCHAR(128) pack_size_label
       TEXT composition1
       TEXT composition2
       VARCHAR(128) salt_hash
+      VARCHAR(512) category
     }
     GENERIC_MEDS {
-      VARCHAR(32) drug_code PK
+      INTEGER id PK
+      VARCHAR(128) drug_code
       TEXT generic_name
       NUMERIC mrp
-      VARCHAR(64) unit_size
-      VARCHAR(128) group_name
+      VARCHAR(256) unit_size
+      VARCHAR(512) group_name
       VARCHAR(128) salt_hash
       TEXT indications
       TEXT side_effects
       TEXT storage_info
+      JSONB clinical_data
     }
     REQUIREMENTS {
       VARCHAR(64) id PK
@@ -184,7 +195,7 @@ The backend is built as a highly structured **Modular Monolith** using **Fastify
 ### Server Lifecycle & Application Factory (`src/app.ts`)
 The server initialization decouples instance creation from network listening:
 * **Testability Advantage**: Enables fast in-memory integration tests via Fastify's `server.inject()` without allocating local port binds, eliminating port conflicts in CI.
-* **Global Error Handler**: Catches standard validations (AJV), custom `AppError` exceptions, and unhandled system failures. In production, unhandled traces are masked and logged internally to prevent security leaks.
+* **Global Error Handler**: Centralizes error management. Catches standard AJV validation rules, customized domain-driven `AppError` exceptions, and unhandled system failures. In production, unhandled traces are masked and logged internally to prevent security leaks.
 * **Cross-Origin Resource Sharing (CORS)**: Configured dynamically via origin policies to support local subdomains securely.
 
 ### Global Dependencies Map
@@ -328,7 +339,7 @@ Converts operational exceptions into structured HTTP JSON responses:
 ## 6. Frontend Portal Applications (`/apps/`)
 
 ### 6.1 Client Discovery Portal (`/apps/frontend`)
-* **Savings-First Cart**: Evaluates branded vs. generic pricing on the fly, showing users their total savings and savings percentage (e.g. *"Saving 84% on this order!"*).
+* **Savings-First Cart**: Evaluates branded vs. generic pricing on the fly, showing users their total savings and savings percentage.
 * **HTML5 Coordinates Mapping**: Utilizes standard geolocation to fetch coords for auto-routing, falling back to a default location (e.g. Mumbai) if access is denied.
 * **Dynamic UPI QR Component**: Employs an instant payment scan-to-pay component that formats UPI deep-links (`upi://pay?pa={vpa}&pn=PMBJK%20Kendra&am={amount}&cu=INR&tn={ticket_id}`) and renders them instantly via standard API endpoints without heavy external libraries.
 
@@ -349,10 +360,10 @@ To manage subdomain isolation without separate servers, the monorepo utilizes an
 graph TD
     User([User Request]) --> Nginx[Nginx Reverse Proxy: Port 80]
     
-    Nginx -- "janaushadhi.local" --> FE[apps/frontend: Port 5173]
-    Nginx -- "seller.janaushadhi.local" --> SE[apps/seller: Port 5174]
-    Nginx -- "admin.janaushadhi.local" --> AD[apps/admin: Port 5175]
-    Nginx -- "api.janaushadhi.local" --> BE[backend: Port 5000]
+    Nginx -- "jan-aushadhi.duckdns.org" --> FE[apps/frontend: Port 80]
+    Nginx -- "jan-aushadhi-seller.duckdns.org" --> SE[apps/seller: Port 80]
+    Nginx -- "jan-aushadhi-admin.duckdns.org" --> AD[apps/admin: Port 80]
+    Nginx -- "jan-aushadhi-api.duckdns.org" --> BE[backend: Port 5000]
 
     BE --> PG[(PostgreSQL + PostGIS)]
     BE --> RD[(Redis Cache)]
@@ -364,7 +375,7 @@ The routing maps the subdomains to their respective containers:
 ```nginx
 server {
     listen 80;
-    server_name janaushadhi.local;
+    server_name jan-aushadhi.duckdns.org;
     location / {
         proxy_pass http://frontend:80;
         proxy_set_header Host $host;
@@ -372,7 +383,7 @@ server {
 }
 server {
     listen 80;
-    server_name seller.janaushadhi.local;
+    server_name jan-aushadhi-seller.duckdns.org;
     location / {
         proxy_pass http://seller:80;
         proxy_set_header Host $host;
@@ -380,7 +391,7 @@ server {
 }
 server {
     listen 80;
-    server_name admin.janaushadhi.local;
+    server_name jan-aushadhi-admin.duckdns.org;
     location / {
         proxy_pass http://admin:80;
         proxy_set_header Host $host;
@@ -388,7 +399,7 @@ server {
 }
 server {
     listen 80;
-    server_name api.janaushadhi.local;
+    server_name jan-aushadhi-api.duckdns.org;
     location / {
         proxy_pass http://backend:5000;
         proxy_set_header Host $host;
@@ -418,46 +429,65 @@ The workflow operates on all pull requests and pushes to the main branch:
 
 ---
 
-## 9. Core System Sequences
+## 9. Local Developer Setup
 
-### 9.1 Client Discovery & Substitution Sequence
-```mermaid
-sequenceDiagram
-    autonumber
-    actor Patient
-    participant Search as Meilisearch (suggest)
-    participant DB as PostgreSQL (branded)
-    participant Cache as Redis (generic)
-    
-    Patient->>Search: Types "crocin" (min 2 chars)
-    Search-->>Patient: Returns branded hits (ID: 4192)
-    Patient->>DB: Clicks product detail (GET /discovery/4192)
-    DB->>DB: Retrieves branded composition & salt_hash
-    DB->>Cache: Check generic equivalent (salt_hash key)
-    alt Cache Hit
-        Cache-->>DB: Returns generic medicine details
-    else Cache Miss
-        DB->>DB: SELECT * FROM generic_meds WHERE salt_hash
-        DB->>Cache: Save generic data in Redis (TTL 86400s)
-    end
-    DB-->>Patient: Returns side-by-side comparison & savings (e.g. ₹60 vs ₹12)
+Follow these steps to run the entire monorepo locally for development.
+
+### 📋 Prerequisites
+Ensure you have the following installed:
+* [Node.js](https://nodejs.org/) v20.x or above (and `npm` package manager)
+* [Docker Desktop](https://www.docker.com/products/docker-desktop/)
+
+### 🚀 Step 1: Install Workspace Dependencies
+Install monorepo-wide node modules from the root folder:
+```bash
+npm install
 ```
 
-### 9.2 Spatial Order Routing & Payment Sequence
-```mermaid
-sequenceDiagram
-    autonumber
-    actor Customer
-    participant API as Fastify Backend
-    participant DB as PostgreSQL (PostGIS)
-    participant QR as public QR Code API
+### 📦 Step 2: Start Infrastructure Containers
+Launch the database, redis, and search engine services in the background using Docker Compose:
+```bash
+docker compose up -d
+```
+This runs:
+* **PostgreSQL + PostGIS** at `localhost:5432` (user/pass: `postgres`/`postgres`)
+* **Redis** at `localhost:6379`
+* **Meilisearch** at `localhost:7700` (master key: `masterKey`)
 
-    Customer->>API: Checkout order (DELIVERY, lat/lng coords)
-    API->>DB: ST_DWithin (location, 10km radius)
-    DB-->>API: Returns list of nearby stores (sorted by distance)
-    API->>DB: Filters out stores with out-of-stock items
-    API->>API: Identifies closest store with full stock (Store PMBJK-304)
-    API->>DB: INSERT INTO requirements (pmbjk_code = PMBJK-304, status = PENDING_ACCEPTANCE)
-    API->>QR: Generates scan-to-pay deep-link
-    API-->>Customer: Renders Ticket ID + dynamic UPI payment QR
+### 🔑 Step 3: Environment Setup
+Create the environment files in the subdirectories:
+1. In [backend/.env](file:///c:/Users/Prathmesh%20Sarda/JAN-AUSHADHI/backend/.env), copy `backend/.env.example` and populate variables (credentials for database, firebase-admin service account keys, twilio API, etc.).
+2. For the client apps (`frontend`, `seller`, `admin`), configure the `VITE_API_URL` pointing to `http://localhost:5000/api/v1` and your client Firebase SDK keys.
+
+### 🗃️ Step 4: Initialize DB and Run Migration/ETL Pipelines
+Use the backend command scripts to setup schema, load drug lists, and geocode stores:
+```bash
+# 1. Create PostGIS extension and schema tables
+npm run db:setup --workspace=janaushadhi-backend
+
+# 2. Run schema migrations
+npm run db:migrate --workspace=janaushadhi-backend
+
+# 3. Populate medicine datasets from CSV to PostgreSQL & Meilisearch
+npm run etl:run --workspace=janaushadhi-backend
+
+# 4. Process and geocode active Kendra store locations
+npm run etl:stores --workspace=janaushadhi-backend
+```
+
+### 💻 Step 5: Start Local Development Servers
+You can run individual workspaces using monorepo shortcut commands defined in the root [package.json](file:///c:/Users/Prathmesh%20Sarda/JAN-AUSHADHI/package.json):
+
+```bash
+# Start Fastify backend server (reloads on changes)
+npm run dev:backend
+
+# Start patient frontend portal
+npm run dev:frontend
+
+# Start seller portal
+npm run dev:seller
+
+# Start super admin console
+npm run dev:admin
 ```

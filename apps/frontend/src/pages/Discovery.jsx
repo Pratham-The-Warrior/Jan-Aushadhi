@@ -12,7 +12,8 @@ import useSearch from '../hooks/useSearch';
 import useClickOutside from '../hooks/useClickOutside';
 import SkeletonCard from '../components/common/SkeletonCard';
 import EmptyState from '../components/common/EmptyState';
-import FilterSortPanel, { applyFiltersAndSort } from '../components/common/FilterSortPanel';
+import FilterSortPanel from '../components/discovery/FilterSortPanel';
+import { applyFiltersAndSort } from '../utils/filterUtils';
 
 // ---- Inline Helpers ----
 
@@ -238,9 +239,8 @@ export default function Discovery() {
               <div className="flex gap-3 mt-4 md:mt-0">
                 <button
                   onClick={() => setFilterOpen(true)}
-                  className={`btn-secondary py-2.5 px-5 flex items-center gap-2 text-xs uppercase tracking-widest font-bold relative ${
-                    activeFilterCount > 0 ? 'border-primary text-primary bg-primary/5' : ''
-                  }`}
+                  className={`btn-secondary py-2.5 px-5 flex items-center gap-2 text-xs uppercase tracking-widest font-bold relative ${activeFilterCount > 0 ? 'border-primary text-primary bg-primary/5' : ''
+                    }`}
                 >
                   <Filter className="w-4 h-4" /> Filter
                   {activeFilterCount > 0 && (
@@ -272,8 +272,8 @@ export default function Discovery() {
                   <p className="text-sm text-on-surface/50 font-medium">Popular medicines people are saving on today</p>
                 </div>
               </div>
-              
-              <motion.div 
+
+              <motion.div
                 variants={staggerContainer}
                 initial="hidden"
                 animate="show"
@@ -329,7 +329,7 @@ export default function Discovery() {
             )}
 
             {!loading && results.length > 0 && (
-              <motion.div 
+              <motion.div
                 variants={staggerContainer}
                 initial="hidden"
                 animate="show"
@@ -342,87 +342,87 @@ export default function Discovery() {
                   </div>
                 ) : (
                   displayResults.map((res) => (
-                  <motion.div variants={fadeUpItem} key={res.id} className="relative flex flex-col md:flex-row bg-surface-lowest rounded-lg ghost-border p-8 pt-10 clinical-shadow group hover:border-primary/20 transition-all">
-                    {/* Branded */}
-              <div className="w-full md:w-[35%] pr-8 pb-8 md:pb-0 relative z-10 border-r-0 md:border-r border-outline-variant/30">
-                <div className="text-[10px] font-bold tracking-widest text-on-surface/50 uppercase mb-3 flex items-center gap-2"><Beaker className="w-3.5 h-3.5" /> Branded Medication</div>
-                <h3 className="font-display text-2xl font-bold text-on-surface mb-2 group-hover:text-primary transition-colors">{res.branded.name}</h3>
-                <div className="text-sm text-on-surface/60 mb-8 font-medium">{res.branded.manufacturer}</div>
-                <div className="bg-surface-low border border-outline-variant p-6 rounded-md w-full max-w-[240px] ghost-border">
-                  <div className="text-[10px] font-bold tracking-widest text-on-surface/50 uppercase mb-2">Estimated MRP</div>
-                  <div className="font-display text-3xl font-bold text-on-surface">₹{(res.branded.mrp || 0).toFixed(2)}</div>
-                </div>
-              </div>
-
-              {/* Savings Badge - Mobile */}
-              <div className="md:hidden flex items-center justify-center py-6 bg-primary/5 my-4 rounded-md border border-primary/10">
-                <div className="text-primary font-bold text-sm">SAVE {res.savings.percentage}% WITH JAN AUSHADHI</div>
-              </div>
-
-              {/* Connector + Savings Badge - Desktop */}
-              <div className="absolute top-1/2 left-[35%] -translate-x-1/2 -translate-y-1/2 hidden md:flex flex-col items-center z-20">
-                <div className="w-10 h-10 bg-primary border-[4px] border-surface-lowest text-white flex items-center justify-center rounded-lg shadow-sm">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14m-7-7 7 7-7 7" /></svg>
-                </div>
-                {res.savings?.percentage > 0 && (
-                  <div className="mt-3 bg-primary text-white text-[10px] font-bold px-2 py-1 rounded-sm uppercase tracking-wider shadow-sm">
-                    SAVE {res.savings.percentage}%
-                  </div>
-                )}
-              </div>
-
-              {/* Generic */}
-              <div className="w-full md:w-[65%] md:pl-16 relative z-10 flex flex-col justify-between">
-                <div>
-                  <div className="flex justify-between items-start mb-8 gap-4">
-                    <div>
-                      <div className="flex items-center gap-3 mb-3">
-                        <div className="text-[10px] font-bold tracking-widest text-on-surface/60 uppercase flex items-center gap-2"><Pill className="w-3.5 h-3.5" /> PMBJP Equivalent</div>
-                        <div className="bg-[#e6f4ea] border border-[#a8dab5] text-[#137333] text-[10px] font-bold tracking-wider px-2 py-0.5 rounded-sm uppercase">✓ Lab Tested</div>
-                      </div>
-                      <h3 className="font-display text-2xl font-bold text-primary mb-2 leading-tight">{res.generic?.name || 'No match'}</h3>
-                      <div className="text-sm text-on-surface/60 font-medium font-body flex items-center gap-3">
-                        <span className="bg-surface-low px-2 py-0.5 rounded ghost-border">Code: {res.generic?.drug_code}</span>
-                        <span className="opacity-30">•</span>
-                        <span>{res.generic?.group_name}</span>
-                      </div>
-                    </div>
-                    {res.generic && (
-                      <div className="text-right shrink-0">
-                        <div className="text-[10px] font-bold tracking-widest text-on-surface/50 uppercase mb-2">JanAushadhi Price</div>
-                        <div className="font-display text-3xl font-bold text-primary">₹{(res.generic.mrp || 0).toFixed(2)}</div>
-                      </div>
-                    )}
-                  </div>
-
-                  {res.branded.composition1 && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 mb-8">
-                      <div>
-                        <div className="text-[10px] font-bold tracking-widest text-on-surface/50 uppercase mb-4 flex items-center gap-2"><Info className="w-3.5 h-3.5" /> Chemical Composition</div>
-                        <div className="text-sm pb-2 border-b border-outline-variant/30 font-semibold text-on-surface/80">{res.branded.composition1}</div>
-                        {res.branded.composition2 && <div className="text-sm pt-2 font-semibold text-on-surface/80">{res.branded.composition2}</div>}
-                      </div>
-                      <div className="hidden sm:block">
-                        <div className="text-[10px] font-bold tracking-widest text-on-surface/50 uppercase mb-4">Storage & Form</div>
-                        <div className="text-sm font-medium text-on-surface/70 bg-surface-low p-3 rounded-md ghost-border inline-block flex items-center gap-2">
-                          <Pill className="w-4 h-4 text-primary" /> {res.branded.form || 'Tablet'}
+                    <motion.div variants={fadeUpItem} key={res.id} className="relative flex flex-col md:flex-row bg-surface-lowest rounded-lg ghost-border p-8 pt-10 clinical-shadow group hover:border-primary/20 transition-all">
+                      {/* Branded */}
+                      <div className="w-full md:w-[35%] pr-8 pb-8 md:pb-0 relative z-10 border-r-0 md:border-r border-outline-variant/30">
+                        <div className="text-[10px] font-bold tracking-widest text-on-surface/50 uppercase mb-3 flex items-center gap-2"><Beaker className="w-3.5 h-3.5" /> Branded Medication</div>
+                        <h3 className="font-display text-2xl font-bold text-on-surface mb-2 group-hover:text-primary transition-colors">{res.branded.name}</h3>
+                        <div className="text-sm text-on-surface/60 mb-8 font-medium">{res.branded.manufacturer}</div>
+                        <div className="bg-surface-low border border-outline-variant p-6 rounded-md w-full max-w-[240px] ghost-border">
+                          <div className="text-[10px] font-bold tracking-widest text-on-surface/50 uppercase mb-2">Estimated MRP</div>
+                          <div className="font-display text-3xl font-bold text-on-surface">₹{(res.branded.mrp || 0).toFixed(2)}</div>
                         </div>
                       </div>
-                    </div>
-                  )}
-                </div>
-                {res.generic && (
-                  <div className="flex flex-col sm:flex-row justify-end gap-3 mt-6">
-                    <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={() => navigate('/fulfillment')} className="btn-primary flex-1 sm:flex-initial sm:w-48 py-3.5 flex items-center justify-center gap-2 text-sm uppercase tracking-widest font-bold"><MapPin className="w-4 h-4" /> Find in Store</motion.button>
-                    <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={() => navigate(`/product/${res.branded.id}`)} className="btn-secondary flex-1 sm:flex-initial sm:w-40 py-3.5 flex items-center justify-center gap-2 text-sm uppercase tracking-widest font-bold">View Details</motion.button>
-                    <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={() => handleAddToCart(res)} className="btn-secondary flex-1 sm:flex-initial sm:w-48 py-3.5 flex items-center justify-center gap-2 text-sm uppercase tracking-widest font-bold"><Plus className="w-5 h-5" /> Add to Order</motion.button>
-                  </div>
-                )}
-              </div>
-            </motion.div>
+
+                      {/* Savings Badge - Mobile */}
+                      <div className="md:hidden flex items-center justify-center py-6 bg-primary/5 my-4 rounded-md border border-primary/10">
+                        <div className="text-primary font-bold text-sm">SAVE {res.savings.percentage}% WITH JAN AUSHADHI</div>
+                      </div>
+
+                      {/* Connector + Savings Badge - Desktop */}
+                      <div className="absolute top-1/2 left-[35%] -translate-x-1/2 -translate-y-1/2 hidden md:flex flex-col items-center z-20">
+                        <div className="w-10 h-10 bg-primary border-4 border-surface-lowest text-white flex items-center justify-center rounded-lg shadow-sm">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14m-7-7 7 7-7 7" /></svg>
+                        </div>
+                        {res.savings?.percentage > 0 && (
+                          <div className="mt-3 bg-primary text-white text-[10px] font-bold px-2 py-1 rounded-sm uppercase tracking-wider shadow-sm">
+                            SAVE {res.savings.percentage}%
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Generic */}
+                      <div className="w-full md:w-[65%] md:pl-16 relative z-10 flex flex-col justify-between">
+                        <div>
+                          <div className="flex justify-between items-start mb-8 gap-4">
+                            <div>
+                              <div className="flex items-center gap-3 mb-3">
+                                <div className="text-[10px] font-bold tracking-widest text-on-surface/60 uppercase flex items-center gap-2"><Pill className="w-3.5 h-3.5" /> PMBJP Equivalent</div>
+                                <div className="bg-[#e6f4ea] border border-[#a8dab5] text-[#137333] text-[10px] font-bold tracking-wider px-2 py-0.5 rounded-sm uppercase">✓ Lab Tested</div>
+                              </div>
+                              <h3 className="font-display text-2xl font-bold text-primary mb-2 leading-tight">{res.generic?.name || 'No match'}</h3>
+                              <div className="text-sm text-on-surface/60 font-medium font-body flex items-center gap-3">
+                                <span className="bg-surface-low px-2 py-0.5 rounded ghost-border">Code: {res.generic?.drug_code}</span>
+                                <span className="opacity-30">•</span>
+                                <span>{res.generic?.group_name}</span>
+                              </div>
+                            </div>
+                            {res.generic && (
+                              <div className="text-right shrink-0">
+                                <div className="text-[10px] font-bold tracking-widest text-on-surface/50 uppercase mb-2">JanAushadhi Price</div>
+                                <div className="font-display text-3xl font-bold text-primary">₹{(res.generic.mrp || 0).toFixed(2)}</div>
+                              </div>
+                            )}
+                          </div>
+
+                          {res.branded.composition1 && (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 mb-8">
+                              <div>
+                                <div className="text-[10px] font-bold tracking-widest text-on-surface/50 uppercase mb-4 flex items-center gap-2"><Info className="w-3.5 h-3.5" /> Chemical Composition</div>
+                                <div className="text-sm pb-2 border-b border-outline-variant/30 font-semibold text-on-surface/80">{res.branded.composition1}</div>
+                                {res.branded.composition2 && <div className="text-sm pt-2 font-semibold text-on-surface/80">{res.branded.composition2}</div>}
+                              </div>
+                              <div className="hidden sm:block">
+                                <div className="text-[10px] font-bold tracking-widest text-on-surface/50 uppercase mb-4">Storage & Form</div>
+                                <div className="text-sm font-medium text-on-surface/70 bg-surface-low p-3 rounded-md ghost-border inline-flex items-center gap-2">
+                                  <Pill className="w-4 h-4 text-primary" /> {res.branded.form || 'Tablet'}
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                        {res.generic && (
+                          <div className="flex flex-col sm:flex-row justify-end gap-3 mt-6">
+                            <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={() => navigate('/fulfillment')} className="btn-primary flex-1 sm:flex-initial sm:w-48 py-3.5 flex items-center justify-center gap-2 text-sm uppercase tracking-widest font-bold"><MapPin className="w-4 h-4" /> Find in Store</motion.button>
+                            <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={() => navigate(`/product/${res.branded.id}`)} className="btn-secondary flex-1 sm:flex-initial sm:w-40 py-3.5 flex items-center justify-center gap-2 text-sm uppercase tracking-widest font-bold">View Details</motion.button>
+                            <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={() => handleAddToCart(res)} className="btn-secondary flex-1 sm:flex-initial sm:w-48 py-3.5 flex items-center justify-center gap-2 text-sm uppercase tracking-widest font-bold"><Plus className="w-5 h-5" /> Add to Order</motion.button>
+                          </div>
+                        )}
+                      </div>
+                    </motion.div>
                   ))
                 )}
-                </motion.div>
+              </motion.div>
             )}
           </AnimatePresence>
         </div>

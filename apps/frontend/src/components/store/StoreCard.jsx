@@ -18,7 +18,7 @@ export default function StoreCard({ store, isSelected, onSelect }) {
       onClick={() => onSelect(store)}
       className={`group relative rounded-xl p-5 cursor-pointer transition-all duration-200 border-2 ${
         isSelected
-          ? 'border-primary bg-primary/[0.04] shadow-[0_0_0_1px_rgba(0,106,106,0.1)]'
+          ? 'border-primary bg-primary/4 shadow-[0_0_0_1px_rgba(0,106,106,0.1)]'
           : 'border-transparent bg-surface-lowest hover:border-outline-variant hover:shadow-sm'
       }`}
     >
