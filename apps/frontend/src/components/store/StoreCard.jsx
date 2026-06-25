@@ -16,23 +16,21 @@ export default function StoreCard({ store, isSelected, onSelect }) {
   return (
     <div
       onClick={() => onSelect(store)}
-      className={`group relative rounded-xl p-5 cursor-pointer transition-all duration-200 border-2 ${
-        isSelected
+      className={`group relative rounded-xl p-5 cursor-pointer transition-all duration-200 border-2 ${isSelected
           ? 'border-primary bg-primary/4 shadow-[0_0_0_1px_rgba(0,106,106,0.1)]'
           : 'border-transparent bg-surface-lowest hover:border-outline-variant hover:shadow-sm'
-      }`}
+        }`}
     >
       {/* Selected accent bar */}
       {isSelected && (
-        <div className="absolute -left-[2px] top-4 bottom-4 w-[3px] bg-primary rounded-r-full" />
+        <div className="absolute -left-2px top-4 bottom-4 w-[3px] bg-primary rounded-r-full" />
       )}
 
       {/* Header */}
       <div className="flex justify-between items-start mb-3">
         <div className="flex items-center gap-3">
-          <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
-            isSelected ? 'bg-primary text-white' : 'bg-surface-low text-primary'
-          }`}>
+          <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 transition-colors ${isSelected ? 'bg-primary text-white' : 'bg-surface-low text-primary'
+            }`}>
             <Store className="w-5 h-5" />
           </div>
           <div>
@@ -76,11 +74,10 @@ export default function StoreCard({ store, isSelected, onSelect }) {
       <div className="flex gap-2 pl-[52px]">
         <button
           onClick={(e) => { e.stopPropagation(); onSelect(store); }}
-          className={`flex-1 py-2.5 rounded-lg text-[10px] font-bold uppercase tracking-widest flex items-center justify-center gap-1.5 transition-all ${
-            isSelected
+          className={`flex-1 py-2.5 rounded-lg text-[10px] font-bold uppercase tracking-widest flex items-center justify-center gap-1.5 transition-all ${isSelected
               ? 'bg-primary text-white shadow-sm'
               : 'bg-primary/8 text-primary hover:bg-primary/15'
-          }`}
+            }`}
         >
           <CheckCircle2 className="w-3.5 h-3.5" />
           {isSelected ? 'Selected' : 'Select'}

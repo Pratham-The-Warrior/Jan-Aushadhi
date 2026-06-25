@@ -36,6 +36,10 @@ This platform is a unified monorepo running a Fastify-TypeScript API backend and
 
 ---
 
+⚠️ **Status:** Website in progress, some infrastructure work remains (AWS deployment and domain configuration are pending and will take some time).
+
+---
+
 ## 📖 Deep-Dive Documentation
 
 If you want to run the code, understand the database schemas, or look at how the algorithms work, we've organized everything into two comprehensive documents:
