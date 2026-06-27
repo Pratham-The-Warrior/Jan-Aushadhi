@@ -5,8 +5,19 @@
 
 import useAuthStore from '../store/authStore';
 
-/** Base URL for all API calls */
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+function getSanitizedApiBase() {
+  let url = (import.meta.env.VITE_API_URL || 'http://localhost:5000').trim();
+  if (url.includes('http://') || url.includes('https://')) {
+    const match = url.match(/(https?:\/\/[^\/\s]+)/g);
+    if (match && match.length > 0) {
+      url = match[match.length - 1];
+    }
+  } else {
+    url = `https://${url}`;
+  }
+  return url.replace(/\/+$/, '');
+}
+const API_BASE = getSanitizedApiBase();
 
 /** Request timeout in milliseconds */
 const REQUEST_TIMEOUT_MS = 15_000;
