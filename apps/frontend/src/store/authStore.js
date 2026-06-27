@@ -19,25 +19,31 @@ const useAuthStore = create((set) => ({
   // We subscribe to Firebase's auth status changes. This is extremely robust because it automatically 
   // fires on login, logout, token refresh, and page reloads.
   init: () => {
-    onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        // Fetch the fresh JWT token directly from the Firebase Auth client
-        const token = await user.getIdToken();
-        set({ user, token, loading: false, initialized: true });
-        
-        // BACKEND SYNC gotcha: We write this token to localStorage so our axios/fetch API interceptor 
-        // can synchronously attach it as a Bearer token in the 'Authorization' headers of outgoing backend calls.
-        localStorage.setItem('janaushadhi_token', token);
-      } else {
-        // User is logged out: clear state and purge tokens from storage to keep it secure
-        set({ user: null, token: null, loading: false, initialized: true });
-        localStorage.removeItem('janaushadhi_token');
-      }
-    });
+    if (!auth) {
+      set({ user: null, token: null, loading: false, initialized: true });
+      return;
+    }
+    try {
+      onAuthStateChanged(auth, async (user) => {
+        if (user) {
+          const token = await user.getIdToken();
+          set({ user, token, loading: false, initialized: true });
+          localStorage.setItem('janaushadhi_token', token);
+        } else {
+          set({ user: null, token: null, loading: false, initialized: true });
+          localStorage.removeItem('janaushadhi_token');
+        }
+      });
+    } catch (err) {
+      console.warn("⚠️ Auth listener fallback active:", err);
+      set({ user: null, token: null, loading: false, initialized: true });
+    }
   },
 
   logout: async () => {
-    await auth.signOut();
+    if (auth) {
+      try { await auth.signOut(); } catch {}
+    }
     set({ user: null, token: null });
   }
 }));

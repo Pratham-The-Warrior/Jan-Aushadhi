@@ -17,27 +17,34 @@ const useAuthStore = create((set) => ({
   roleError: null, // Set if user doesn't have STORE_OWNER role
 
   init: () => {
-    onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        const token = await user.getIdToken();
-        localStorage.setItem('seller_token', token);
-        set({ user, token, loading: false, initialized: true, roleError: null });
+    if (!auth) {
+      set({ user: null, token: null, sellerProfile: null, loading: false, initialized: true, roleError: null });
+      return;
+    }
+    try {
+      onAuthStateChanged(auth, async (user) => {
+        if (user) {
+          const token = await user.getIdToken();
+          localStorage.setItem('seller_token', token);
+          set({ user, token, loading: false, initialized: true, roleError: null });
 
-        // Verify seller role by hitting the seller profile endpoint
-        try {
-          const profile = await apiGet('/api/v1/seller/profile');
-          set({ sellerProfile: profile });
-        } catch (err) {
-          // If 403 → user is not a STORE_OWNER
-          if (err.statusCode === 403 || err.statusCode === 401) {
-            set({ roleError: err.message || 'Access denied. Your account is not registered as a store owner.' });
+          try {
+            const profile = await apiGet('/api/v1/seller/profile');
+            set({ sellerProfile: profile });
+          } catch (err) {
+            if (err.statusCode === 403 || err.statusCode === 401) {
+              set({ roleError: err.message || 'Access denied. Your account is not registered as a store owner.' });
+            }
           }
+        } else {
+          set({ user: null, token: null, sellerProfile: null, loading: false, initialized: true, roleError: null });
+          localStorage.removeItem('seller_token');
         }
-      } else {
-        set({ user: null, token: null, sellerProfile: null, loading: false, initialized: true, roleError: null });
-        localStorage.removeItem('seller_token');
-      }
-    });
+      });
+    } catch (err) {
+      console.warn("⚠️ Seller auth fallback active:", err);
+      set({ user: null, token: null, sellerProfile: null, loading: false, initialized: true, roleError: null });
+    }
   },
 
   refreshProfile: async () => {
@@ -52,7 +59,9 @@ const useAuthStore = create((set) => ({
   },
 
   logout: async () => {
-    await auth.signOut();
+    if (auth) {
+      try { await auth.signOut(); } catch {}
+    }
     set({ user: null, token: null, sellerProfile: null, roleError: null });
     localStorage.removeItem('seller_token');
   },
