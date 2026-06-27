@@ -34,11 +34,8 @@ pnpm-debug.log*
 *.sw?
 .DS_Store
 
-# Data files (ignored due to size)
-A_Z_medicines_dataset_of_India.csv
+# Data files
 kendra_11_4_2026 @ 18_38_36.pdf
-Product List_3_4_2026 @ 16_33_44.csv
-kendra_stores.csv
 
 # AI Assistant Artifacts & Scripts
 scratch/
