@@ -18,8 +18,12 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+const dbUrl = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/janaushadhi';
+const isCloudDB = dbUrl.includes('supabase') || dbUrl.includes('render') || process.env.NODE_ENV === 'production';
+
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/janaushadhi',
+  connectionString: dbUrl,
+  ...(isCloudDB ? { ssl: { rejectUnauthorized: false } } : {}),
 });
 
 const meiliClient = new Meilisearch({
@@ -344,7 +348,7 @@ async function printStats() {
 }
 
 // ---- MAIN ----
-async function runETL() {
+export async function runETL() {
   console.log('=== JAN AUSHADHI ETL PIPELINE ===\n');
   console.log('Module 1B: Salt-Hash Engine');
   console.log('Module 2:  Meilisearch Indexing\n');
@@ -364,9 +368,10 @@ async function runETL() {
 
   } catch (err) {
     console.error('❌ ETL Pipeline failed:', err);
-  } finally {
-    await pool.end();
   }
 }
 
-runETL();
+// Execute directly if run as CLI script
+if (process.argv[1]?.includes('etl_pipeline')) {
+  runETL().finally(() => pool.end());
+}

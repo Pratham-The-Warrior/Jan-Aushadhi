@@ -8,6 +8,7 @@ import { config } from './shared/config';
 import { buildApp } from './app';
 import { closeDatabasePool } from './shared/infra/database';
 import { closeRedis } from './shared/infra/redis';
+import { autoSeedDatabaseIfNeeded } from './shared/infra/autoseed';
 
 async function start(): Promise<void> {
   const server = await buildApp();
@@ -17,6 +18,9 @@ async function start(): Promise<void> {
     console.log(`\n🚀 Jan Aushadhi API running at http://localhost:${config.port}`);
     console.log(`   Architecture: Modular Monolith`);
     console.log(`   Environment:  ${config.env}\n`);
+
+    // Trigger background cloud seeding if database is empty
+    autoSeedDatabaseIfNeeded().catch(err => console.warn('Auto-seed warning:', err));
   } catch (err) {
     server.log.error(err);
     process.exit(1);

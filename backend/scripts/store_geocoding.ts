@@ -16,8 +16,12 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+const dbUrl = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/janaushadhi';
+const isCloudDB = dbUrl.includes('supabase') || dbUrl.includes('render') || process.env.NODE_ENV === 'production';
+
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/janaushadhi',
+  connectionString: dbUrl,
+  ...(isCloudDB ? { ssl: { rejectUnauthorized: false } } : {}),
 });
 
 interface StoreRecord {
@@ -61,12 +65,12 @@ function parseCSV(filePath: string): Record<string, string>[] {
   });
 }
 
-async function importStores() {
+export async function importStores() {
   console.log('=== MODULE 1C: STORE IMPORT ===\n');
   const csvPath = path.resolve(__dirname, '../../kendra_stores.csv');
   
   if (!fs.existsSync(csvPath)) {
-    console.error('❌ Kendra CSV not found. Please run the PDF extraction script first.');
+    console.error('❌ Kendra CSV not found.');
     return;
   }
 
@@ -89,8 +93,6 @@ async function importStores() {
       const placeholders: string[] = [];
 
       batch.forEach((row, idx) => {
-        // Map PDF/CSV headers to DB schema
-        // Headers: Sr.No, Kendra Code, Name, State Name, District Name, Pin Code, Address
         const code = row['Kendra Code'] || `PMBJK-${row['Sr.No']}`;
         const name = row['Name'] || 'Unknown Kendra';
         const address = row['Address'] || '';
@@ -98,13 +100,9 @@ async function importStores() {
         const state = row['State Name'] || '';
         const district = row['District Name'] || '';
         
-        // Since no phone in PDF, use a placeholder or extract from address
-        // Typical Kendra phones start with 0 or +91
         const phoneMatch = address.match(/(?:\+91|0)?[6-9]\d{9}/);
         const phone = phoneMatch ? phoneMatch[0] : '+91 00000 00000';
 
-        // Mock coordinates if geocoding is disabled
-        // We generate coordinates centered around India (20, 78) but they are mostly for DB constraints
         const lat = 20.0 + (Math.random() - 0.5) * 15;
         const lng = 78.0 + (Math.random() - 0.5) * 15;
 
@@ -135,8 +133,9 @@ async function importStores() {
     console.error('❌ Store import failed:', err);
   } finally {
     client.release();
-    await pool.end();
   }
 }
 
-importStores();
+if (process.argv[1]?.includes('store_geocoding')) {
+  importStores().finally(() => pool.end());
+}
