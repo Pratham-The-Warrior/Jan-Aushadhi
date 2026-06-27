@@ -5,7 +5,18 @@ This document provides a complete record of the deployment infrastructure, linke
 
 ---
 
-## 2. Linked Accounts & Deployment Services Summary
+## 2. Current Operational Status & Project State (Where Things Stand Right Now)
+
+* **Live Cloud Staging Deployment**: The complete application stack is 100% online, functional, and publicly accessible across free-tier cloud providers.
+* **Cloud Database Population**: Supabase PostgreSQL + PostGIS database is populated with over 250,000+ medicine records and 19,000+ Jan Aushadhi Kendras.
+* **Automated CI/CD Pipeline**: GitHub Actions workflow (`.github/workflows/ci.yml`) is active and passing all workspace validation checks and Docker image builds for GHCR.
+* **Frontend Resiliency & Demonstration Mode**: All three web applications (Patient Portal, Seller Central, Admin Console) are running on Vercel with built-in guest session fallbacks.
+* **Local Workstation State**: All local background development Node processes have been safely terminated; the project is operating independently in cloud environments.
+* **Pending Milestones (Planned Transfer)**: Migration to dedicated VPS infrastructure (AWS/DigitalOcean), domain name mapping (`api.yourdomain.com`), and dedicated Meilisearch indexing are scheduled for next week when hardware resources are allocated.
+
+---
+
+## 3. Linked Accounts & Deployment Services Summary
 
 Below is the complete reference table of all cloud platforms, account links, repositories, and active live endpoints currently power-hosting the staging environment:
 
@@ -21,7 +32,7 @@ Below is the complete reference table of all cloud platforms, account links, rep
 
 ---
 
-## 3. Current Architecture & Infrastructure (Free-Tier Demonstration)
+## 4. Current Architecture & Infrastructure (Free-Tier Demonstration)
 
 ```
 +-----------------------------------+        +-----------------------------------+
@@ -48,7 +59,7 @@ Below is the complete reference table of all cloud platforms, account links, rep
 
 ---
 
-## 4. Deployment Troubleshooting & Engineering Modifications
+## 5. Deployment Troubleshooting & Engineering Modifications
 
 During initial deployment, several technical barriers were resolved and locked into the repository:
 
@@ -64,7 +75,7 @@ During initial deployment, several technical barriers were resolved and locked i
 
 ---
 
-## 5. Migration Blueprint to Dedicated VPS (AWS / DigitalOcean)
+## 6. Migration Blueprint to Dedicated VPS (AWS / DigitalOcean)
 
 When transferring the project to a dedicated server with custom domains, follow this exact procedure.
 
@@ -142,7 +153,7 @@ To enable automated deployments whenever changes are pushed to the `master` bran
 
 ---
 
-## 6. Verification Checklist After Migration
+## 7. Verification Checklist After Migration
 
 | Component | Test Command / Action | Expected Result |
 | :--- | :--- | :--- |
