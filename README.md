@@ -33,6 +33,7 @@ This platform is a unified monorepo running a Fastify-TypeScript API backend and
 * **Pharmacist Counter (`/apps/seller`)**: A streamlined dashboard for Kendra owners to process incoming orders, override stock counts, and update their store profile so patients always see accurate store availability.
 * **Super Admin Console (`/apps/admin`)**: The control tower for network operators to approve store applications, audit system transactions, and onboard trusted operators using Firebase authentication.
 * **Core Tech Backbone**: Powered by PostgreSQL + PostGIS (spatial search), Meilisearch (fuzzy autocomplete searches under 15ms), and Redis (caching roles and active sessions).
+* **Codebase Scale**: ~17,500 lines of code across 127 active source files (see detailed breakdown in [technical_doc.md](docs/technical_doc.md#codebase-metrics--lines-of-code-loc)).
 
 ---
 

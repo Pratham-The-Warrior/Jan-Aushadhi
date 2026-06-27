@@ -64,6 +64,34 @@ The root `package.json` coordinates execution across all workspaces using standa
 }
 ```
 
+### Codebase Metrics & Lines of Code (LOC)
+
+The project consists of approximately **17,500 lines of source code** across 127 active source files (excluding `node_modules`, build outputs, dataset CSVs, and markdown documentation):
+
+#### Breakdown by Workspace Component
+
+| Component | Workspace / Directory | Files | Lines of Code (LOC) |
+| :--- | :--- | :--- | :--- |
+| **Backend API** | `backend/` | 41 | 5,139 |
+| **Patient Frontend** | `apps/frontend/` | 46 | 4,760 |
+| **Admin Console** | `apps/admin/` | 18 | 3,776 |
+| **Pharmacist Portal** | `apps/seller/` | 17 | 3,334 |
+| **Infrastructure & CI** | `.github`, `deploy`, `scripts` | 5 | 508 |
+| **Total Codebase** | | **127** | **~17,517** |
+
+#### Breakdown by Programming / Markup Language
+
+| Extension | Language / Type | Files | Lines of Code (LOC) |
+| :--- | :--- | :--- | :--- |
+| `.jsx` | React (JavaScript) | 44 | 9,000 |
+| `.ts` | TypeScript | 41 | 5,139 |
+| `.css` | Stylesheets | 5 | 1,545 |
+| `.js` | JavaScript | 29 | 1,279 |
+| `.yml` | YAML Configurations | 3 | 356 |
+| `.sh` | Shell Scripts | 1 | 100 |
+| `.py` | Python Helper Scripts | 1 | 52 |
+| `.html` | HTML Templates | 3 | 46 |
+
 ---
 
 ## 2. PostgreSQL + PostGIS Spatial Database Schema
