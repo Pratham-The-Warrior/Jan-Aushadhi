@@ -16,8 +16,7 @@ deploy/.env.production
 # Dependencies (rebuilt inside container)
 node_modules
 
-# Data files (large CSVs — mounted separately)
-*.csv
+# Data files (large CSVs included for automated cloud seeding)
 *.pdf
 
 # Build artifacts (rebuilt inside container)
