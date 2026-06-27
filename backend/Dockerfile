@@ -45,4 +45,4 @@ EXPOSE 5000
 
 # Run the backend application from backend workspace directory
 WORKDIR /app/backend
-CMD ["node", "dist/index.js"]
+CMD ["node", "dist/src/index.js"]
