@@ -30,11 +30,11 @@ COPY apps/seller/package*.json ./apps/seller/
 COPY apps/admin/package*.json ./apps/admin/
 COPY backend/package*.json ./backend/
 
-# Install only production dependencies
+# Install production dependencies
 RUN npm ci --omit=dev
 
-# Copy compiled output
-COPY --from=builder /app/backend/dist ./backend/dist
+# Copy backend source
+COPY backend /app/backend
 
 # Set production environment
 ENV NODE_ENV=production
@@ -43,6 +43,6 @@ ENV PORT=5000
 # Expose server port
 EXPOSE 5000
 
-# Run the backend application from backend workspace directory
+# Run the backend application using tsx from backend workspace directory
 WORKDIR /app/backend
-CMD ["node", "dist/src/index.js"]
+CMD ["npx", "tsx", "src/index.ts"]
