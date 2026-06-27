@@ -6,13 +6,13 @@
 // ============================================================
 
 import { getMeiliIndex } from '../../shared/infra/meilisearch';
-import { ExternalServiceError } from '../../shared/errors';
+import { queryDB } from '../../shared/infra/database';
 import { extractForm } from '../../shared/utils';
 import { APP_CONSTANTS } from '../../shared/constants';
 import type { SearchSuggestion } from '../../shared/types';
 
 /**
- * Raw Meilisearch hit shape — used internally before
+ * Raw Meilisearch / Postgres hit shape — used internally before
  * mapping to typed domain objects.
  */
 interface MeiliHit {
@@ -31,11 +31,7 @@ export class SearchService {
   private readonly indexName = APP_CONSTANTS.MEILI_MEDICINES_INDEX;
 
   /**
-   * Full-text search against the branded medicines index.
-   * Returns raw hits with extracted dosage form.
-   *
-   * @param query  User search query
-   * @param limit  Max results (default 30)
+   * Full-text search against Meilisearch with automatic PostgreSQL fallback.
    */
   async search(query: string, limit: number = 30): Promise<MeiliHit[]> {
     try {
@@ -43,22 +39,37 @@ export class SearchService {
       const response = await index.search(query, { limit });
       const hits = (response.hits || []) as MeiliHit[];
 
-      return hits.map((hit) => ({
+      if (hits.length > 0) {
+        return hits.map((hit) => ({
+          ...hit,
+          form: extractForm(hit.name || ''),
+        }));
+      }
+    } catch {
+      console.warn('⚠️  Meilisearch unavailable — falling back to PostgreSQL direct search.');
+    }
+
+    // Fallback: Query PostgreSQL directly using ILIKE
+    try {
+      const res = await queryDB(
+        `SELECT id, name, manufacturer, mrp::text, pack_size_label as pack_size, composition1, composition2, salt_hash 
+         FROM branded_meds 
+         WHERE name ILIKE $1 OR composition1 ILIKE $1 OR composition2 ILIKE $1 
+         LIMIT $2`,
+        [`%${query}%`, limit]
+      );
+      return res.rows.map((hit: any) => ({
         ...hit,
         form: extractForm(hit.name || ''),
       }));
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Search unavailable';
-      throw new ExternalServiceError('Meilisearch', message);
+      console.error('❌ Database fallback search failed:', err);
+      return [];
     }
   }
 
   /**
-   * Lightweight autocomplete suggestions — no Postgres join.
-   * Returns minimal fields for fast typeahead rendering.
-   *
-   * @param query  Partial search query (min 2 chars)
-   * @param limit  Max suggestions (default 6)
+   * Lightweight autocomplete suggestions with automatic PostgreSQL fallback.
    */
   async suggest(query: string, limit: number = 6): Promise<SearchSuggestion[]> {
     try {
@@ -68,7 +79,29 @@ export class SearchService {
         attributesToRetrieve: ['id', 'name', 'manufacturer', 'mrp', 'composition1'],
       });
 
-      return (response.hits || []).map((hit: any) => ({
+      if (response.hits && response.hits.length > 0) {
+        return (response.hits || []).map((hit: any) => ({
+          id: hit.id,
+          name: hit.name,
+          manufacturer: hit.manufacturer,
+          mrp: parseFloat(hit.mrp) || 0,
+          composition: hit.composition1 || null,
+        }));
+      }
+    } catch {
+      // Ignore Meilisearch error and proceed to Postgres fallback
+    }
+
+    // Fallback: Query PostgreSQL directly using ILIKE for typeahead suggestions
+    try {
+      const res = await queryDB(
+        `SELECT id, name, manufacturer, mrp::text, composition1 
+         FROM branded_meds 
+         WHERE name ILIKE $1 OR composition1 ILIKE $1 
+         LIMIT $2`,
+        [`%${query}%`, limit]
+      );
+      return res.rows.map((hit: any) => ({
         id: hit.id,
         name: hit.name,
         manufacturer: hit.manufacturer,
@@ -76,7 +109,6 @@ export class SearchService {
         composition: hit.composition1 || null,
       }));
     } catch {
-      // Graceful degradation — return empty on search failure
       return [];
     }
   }
