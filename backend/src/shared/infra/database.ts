@@ -9,11 +9,14 @@ import { config } from '../config';
 import { ExternalServiceError } from '../errors';
 
 /** Singleton connection pool */
+const isProduction = process.env.NODE_ENV === 'production' || config.databaseUrl.includes('supabase.co') || config.databaseUrl.includes('supabase.com');
+
 const pool = new Pool({
   connectionString: config.databaseUrl,
   max: config.dbPoolMax,
   idleTimeoutMillis: config.dbIdleTimeout,
   connectionTimeoutMillis: config.dbConnectionTimeout,
+  ...(isProduction ? { ssl: { rejectUnauthorized: false } } : {}),
 });
 
 // Log pool-level errors (e.g. unexpected disconnects)
@@ -59,8 +62,8 @@ export async function checkDatabaseHealth(): Promise<boolean> {
     await client.query('SELECT 1');
     console.log('✅ PostgreSQL (PostGIS) Connected');
     return true;
-  } catch {
-    console.warn('⚠️  PostgreSQL connection failed — database features unavailable');
+  } catch (err: any) {
+    console.warn('⚠️  PostgreSQL connection failed:', err?.message || err);
     return false;
   } finally {
     if (client) client.release();
