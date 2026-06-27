@@ -1,8 +1,8 @@
 # 💊 Jan Aushadhi Platform — Healthcare, Molecule by Molecule
 
-[![Production Integrity Pipeline](https://github.com/Pratham-The-Warrior/Jan-Aushadhi/actions/workflows/ci.yml/badge.svg)](file:///c:/Users/Prathmesh%20Sarda/JAN-AUSHADHI/.github/workflows/ci.yml)
-[![Node Version](https://img.shields.io/badge/node-%3E%3D20.0.0-blue.svg)](file:///c:/Users/Prathmesh%20Sarda/JAN-AUSHADHI/package.json)
-[![Database](https://img.shields.io/badge/PostgreSQL-PostGIS-blue)](file:///c:/Users/Prathmesh%20Sarda/JAN-AUSHADHI/docs/technical_doc.md)
+[![Production Integrity Pipeline](https://github.com/Pratham-The-Warrior/Jan-Aushadhi/actions/workflows/ci.yml/badge.svg)](https://github.com/Pratham-The-Warrior/Jan-Aushadhi/actions/workflows/ci.yml)
+[![Node Version](https://img.shields.io/badge/node-%3E%3D20.0.0-blue.svg)](package.json)
+[![Database](https://img.shields.io/badge/PostgreSQL-PostGIS-blue)](docs/technical_doc.md)
 
 Healing shouldn't cost a fortune. 
 
@@ -44,12 +44,12 @@ This platform is a unified monorepo running a Fastify-TypeScript API backend and
 
 If you want to run the code, understand the database schemas, or look at how the algorithms work, we've organized everything into two comprehensive documents:
 
-* **[📂 Workflows & Sequences Documentation](file:///c:/Users/Prathmesh%20Sarda/JAN-AUSHADHI/docs/workflow_doc.md)**:
+* **[📂 Workflows & Sequences Documentation](docs/workflow_doc.md)**:
   * Learn how the fuzzy search autocomplete matches brand names to chemical generic names.
   * Deep dive into our cart reconciliation logic ("Merge & Max").
   * Trace the PostGIS store auto-routing and local assignment flows.
   * Walk through the P2P dynamic UPI QR generation.
-* **[📂 Technical Setup & Deployment Guide](file:///c:/Users/Prathmesh%20Sarda/JAN-AUSHADHI/docs/technical_doc.md)**:
+* **[📂 Technical Setup & Deployment Guide](docs/technical_doc.md)**:
   * Full file and directory map of the monorepo.
   * Database schema definitions, PostGIS tables, and seed/ETL scripts.
   * Instructions to spin up the local development environment.
