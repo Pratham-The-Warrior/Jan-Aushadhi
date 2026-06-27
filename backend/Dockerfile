@@ -1,4 +1,4 @@
-FROM node:18-alpine AS builder
+FROM node:20-alpine AS builder
 WORKDIR /app
 
 # Copy root package files
@@ -20,7 +20,7 @@ COPY backend ./backend
 RUN npm run build --workspace=janaushadhi-backend
 
 # Production image
-FROM node:18-alpine AS production
+FROM node:20-alpine AS production
 WORKDIR /app
 
 # Copy package files for production dependency installation

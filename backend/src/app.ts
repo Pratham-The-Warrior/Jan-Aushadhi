@@ -5,6 +5,7 @@
 // the server — enabling testability and separation of concerns.
 // ============================================================
 
+import crypto from 'node:crypto';
 import Fastify, { FastifyInstance, FastifyError } from 'fastify';
 import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
