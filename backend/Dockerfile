@@ -35,9 +35,7 @@ RUN npm ci --omit=dev
 
 # Copy backend source & CSV datasets for cloud seeding
 COPY backend /app/backend
-COPY A_Z_medicines_dataset_of_India.csv /app/
-COPY "Product List_3_4_2026 @ 16_33_44.csv" /app/
-COPY kendra_stores.csv /app/
+COPY ["A_Z_medicines_dataset_of_India.csv", "Product List_3_4_2026 @ 16_33_44.csv", "kendra_stores.csv", "/app/"]
 
 # Set production environment
 ENV NODE_ENV=production
