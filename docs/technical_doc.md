@@ -388,10 +388,10 @@ To manage subdomain isolation without separate servers, the monorepo utilizes an
 graph TD
     User([User Request]) --> Nginx[Nginx Reverse Proxy: Port 80]
     
-    Nginx -- "jan-aushadhi.duckdns.org" --> FE[apps/frontend: Port 80]
-    Nginx -- "jan-aushadhi-seller.duckdns.org" --> SE[apps/seller: Port 80]
-    Nginx -- "jan-aushadhi-admin.duckdns.org" --> AD[apps/admin: Port 80]
-    Nginx -- "jan-aushadhi-api.duckdns.org" --> BE[backend: Port 5000]
+    Nginx -- "app.yourdomain.com" --> FE[apps/frontend: Port 80]
+    Nginx -- "seller.yourdomain.com" --> SE[apps/seller: Port 80]
+    Nginx -- "admin.yourdomain.com" --> AD[apps/admin: Port 80]
+    Nginx -- "api.yourdomain.com" --> BE[backend: Port 5000]
 
     BE --> PG[(PostgreSQL + PostGIS)]
     BE --> RD[(Redis Cache)]
@@ -401,9 +401,10 @@ graph TD
 ### Subdomain Mapping Configuration (`nginx-proxy.conf`)
 The routing maps the subdomains to their respective containers:
 ```nginx
+# Replace "yourdomain.com" with your actual domain before deploying.
 server {
     listen 80;
-    server_name jan-aushadhi.duckdns.org;
+    server_name app.yourdomain.com;
     location / {
         proxy_pass http://frontend:80;
         proxy_set_header Host $host;
@@ -411,7 +412,7 @@ server {
 }
 server {
     listen 80;
-    server_name jan-aushadhi-seller.duckdns.org;
+    server_name seller.yourdomain.com;
     location / {
         proxy_pass http://seller:80;
         proxy_set_header Host $host;
@@ -419,7 +420,7 @@ server {
 }
 server {
     listen 80;
-    server_name jan-aushadhi-admin.duckdns.org;
+    server_name admin.yourdomain.com;
     location / {
         proxy_pass http://admin:80;
         proxy_set_header Host $host;
@@ -427,7 +428,7 @@ server {
 }
 server {
     listen 80;
-    server_name jan-aushadhi-api.duckdns.org;
+    server_name api.yourdomain.com;
     location / {
         proxy_pass http://backend:5000;
         proxy_set_header Host $host;
