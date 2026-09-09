@@ -14,6 +14,7 @@ import {
   requirementByIdSchema,
   whatsappLinkSchema,
   updateBasketSchema,
+  cancelRequirementSchema,
 } from './fulfillment.schema';
 
 const fulfillmentService = new FulfillmentService();
@@ -74,6 +75,20 @@ export default async function fulfillmentRoutes(server: FastifyInstance): Promis
       const user = request.user!;
 
       const result = await fulfillmentService.getRequirementById(id, user.uid);
+      return reply.send(result);
+    },
+  );
+
+  // ---- Cancel Requirement (Customer) ----
+  server.patch(
+    '/api/v1/requirements/:id/cancel',
+    { preHandler: [verifyAuth], schema: cancelRequirementSchema },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { id } = request.params as { id: string };
+      const user = request.user!;
+      const { reason } = (request.body as { reason?: string }) || {};
+
+      const result = await fulfillmentService.cancelOrder(id, user, reason);
       return reply.send(result);
     },
   );

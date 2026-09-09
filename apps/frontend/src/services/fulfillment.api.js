@@ -3,7 +3,7 @@
 // Maps to backend Fulfillment module
 // ============================================================
 
-import { apiGet, apiPost, apiPut } from './api-client';
+import { apiGet, apiPost, apiPut, apiPatch } from './api-client';
 
 // ---- Requirements ----
 
@@ -28,6 +28,15 @@ export async function getRequirements() {
  */
 export async function getWhatsAppLink(requirementId) {
   return apiGet(`/api/v1/requirements/${requirementId}/whatsapp-link`, true);
+}
+
+/**
+ * Cancel an order by customer.
+ * @param {string} requirementId - Unique ticket ID
+ * @param {string} [reason] - Optional cancellation reason
+ */
+export async function cancelRequirement(requirementId, reason) {
+  return apiPatch(`/api/v1/requirements/${requirementId}/cancel`, { reason }, true);
 }
 
 // ---- Dashboard ----

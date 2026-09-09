@@ -22,7 +22,7 @@ export class StoreService {
     const result = await queryDB(
       `SELECT pmbjk_code, name, phone, address, pincode, state, district
        FROM stores
-       WHERE pincode = $1
+       WHERE pincode = $1 AND status = 'ACTIVE'
        ORDER BY name ASC
        LIMIT 50`,
       [pincode],
@@ -60,7 +60,7 @@ export class StoreService {
       `SELECT pmbjk_code, name, phone, address, pincode, state, district,
               ST_Distance(location, ST_MakePoint($1, $2)::geography) AS distance
        FROM stores
-       WHERE ST_DWithin(location, ST_MakePoint($1, $2)::geography, $3)
+       WHERE status = 'ACTIVE' AND ST_DWithin(location, ST_MakePoint($1, $2)::geography, $3)
        ORDER BY distance ASC
        LIMIT ${APP_CONSTANTS.STORES_QUERY_LIMIT}`,
       [lng, lat, radius],
@@ -129,23 +129,37 @@ export class StoreService {
   }
 
   /**
-   * Store confirms a requirement ticket (Module 7 feedback loop).
-   * Transitions status from PENDING → CONFIRMED.
+   * Store confirms a requirement ticket.
+   * Transitions status from PENDING_ACCEPTANCE → ACCEPTED.
+   * Scoped to the seller's linked PMBJK store or admin.
    *
    * @param requirementId  Unique ticket ID
-   * @throws NotFoundError if the requirement doesn't exist or isn't PENDING
+   * @param storeCode      Store PMBJK code to enforce ownership
    */
-  async confirmRequirement(requirementId: string): Promise<Record<string, unknown>> {
-    const result = await queryDB(
-      `UPDATE requirements SET status = 'CONFIRMED', updated_at = NOW()
-       WHERE id = $1 AND status = 'PENDING'
-       RETURNING *`,
-      [requirementId],
-    );
+  async confirmRequirement(requirementId: string, storeCode?: string): Promise<Record<string, unknown>> {
+    let query = `UPDATE requirements SET status = 'ACCEPTED', accepted_at = NOW(), updated_at = NOW()
+                 WHERE id = $1 AND status = 'PENDING_ACCEPTANCE'`;
+    const params: unknown[] = [requirementId];
+
+    if (storeCode) {
+      query += ` AND pmbjk_code = $2`;
+      params.push(storeCode);
+    }
+
+    query += ' RETURNING *';
+
+    const result = await queryDB(query, params);
 
     if (result.rows.length === 0) {
-      throw new NotFoundError('Requirement (not found or ineligible for confirmation)');
+      throw new NotFoundError('Requirement (not found, already accepted, or store unauthorized)');
     }
+
+    // Log in order_status_log
+    await queryDB(
+      `INSERT INTO order_status_log (requirement_id, from_status, to_status, changed_by, changed_by_role, notes)
+       VALUES ($1, 'PENDING_ACCEPTANCE', 'ACCEPTED', $2, 'STORE_OWNER', 'Order confirmed by Kendra')`,
+      [requirementId, storeCode || 'STORE'],
+    ).catch(() => {});
 
     return result.rows[0];
   }

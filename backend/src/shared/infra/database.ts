@@ -9,14 +9,22 @@ import { config } from '../config';
 import { ExternalServiceError } from '../errors';
 
 /** Singleton connection pool */
-const isProduction = process.env.NODE_ENV === 'production' || config.databaseUrl.includes('supabase.co') || config.databaseUrl.includes('supabase.com');
+const isCloudDatabase = 
+  config.databaseUrl.includes('supabase.co') || 
+  config.databaseUrl.includes('supabase.com') || 
+  config.databaseUrl.includes('render.com') ||
+  config.databaseUrl.includes('aws.connect');
+
+const useSSL = 
+  process.env.DB_SSL === 'true' || 
+  (process.env.DB_SSL !== 'false' && isCloudDatabase);
 
 const pool = new Pool({
   connectionString: config.databaseUrl,
   max: config.dbPoolMax,
   idleTimeoutMillis: config.dbIdleTimeout,
   connectionTimeoutMillis: config.dbConnectionTimeout,
-  ...(isProduction ? { ssl: { rejectUnauthorized: false } } : {}),
+  ...(useSSL ? { ssl: { rejectUnauthorized: false } } : {}),
 });
 
 // Log pool-level errors (e.g. unexpected disconnects)

@@ -69,9 +69,16 @@ function parseCSV(filePath: string): Record<string, string>[] {
   });
 }
 
-// ---- The Salt-Hash Algorithm ----
-function generateSaltHash(composition: string, nameString: string = ''): string {
-  if (!composition || composition.trim() === '') return '';
+// ---- The Salt-Hash Algorithm (Tiered Clinical Matching) ----
+function generateSaltHashes(composition: string, nameString: string = ''): { saltHash: string; saltStrengthHash: string } {
+  if (!composition || composition.trim() === '') return { saltHash: '', saltStrengthHash: '' };
+
+  // 0. Extract standardized dosage strengths before stripping numbers for clinical safety
+  const fullText = (composition + ' ' + nameString).toLowerCase();
+  const strengthMatches = fullText.match(/\b\d+(\.\d+)?\s*(mg|mcg|ml|g|%|iu)\b/gi) || [];
+  const normalizedStrengths = [...new Set(
+    strengthMatches.map(s => s.replace(/\s+/g, '').toLowerCase())
+  )].sort().join('_');
 
   // 1. Lowercase and collapse whitespace
   let cleaned = composition.toLowerCase().replace(/\s+/g, ' ').trim();
@@ -128,12 +135,22 @@ function generateSaltHash(composition: string, nameString: string = ''): string 
   else if (ns.includes('cap')) form = 'capsule';
   else if (ns.includes('tab')) form = 'tablet';
 
-  // 9. Join and MD5 hash
   const joined = tokens.join('_');
-  if (!joined) return '';
+  if (!joined) return { saltHash: '', saltStrengthHash: '' };
 
-  const finalString = joined + '_form_' + form;
-  return crypto.createHash('md5').update(finalString).digest('hex');
+  // Tier 2: Base salt + form (broad fallback, guarantees match rate)
+  const saltHash = crypto.createHash('md5').update(joined + '_form_' + form).digest('hex');
+
+  // Tier 1: Salt + strength + form (exact match)
+  const saltStrengthHash = normalizedStrengths
+    ? crypto.createHash('md5').update(joined + '_str_' + normalizedStrengths + '_form_' + form).digest('hex')
+    : saltHash;
+
+  return { saltHash, saltStrengthHash };
+}
+
+function generateSaltHash(composition: string, nameString: string = ''): string {
+  return generateSaltHashes(composition, nameString).saltHash;
 }
 
 // ---- BRANDED MEDICINES INGESTION ----
@@ -168,15 +185,15 @@ async function ingestBrandedMedicines() {
         const comp2 = row['short_composition2'] || '';
         const fullComposition = [comp1, comp2].filter(c => c).join(' ');
         const nameAndPack = (row['name'] || '') + ' ' + (row['pack_size_label'] || '');
-        const saltHash = generateSaltHash(fullComposition, nameAndPack);
+        const { saltHash, saltStrengthHash } = generateSaltHashes(fullComposition, nameAndPack);
 
         // Handle price column with or without Unicode symbol
         const priceKey = Object.keys(row).find(k => k.toLowerCase().includes('price')) || 'price';
         const price = parseFloat(row[priceKey]) || 0;
 
-        const offset = batchIdx * 9;
+        const offset = batchIdx * 10;
         placeholders.push(
-          `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6}, $${offset + 7}, $${offset + 8}, $${offset + 9})`
+          `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6}, $${offset + 7}, $${offset + 8}, $${offset + 9}, $${offset + 10})`
         );
         values.push(
           row['name'] || 'Unknown',
@@ -187,13 +204,14 @@ async function ingestBrandedMedicines() {
           row['pack_size_label'] || '',
           comp1,
           comp2,
-          saltHash
+          saltHash,
+          saltStrengthHash
         );
       });
 
       if (placeholders.length > 0) {
         await client.query(
-          `INSERT INTO branded_meds (name, mrp, is_discontinued, manufacturer, type, pack_size_label, composition1, composition2, salt_hash)
+          `INSERT INTO branded_meds (name, mrp, is_discontinued, manufacturer, type, pack_size_label, composition1, composition2, salt_hash, salt_strength_hash)
            VALUES ${placeholders.join(', ')}`,
           values
         );
@@ -239,11 +257,11 @@ async function ingestGenericMedicines() {
 
       batch.forEach((row, batchIdx) => {
         const genericName = row['Generic Name'] || '';
-        const saltHash = generateSaltHash(genericName, genericName);
+        const { saltHash, saltStrengthHash } = generateSaltHashes(genericName, genericName);
 
-        const offset = batchIdx * 6;
+        const offset = batchIdx * 7;
         placeholders.push(
-          `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6})`
+          `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6}, $${offset + 7})`
         );
         values.push(
           row['Drug Code'] || '',
@@ -251,13 +269,14 @@ async function ingestGenericMedicines() {
           row['Unit Size'] || '',
           parseFloat(row['MRP']) || 0,
           row['Group Name'] || '',
-          saltHash
+          saltHash,
+          saltStrengthHash
         );
       });
 
       if (placeholders.length > 0) {
         await client.query(
-          `INSERT INTO generic_meds (drug_code, generic_name, unit_size, mrp, group_name, salt_hash)
+          `INSERT INTO generic_meds (drug_code, generic_name, unit_size, mrp, group_name, salt_hash, salt_strength_hash)
            VALUES ${placeholders.join(', ')}`,
           values
         );
@@ -282,7 +301,7 @@ async function indexMeilisearch() {
   const client = await pool.connect();
   try {
     const result = await client.query(
-      `SELECT id, name, mrp, manufacturer, salt_hash, pack_size_label, composition1, composition2
+      `SELECT id, name, mrp, manufacturer, salt_hash, salt_strength_hash, pack_size_label, composition1, composition2
        FROM branded_meds WHERE is_discontinued = FALSE`
     );
 
@@ -292,6 +311,7 @@ async function indexMeilisearch() {
       mrp: parseFloat(row.mrp),
       manufacturer: row.manufacturer,
       salt_hash: row.salt_hash,
+      salt_strength_hash: row.salt_strength_hash,
       pack_size: row.pack_size_label,
       composition1: row.composition1,
       composition2: row.composition2,

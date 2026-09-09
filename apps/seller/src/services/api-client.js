@@ -5,6 +5,7 @@
 // ============================================================
 
 import useAuthStore from '../store/authStore';
+import { auth } from '../firebase';
 
 function getSanitizedApiBase() {
   let url = (import.meta.env.VITE_API_URL || 'http://localhost:5000').trim();
@@ -30,13 +31,24 @@ export class ApiError extends Error {
   }
 }
 
-function getToken() {
+async function getToken() {
+  try {
+    if (auth?.currentUser) {
+      const token = await auth.currentUser.getIdToken(false);
+      if (token) {
+        useAuthStore.getState().setToken(token);
+        return token;
+      }
+    }
+  } catch (err) {
+    console.warn('⚠️ Seller token refresh notice:', err);
+  }
   return useAuthStore.getState().token;
 }
 
-function headers() {
+async function headers() {
   const h = { 'Content-Type': 'application/json' };
-  const token = getToken();
+  const token = await getToken();
   if (token) h['Authorization'] = `Bearer ${token}`;
   return h;
 }
@@ -55,17 +67,19 @@ async function handle(res) {
 }
 
 export async function apiGet(path) {
+  const h = await headers();
   const res = await fetch(`${API_BASE}${path}`, {
-    headers: headers(),
+    headers: h,
     signal: AbortSignal.timeout(TIMEOUT_MS),
   });
   return handle(res);
 }
 
 export async function apiPost(path, body) {
+  const h = await headers();
   const res = await fetch(`${API_BASE}${path}`, {
     method: 'POST',
-    headers: headers(),
+    headers: h,
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(TIMEOUT_MS),
   });
@@ -73,9 +87,10 @@ export async function apiPost(path, body) {
 }
 
 export async function apiPut(path, body) {
+  const h = await headers();
   const res = await fetch(`${API_BASE}${path}`, {
     method: 'PUT',
-    headers: headers(),
+    headers: h,
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(TIMEOUT_MS),
   });
@@ -83,11 +98,13 @@ export async function apiPut(path, body) {
 }
 
 export async function apiPatch(path, body) {
+  const h = await headers();
   const res = await fetch(`${API_BASE}${path}`, {
     method: 'PATCH',
-    headers: headers(),
+    headers: h,
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(TIMEOUT_MS),
   });
   return handle(res);
 }
+

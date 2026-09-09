@@ -110,7 +110,11 @@ export default function ProductDetail() {
                 <div>
                   <div className="flex items-center gap-3 mb-3">
                     <div className="text-[10px] font-bold tracking-widest text-primary uppercase">JanAushadhi Equivalent</div>
-                    <div className="bg-primary/10 border border-primary/20 text-primary text-[10px] font-bold px-2 py-0.5 rounded-sm uppercase tracking-wider">✓ Certified Quality</div>
+                    {generic?.match_tier === 'EXACT_MATCH' ? (
+                      <div className="bg-[#e6f4ea] border border-[#a8dab5] text-[#137333] text-[10px] font-bold px-2 py-0.5 rounded-sm uppercase tracking-wider">✓ Exact Strength Match</div>
+                    ) : (
+                      <div className="bg-[#fef7e0] border border-[#f9ab00] text-[#b06000] text-[10px] font-bold px-2 py-0.5 rounded-sm uppercase tracking-wider">⚡ Salt Equivalent</div>
+                    )}
                   </div>
                   <h2 className="font-display text-2xl md:text-4xl font-bold text-primary mb-2 leading-tight">{generic?.name || 'Pharmacological Match'}</h2>
                   <div className="text-sm text-on-surface/60 font-bold uppercase tracking-widest flex items-center gap-2">

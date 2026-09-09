@@ -8,6 +8,7 @@
 import crypto from 'crypto';
 import { queryDB } from '../../shared/infra/database';
 import { NotFoundError, ValidationError, ExternalServiceError } from '../../shared/errors';
+import { isTwilioReady, sendWhatsAppMessage } from '../../shared/infra/twilio';
 import type {
   AuthUser,
   BasketItem,
@@ -120,37 +121,70 @@ export class FulfillmentService {
       throw new ValidationError(`Store ${routedStoreCode} does not exist`);
     }
 
-    const { upi_vpa: storeUpiVpa } = storeDetailsRes.rows[0];
+    const { upi_vpa: storeUpiVpa, phone: storePhone } = storeDetailsRes.rows[0];
 
     // Generate unique ticket ID using cryptographically secure random
     const ticketId = `TKT-${crypto.randomUUID().replace(/-/g, '').slice(0, 12).toUpperCase()}`;
 
-    // Calculate totals and savings
+    // SERVER-SIDE PRICE VALIDATION & INTEGRITY CHECK:
+    // Do not trust client-submitted prices. Look up the verified MRP directly from generic_meds.
+    const requestedCodes = data.drug_codes.map((d: any) => d.code);
+    const dbMedsRes = await queryDB(
+      `SELECT drug_code, generic_name, mrp FROM generic_meds WHERE drug_code = ANY($1)`,
+      [requestedCodes],
+    );
+    const priceMap = new Map(
+      dbMedsRes.rows.map((r: any) => [r.drug_code, { mrp: parseFloat(r.mrp), name: r.generic_name }]),
+    );
+
     let totalBrandedValue = 0;
     let totalGenericValue = 0;
+    const verifiedItems: any[] = [];
 
     for (const item of data.drug_codes) {
-      totalGenericValue += (item.mrp || 0) * (item.quantity || 1);
-      totalBrandedValue += (item.branded_mrp || 0) * (item.quantity || 1);
+      const dbMed = priceMap.get(item.code);
+      const genericMrp = dbMed ? dbMed.mrp : (typeof item.mrp === 'number' ? item.mrp : 0);
+      const genericName = dbMed ? dbMed.name : (item.name || item.code);
+      const qty = Math.max(1, parseInt(item.quantity as any, 10) || 1);
+      const brandedMrp = Math.max(
+        genericMrp,
+        typeof item.branded_mrp === 'number' && item.branded_mrp > 0 ? item.branded_mrp : genericMrp * 2,
+      );
+
+      totalGenericValue += genericMrp * qty;
+      totalBrandedValue += brandedMrp * qty;
+
+      verifiedItems.push({
+        code: item.code,
+        name: genericName,
+        quantity: qty,
+        mrp: genericMrp,
+        branded_mrp: brandedMrp,
+      });
     }
+
+    totalGenericValue = Math.round(totalGenericValue * 100) / 100;
+    totalBrandedValue = Math.round(totalBrandedValue * 100) / 100;
+    const calculatedSavings = Math.max(0, Math.round((totalBrandedValue - totalGenericValue) * 100) / 100);
 
     await queryDB(
       `INSERT INTO requirements
        (id, user_id, pmbjk_code, items, status, legal_attestation, delivery_address, payment_mode, 
-        total_branded_value, total_generic_value, savings, created_at, fulfillment_type, payment_status, payment_details)
-       VALUES ($1, $2, $3, $4, 'PENDING_ACCEPTANCE', $5, $6, $7, $8, $9, $10, NOW(), $11, 'PENDING', '{}')`,
+        total_branded_value, total_generic_value, savings, created_at, fulfillment_type, payment_status, payment_details, prescription_url)
+       VALUES ($1, $2, $3, $4, 'PENDING_ACCEPTANCE', $5, $6, $7, $8, $9, $10, NOW(), $11, 'PENDING', '{}', $12)`,
       [
         ticketId,
         user.uid,
         routedStoreCode,
-        JSON.stringify(data.drug_codes),
+        JSON.stringify(verifiedItems),
         true,
         data.delivery_address || '',
         data.payment_mode || 'COD',
         totalBrandedValue,
         totalGenericValue,
-        totalBrandedValue - totalGenericValue,
+        calculatedSavings,
         fulfillmentType,
+        data.prescription_url || null,
       ],
     );
 
@@ -163,12 +197,26 @@ export class FulfillmentService {
       // Non-blocking — audit trail table might not exist in older deployments
     });
 
+    // Optional automated Twilio WhatsApp dispatch to Kendra store
+    try {
+      if (isTwilioReady() && storePhone) {
+        const cleanPhone = storePhone.replace(/[^0-9]/g, '');
+        if (cleanPhone.length >= 10) {
+          const formattedPhone = cleanPhone.startsWith('91') ? `+${cleanPhone}` : `+91${cleanPhone}`;
+          const alertMsg = `*Jan Aushadhi Alert*\nNew Order Placed!\nTicket: ${ticketId}\nItems: ${verifiedItems.length} meds (Total: ₹${totalGenericValue.toFixed(2)})\nPlease open Seller Central to review.`;
+          sendWhatsAppMessage(formattedPhone, alertMsg).catch(() => {});
+        }
+      }
+    } catch {
+      // Non-blocking
+    }
+
     return {
       success: true,
       ticketId,
       status: 'PENDING_ACCEPTANCE',
       totalGenericValue,
-      savings: totalBrandedValue - totalGenericValue,
+      savings: calculatedSavings,
       upi_vpa: storeUpiVpa || null,
       pmbjk_code: routedStoreCode,
     };
@@ -196,17 +244,66 @@ export class FulfillmentService {
     }
 
     const { items, ticket_id, store_phone, store_name } = result.rows[0];
-    const drugList = JSON.parse(items)
-      .map((i: any) => `- ${i.name} (Qty: ${i.quantity})`)
+    const parsedItems: any[] = Array.isArray(items)
+      ? items
+      : typeof items === 'string'
+        ? JSON.parse(items)
+        : [];
+    const drugList = parsedItems
+      .map((i: any) => `- ${i.name || i.code} (Qty: ${i.quantity || 1})`)
       .join('\n');
 
     const message = `Hello ${store_name},\n\nI have generated a Jan Aushadhi requirement ticket via the platform.\n\n*Ticket ID:* ${ticket_id}\n*Customer:* ${user.name || 'User'}\n*Phone:* ${user.phone_number || 'N/A'}\n\n*Items:* \n${drugList}\n\nPlease confirm availability for fulfillment. I have the physical prescription ready.`;
 
     const encodedMessage = encodeURIComponent(message);
-    const cleanPhone = store_phone.replace(/[^0-9]/g, '');
+    const cleanPhone = (store_phone || '').replace(/[^0-9]/g, '');
     const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodedMessage}`;
 
     return { whatsappUrl };
+  }
+
+  /**
+   * Cancel an order by customer.
+   * Only allowed when status is PENDING_ACCEPTANCE.
+   */
+  async cancelOrder(
+    requirementId: string,
+    user: AuthUser,
+    reason?: string,
+  ): Promise<{ success: boolean; status: string }> {
+    const checkRes = await queryDB(
+      'SELECT status FROM requirements WHERE id = $1 AND user_id = $2',
+      [requirementId, user.uid],
+    );
+
+    if (checkRes.rows.length === 0) {
+      throw new NotFoundError('Requirement');
+    }
+
+    const currentStatus = checkRes.rows[0].status;
+    if (currentStatus !== 'PENDING_ACCEPTANCE') {
+      throw new ValidationError(
+        `Cannot cancel order with status "${currentStatus}". Orders can only be cancelled while pending acceptance.`,
+      );
+    }
+
+    await queryDB(
+      `UPDATE requirements 
+       SET status = 'CANCELLED_BY_CUSTOMER',
+           cancelled_by = 'CUSTOMER',
+           cancelled_reason = $1,
+           updated_at = NOW()
+       WHERE id = $2 AND user_id = $3`,
+      [reason || 'Cancelled by customer', requirementId, user.uid],
+    );
+
+    await queryDB(
+      `INSERT INTO order_status_log (requirement_id, from_status, to_status, changed_by, changed_by_role, notes)
+       VALUES ($1, 'PENDING_ACCEPTANCE', 'CANCELLED_BY_CUSTOMER', $2, 'CUSTOMER', $3)`,
+      [requirementId, user.uid, reason || 'Cancelled by customer'],
+    ).catch(() => {});
+
+    return { success: true, status: 'CANCELLED_BY_CUSTOMER' };
   }
 
   /**

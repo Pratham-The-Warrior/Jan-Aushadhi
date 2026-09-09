@@ -1,21 +1,27 @@
-// ============================================================
-// OrderSuccess — Post-checkout confirmation screen
-// Redesigned with new UI primitives and semantic colors
-// ============================================================
-
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ShieldCheck, MessageCircle, ArrowRight, PackageCheck } from 'lucide-react';
+import QRCode from 'qrcode';
 import { getWhatsAppLink } from '../../services/api';
 import { toast } from '../../store/toastStore';
 
 /**
  * @param {object} props
- * @param {object} props.order      - Order result { ticketId, status, totalGenericValue, savings }
+ * @param {object} props.order      - Order result { ticketId, status, totalGenericValue, savings, upi_vpa }
  * @param {object} [props.store]    - Selected store { name }
  */
 export default function OrderSuccess({ order, store }) {
   const navigate = useNavigate();
+  const [qrDataUrl, setQrDataUrl] = useState('');
+
+  useEffect(() => {
+    if (order?.upi_vpa) {
+      const upiString = `upi://pay?pa=${order.upi_vpa}&pn=PMBJK%20Kendra&am=${order.totalGenericValue}&cu=INR&tn=${order.ticketId}`;
+      QRCode.toDataURL(upiString, { width: 240, margin: 1, color: { dark: '#000000', light: '#ffffff' } })
+        .then((url) => setQrDataUrl(url))
+        .catch((err) => console.warn('Local QR generation error:', err));
+    }
+  }, [order?.upi_vpa, order?.totalGenericValue, order?.ticketId]);
 
   const handleResendWhatsApp = async () => {
     try {
@@ -91,14 +97,16 @@ export default function OrderSuccess({ order, store }) {
               <br />
               VPA: <code className="bg-white/80 px-1.5 py-0.5 rounded font-mono font-semibold text-primary">{order.upi_vpa}</code>
             </p>
-            <div className="bg-white p-4 rounded-2xl shadow-sm border border-primary/10 mb-4">
-              <img
-                src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(
-                  `upi://pay?pa=${order.upi_vpa}&pn=PMBJK%20Kendra&am=${order.totalGenericValue}&cu=INR&tn=${order.ticketId}`
-                )}`}
-                alt="UPI QR Code"
-                className="w-40 h-40"
-              />
+            <div className="bg-white p-4 rounded-2xl shadow-sm border border-primary/10 mb-4 flex items-center justify-center min-h-[160px] min-w-[160px]">
+              {qrDataUrl ? (
+                <img
+                  src={qrDataUrl}
+                  alt="UPI QR Code"
+                  className="w-40 h-40"
+                />
+              ) : (
+                <div className="text-xs text-on-surface/40 animate-pulse">Generating Secure QR...</div>
+              )}
             </div>
             <span className="text-[11px] font-bold uppercase tracking-widest text-primary">₹{Number(order.totalGenericValue).toFixed(2)} direct P2P transfer</span>
           </div>

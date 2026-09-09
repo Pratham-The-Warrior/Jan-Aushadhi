@@ -33,9 +33,10 @@ export default async function searchRoutes(server: FastifyInstance): Promise<voi
       const fullResults = await Promise.all(
         hits.map(async (branded: any) => {
           const saltHash = branded.salt_hash;
-          const generic = saltHash
-            ? await catalogService.matchGeneric(saltHash)
-            : null;
+          const matchResult = saltHash
+            ? await catalogService.matchGeneric(saltHash, branded.salt_strength_hash)
+            : { generic: null, matchTier: 'NONE' as const };
+          const generic = matchResult.generic;
 
           const savings = catalogService.calculateSavings(
             parseFloat(branded.mrp) || 0,
@@ -53,6 +54,7 @@ export default async function searchRoutes(server: FastifyInstance): Promise<voi
               composition1: branded.composition1,
               composition2: branded.composition2,
               salt_hash: branded.salt_hash,
+              salt_strength_hash: branded.salt_strength_hash,
               form: branded.form || 'Other',
             },
             generic: generic
@@ -63,12 +65,21 @@ export default async function searchRoutes(server: FastifyInstance): Promise<voi
                   unit_size: generic.unit_size,
                   group_name: generic.group_name,
                   salt_hash: generic.salt_hash,
+                  salt_strength_hash: generic.salt_strength_hash,
+                  match_tier: matchResult.matchTier,
                 }
               : null,
             savings,
           };
         }),
       );
+
+      // Sort: Prioritize results with a verified Jan Aushadhi generic match, then highest savings
+      fullResults.sort((a, b) => {
+        if (a.generic && !b.generic) return -1;
+        if (!a.generic && b.generic) return 1;
+        return (b.savings?.percentage || 0) - (a.savings?.percentage || 0);
+      });
 
       // Deduplicate by name, prioritizing results with a generic match
       const nameMap = new Map<string, typeof fullResults[number]>();

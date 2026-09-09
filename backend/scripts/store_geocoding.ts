@@ -34,7 +34,53 @@ interface StoreRecord {
   district: string;
 }
 
-// ---- CSV Parser (zero dependencies) ----
+const STATE_CENTROIDS: Record<string, [number, number]> = {
+  'andhra pradesh': [15.9129, 79.7400],
+  'arunachal pradesh': [28.2180, 94.7278],
+  'assam': [26.2006, 92.9376],
+  'bihar': [25.0961, 85.3131],
+  'chhattisgarh': [21.2787, 81.8661],
+  'delhi': [28.7041, 77.1025],
+  'goa': [15.2993, 74.1240],
+  'gujarat': [22.2587, 71.1924],
+  'haryana': [29.0588, 76.0856],
+  'himachal pradesh': [31.1048, 77.1734],
+  'jharkhand': [23.6102, 85.2799],
+  'karnataka': [15.3173, 75.7139],
+  'kerala': [10.8505, 76.2711],
+  'madhya pradesh': [22.9734, 78.6569],
+  'maharashtra': [19.7515, 75.7139],
+  'manipur': [24.6637, 93.9063],
+  'meghalaya': [25.4670, 91.3662],
+  'mizoram': [23.1645, 92.9376],
+  'nagaland': [26.1584, 94.5624],
+  'odisha': [20.9517, 85.0985],
+  'punjab': [31.1471, 75.3412],
+  'rajasthan': [27.0238, 74.2179],
+  'sikkim': [27.5330, 88.5122],
+  'tamil nadu': [11.1271, 78.6569],
+  'telangana': [18.1124, 79.0193],
+  'tripura': [23.9408, 91.9882],
+  'uttar pradesh': [26.8467, 80.9462],
+  'uttarakhand': [30.0668, 79.0193],
+  'west bengal': [22.9868, 87.8550],
+  'jammu and kashmir': [33.7782, 76.5762],
+  'ladakh': [34.1526, 77.5771],
+  'puducherry': [11.9416, 79.8083],
+  'chandigarh': [30.7333, 76.7794],
+};
+
+function getDeterministicCoordinates(state: string, pincode: string, idx: number): [number, number] {
+  const normState = (state || '').trim().toLowerCase();
+  const base = STATE_CENTROIDS[normState] || [20.5937, 78.9629];
+  const pinNum = parseInt(pincode || '0', 10);
+  const offsetLat = ((pinNum % 100) / 100 - 0.5) * 0.4 + ((idx % 20) - 10) * 0.01;
+  const offsetLng = (((pinNum / 100) % 100) / 100 - 0.5) * 0.4 + (((idx * 3) % 20) - 10) * 0.01;
+  return [
+    Math.round((base[0] + offsetLat) * 10000) / 10000,
+    Math.round((base[1] + offsetLng) * 10000) / 10000,
+  ];
+}
 function parseCSV(filePath: string): Record<string, string>[] {
   const content = fs.readFileSync(filePath, 'utf-8').replace(/^\ufeff/, '');
   const lines = content.split('\n').filter(l => l.trim());
@@ -103,8 +149,7 @@ export async function importStores() {
         const phoneMatch = address.match(/(?:\+91|0)?[6-9]\d{9}/);
         const phone = phoneMatch ? phoneMatch[0] : '+91 00000 00000';
 
-        const lat = 20.0 + (Math.random() - 0.5) * 15;
-        const lng = 78.0 + (Math.random() - 0.5) * 15;
+        const [lat, lng] = getDeterministicCoordinates(state, pincode, idx);
 
         const offset = idx * 9;
         placeholders.push(

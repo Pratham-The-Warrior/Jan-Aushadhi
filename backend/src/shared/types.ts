@@ -44,6 +44,7 @@ export interface GenericMedicine {
   unit_size: string;
   group_name: string;
   salt_hash: string;
+  salt_strength_hash?: string;
   indications?: string;
   side_effects?: string;
   storage_info?: string;
@@ -61,6 +62,7 @@ export interface DiscoveryResult {
   branded: BrandedMedicine;
   generic: GenericMedicine | null;
   savings: SavingsResult;
+  match_tier?: 'EXACT_MATCH' | 'SALT_EQUIVALENT' | 'NONE';
 }
 
 /** Lightweight suggestion returned by autocomplete */
@@ -154,6 +156,7 @@ export interface Requirement {
   items: RequirementItem[];
   status: RequirementStatus;
   legal_attestation: boolean;
+  prescription_url?: string | null;
   delivery_address: string;
   payment_mode: string;
   total_branded_value: number;
@@ -240,6 +243,7 @@ export interface CreateRequirementPayload {
   legal_attestation: boolean;
   delivery_address?: string;
   payment_mode?: string;
+  prescription_url?: string;
   fulfillment_type?: 'PICKUP' | 'DELIVERY';
   delivery_coords?: { lat: number; lng: number };
 }

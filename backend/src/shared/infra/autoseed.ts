@@ -23,26 +23,9 @@ export async function autoSeedDatabaseIfNeeded(): Promise<void> {
       return;
     }
 
-    console.log('🌱 Empty database detected! Triggering automated cloud dataset ingestion...');
-
-    // Dynamically import ETL and Store scripts to populate database
-    const etlPath = path.resolve(__dirname, '../../../scripts/etl_pipeline.ts');
-    const storePath = path.resolve(__dirname, '../../../scripts/store_geocoding.ts');
-
-    if (fs.existsSync(etlPath)) {
-      console.log('📦 Running ETL pipeline...');
-      const etlModule = await import('../../../scripts/etl_pipeline.js').catch(() => import('../../../scripts/etl_pipeline.ts' as any));
-      if (etlModule?.runETL) await etlModule.runETL();
-    }
-
-    if (fs.existsSync(storePath)) {
-      console.log('🏪 Running Store Geocoding pipeline...');
-      const storeModule = await import('../../../scripts/store_geocoding.js').catch(() => import('../../../scripts/store_geocoding.ts' as any));
-      if (storeModule?.importStores) await storeModule.importStores();
-    }
-
-    console.log('✅ Automated cloud dataset ingestion completed successfully!');
+    console.log('🌱 Database tables are unpopulated.');
+    console.log('💡 Run "npm run db:migrate", "npm run etl:run", and "npm run etl:stores" to seed data.');
   } catch (err: any) {
-    console.error('⚠️  Auto-seed check warning:', err?.message || err);
+    console.warn('⚠️  Auto-seed check warning:', err?.message || err);
   }
 }

@@ -286,32 +286,39 @@ export class SellerService {
     const limit = options.limit || 50;
     const offset = (page - 1) * limit;
 
-    let whereClause = '';
-    const params: unknown[] = [pmbjkCode];
-    let paramIdx = 2;
-
+    let countWhereClause = '';
+    const countParams: unknown[] = [];
     if (options.search) {
-      whereClause = `AND g.generic_name ILIKE $${paramIdx++}`;
-      params.push(`%${options.search}%`);
+      countWhereClause = 'AND g.generic_name ILIKE $1';
+      countParams.push(`%${options.search}%`);
     }
 
     const countResult = await queryDB(
-      `SELECT COUNT(*) as total FROM generic_meds g WHERE 1=1 ${whereClause.replace('AND', 'AND')}`,
-      options.search ? [options.search ? `%${options.search}%` : null] : [],
+      `SELECT COUNT(*) as total FROM generic_meds g WHERE 1=1 ${countWhereClause}`,
+      countParams,
     );
-    const totalCount = parseInt(countResult.rows[0]?.total || '0');
+    const totalCount = parseInt(countResult.rows[0]?.total || '0', 10);
 
-    params.push(limit, offset);
+    const queryParams: unknown[] = [pmbjkCode];
+    let mainWhereClause = '';
+    let paramIdx = 2;
+
+    if (options.search) {
+      mainWhereClause = `AND g.generic_name ILIKE $${paramIdx++}`;
+      queryParams.push(`%${options.search}%`);
+    }
+
+    queryParams.push(limit, offset);
     const result = await queryDB(
       `SELECT g.drug_code, g.generic_name, g.mrp, g.unit_size, g.group_name,
               COALESCE(si.in_stock, TRUE) as in_stock,
               si.last_updated
        FROM generic_meds g
        LEFT JOIN store_inventory si ON g.drug_code = si.drug_code AND si.pmbjk_code = $1
-       WHERE 1=1 ${whereClause}
+       WHERE 1=1 ${mainWhereClause}
        ORDER BY g.generic_name ASC
        LIMIT $${paramIdx++} OFFSET $${paramIdx}`,
-      params,
+      queryParams,
     );
 
     return {

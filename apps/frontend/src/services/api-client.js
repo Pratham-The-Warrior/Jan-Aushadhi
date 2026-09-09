@@ -1,9 +1,5 @@
-// ============================================================
-// API Client — Base fetch wrapper with structured error handling
-// All API modules import from this file for consistent behavior.
-// ============================================================
-
 import useAuthStore from '../store/authStore';
+import { auth } from '../firebase';
 
 function getSanitizedApiBase() {
   let url = (import.meta.env.VITE_API_URL || 'http://localhost:5000').trim();
@@ -36,20 +32,31 @@ export class ApiError extends Error {
 }
 
 /**
- * Get the current Firebase auth token from Zustand store.
+ * Get the current Firebase auth token with automatic background refresh.
  */
-function getAuthToken() {
+async function getAuthToken() {
+  try {
+    if (auth?.currentUser) {
+      const token = await auth.currentUser.getIdToken(false);
+      if (token) {
+        useAuthStore.getState().setToken(token);
+        return token;
+      }
+    }
+  } catch (err) {
+    console.warn('⚠️ Token refresh notice:', err);
+  }
   return useAuthStore.getState().token;
 }
 
 /**
  * Build headers with optional auth token.
- * @param {boolean} [auth=false] - Include Authorization header
+ * @param {boolean} [requiresAuth=false] - Include Authorization header
  */
-function buildHeaders(auth = false) {
+async function buildHeaders(requiresAuth = false) {
   const headers = { 'Content-Type': 'application/json' };
-  if (auth) {
-    const token = getAuthToken();
+  if (requiresAuth) {
+    const token = await getAuthToken();
     if (token) headers['Authorization'] = `Bearer ${token}`;
   }
   return headers;
@@ -88,8 +95,9 @@ async function handleResponse(res) {
  * @param {boolean} [auth=false] - Include auth token
  */
 export async function apiGet(path, auth = false) {
+  const headers = await buildHeaders(auth);
   const res = await fetch(`${API_BASE}${path}`, {
-    headers: buildHeaders(auth),
+    headers,
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
   return handleResponse(res);
@@ -102,9 +110,10 @@ export async function apiGet(path, auth = false) {
  * @param {boolean} [auth=false] - Include auth token
  */
 export async function apiPost(path, body, auth = false) {
+  const headers = await buildHeaders(auth);
   const res = await fetch(`${API_BASE}${path}`, {
     method: 'POST',
-    headers: buildHeaders(auth),
+    headers,
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
@@ -118,11 +127,30 @@ export async function apiPost(path, body, auth = false) {
  * @param {boolean} [auth=false] - Include auth token
  */
 export async function apiPut(path, body, auth = false) {
+  const headers = await buildHeaders(auth);
   const res = await fetch(`${API_BASE}${path}`, {
     method: 'PUT',
-    headers: buildHeaders(auth),
+    headers,
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
   return handleResponse(res);
 }
+
+/**
+ * Execute a PATCH request.
+ * @param {string}  path  - API path
+ * @param {object}  body  - JSON body
+ * @param {boolean} [auth=false] - Include auth token
+ */
+export async function apiPatch(path, body, auth = false) {
+  const headers = await buildHeaders(auth);
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: 'PATCH',
+    headers,
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  });
+  return handleResponse(res);
+}
+

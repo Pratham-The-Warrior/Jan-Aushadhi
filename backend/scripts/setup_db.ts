@@ -46,32 +46,36 @@ CREATE TABLE IF NOT EXISTS branded_meds (
   pack_size_label   VARCHAR(128),
   composition1      TEXT,
   composition2      TEXT,
-  salt_hash         VARCHAR(128),
-  category          VARCHAR(512)
+  salt_hash          VARCHAR(128),
+  salt_strength_hash VARCHAR(128),
+  category           VARCHAR(512)
 );
 
 CREATE INDEX IF NOT EXISTS idx_branded_name ON branded_meds(name);
 CREATE INDEX IF NOT EXISTS idx_branded_salt_hash ON branded_meds(salt_hash);
+CREATE INDEX IF NOT EXISTS idx_branded_salt_strength ON branded_meds(salt_strength_hash);
 
 -- ===========================================
 -- Table: generic_meds (Clinical Generic Data)
 -- ===========================================
 CREATE TABLE IF NOT EXISTS generic_meds (
-  id            SERIAL PRIMARY KEY,
-  drug_code     VARCHAR(128) NOT NULL,
-  generic_name  VARCHAR(512) NOT NULL,
-  unit_size     VARCHAR(256),
-  mrp           DECIMAL(10,2) NOT NULL,
-  group_name    VARCHAR(512),
-  salt_hash     VARCHAR(128),
-  indications   TEXT,
-  side_effects  TEXT,
-  storage_info  TEXT,
-  clinical_data JSONB DEFAULT '{}'
+  id                 SERIAL PRIMARY KEY,
+  drug_code          VARCHAR(128) NOT NULL,
+  generic_name       VARCHAR(512) NOT NULL,
+  unit_size          VARCHAR(256),
+  mrp                DECIMAL(10,2) NOT NULL,
+  group_name         VARCHAR(512),
+  salt_hash          VARCHAR(128),
+  salt_strength_hash VARCHAR(128),
+  indications        TEXT,
+  side_effects       TEXT,
+  storage_info       TEXT,
+  clinical_data      JSONB DEFAULT '{}'
 );
 
 CREATE INDEX IF NOT EXISTS idx_generic_drug_code ON generic_meds(drug_code);
 CREATE INDEX IF NOT EXISTS idx_generic_salt_hash ON generic_meds(salt_hash);
+CREATE INDEX IF NOT EXISTS idx_generic_salt_strength ON generic_meds(salt_strength_hash);
 
 -- ===========================================
 -- Table: stores (Geolocation + Metadata)
@@ -108,8 +112,12 @@ CREATE TABLE IF NOT EXISTS requirements (
   items               JSONB NOT NULL DEFAULT '[]',
   status              VARCHAR(32) DEFAULT 'PENDING_ACCEPTANCE',
   legal_attestation   BOOLEAN DEFAULT FALSE,
+  prescription_url    TEXT,
   delivery_address    TEXT,
   payment_mode        VARCHAR(32) DEFAULT 'COD',
+  fulfillment_type    VARCHAR(32) DEFAULT 'PICKUP',
+  payment_status      VARCHAR(32) DEFAULT 'PENDING',
+  payment_details     JSONB DEFAULT '{}',
   total_branded_value DECIMAL(10,2) DEFAULT 0,
   total_generic_value DECIMAL(10,2) DEFAULT 0,
   savings             DECIMAL(10,2) DEFAULT 0,

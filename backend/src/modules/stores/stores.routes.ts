@@ -7,6 +7,7 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { StoreService } from './stores.service';
 import { verifyAuth } from '../../shared/infra/firebase';
+import { requireRole } from '../../shared/infra/rbac';
 import {
   storesByPincodeSchema,
   nearbyStoresSchema,
@@ -93,13 +94,15 @@ export default async function storeRoutes(server: FastifyInstance): Promise<void
     },
   );
 
-  // ---- Store Confirms a Requirement (Auth Required) ----
+  // ---- Store Confirms a Requirement (Auth & Role Required) ----
   server.post(
     '/api/v1/stores/confirm/:requirement_id',
-    { preHandler: [verifyAuth], schema: confirmRequirementSchema },
+    { preHandler: [verifyAuth, requireRole('STORE_OWNER', 'SUPER_ADMIN')], schema: confirmRequirementSchema },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { requirement_id } = request.params as { requirement_id: string };
-      const requirement = await storeService.confirmRequirement(requirement_id);
+      const user = request.user!;
+      const storeCode = user.role === 'SUPER_ADMIN' ? undefined : user.linked_pmbjk_code;
+      const requirement = await storeService.confirmRequirement(requirement_id, storeCode);
 
       return reply.send({
         success: true,

@@ -12,6 +12,7 @@ export {
   createRequirement,
   getRequirements,
   getWhatsAppLink,
+  cancelRequirement,
   getUserDashboard,
   getDashboardMonthly,
   getUserProfile,

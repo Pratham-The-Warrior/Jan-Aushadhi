@@ -17,37 +17,64 @@ export class CatalogService {
   private readonly cachePrefix = APP_CONSTANTS.REDIS_GENERIC_PREFIX;
 
   /**
-   * Lookup a generic medicine by its deterministic salt-hash.
-   * Uses Redis cache with configurable TTL, falls back to Postgres.
+   * Lookup a generic medicine using 2-Tier matching:
+   * Tier 1: Exact chemical salt + exact dosage strength + form match
+   * Tier 2: Chemical molecule equivalent fallback (guarantees high match rate)
    *
-   * @param saltHash  Deterministic hash of the molecule composition
-   * @returns Generic medicine record or null if no match
+   * @param saltHash          Deterministic hash of the chemical molecule + form
+   * @param saltStrengthHash  Deterministic hash of molecule + strength + form
    */
-  async matchGeneric(saltHash: string): Promise<GenericMedicine | null> {
-    // 1. Check Redis cache
-    const cached = await getCached(`${this.cachePrefix}${saltHash}`);
-    if (cached) {
-      return JSON.parse(cached) as GenericMedicine;
+  async matchGeneric(saltHash: string, saltStrengthHash?: string | null): Promise<{
+    generic: GenericMedicine | null;
+    matchTier: 'EXACT_MATCH' | 'SALT_EQUIVALENT' | 'NONE';
+  }> {
+    if (!saltHash && !saltStrengthHash) {
+      return { generic: null, matchTier: 'NONE' };
     }
 
-    // 2. Query PostgreSQL
-    const result = await queryDB(
-      'SELECT * FROM generic_meds WHERE salt_hash = $1 LIMIT 1',
-      [saltHash],
-    );
+    const cacheKey = `${this.cachePrefix}${saltStrengthHash || saltHash}`;
+    const cached = await getCached(cacheKey);
+    if (cached) {
+      try {
+        return JSON.parse(cached);
+      } catch {
+        // Continue to database on corrupted cache entry
+      }
+    }
 
-    if (result.rows.length === 0) return null;
+    // Tier 1: Try exact dose & salt match first
+    if (saltStrengthHash) {
+      const tier1Res = await queryDB(
+        'SELECT * FROM generic_meds WHERE salt_strength_hash = $1 LIMIT 1',
+        [saltStrengthHash],
+      );
+      if (tier1Res.rows.length > 0) {
+        const result = {
+          generic: this.mapGenericRow(tier1Res.rows[0]),
+          matchTier: 'EXACT_MATCH' as const,
+        };
+        await setCache(cacheKey, JSON.stringify(result), config.redisTtl);
+        return result;
+      }
+    }
 
-    const generic = this.mapGenericRow(result.rows[0]);
+    // Tier 2: Fallback to chemical molecule equivalent (ensures patients never get 0 results)
+    if (saltHash) {
+      const tier2Res = await queryDB(
+        'SELECT * FROM generic_meds WHERE salt_hash = $1 ORDER BY id ASC LIMIT 1',
+        [saltHash],
+      );
+      if (tier2Res.rows.length > 0) {
+        const result = {
+          generic: this.mapGenericRow(tier2Res.rows[0]),
+          matchTier: 'SALT_EQUIVALENT' as const,
+        };
+        await setCache(cacheKey, JSON.stringify(result), config.redisTtl);
+        return result;
+      }
+    }
 
-    // 3. Populate cache
-    await setCache(
-      `${this.cachePrefix}${saltHash}`,
-      JSON.stringify(generic),
-      config.redisTtl,
-    );
-
-    return generic;
+    return { generic: null, matchTier: 'NONE' };
   }
 
   /**
@@ -61,6 +88,7 @@ export class CatalogService {
     branded: Record<string, unknown>;
     generic: GenericMedicine | null;
     savings: SavingsResult;
+    match_tier: 'EXACT_MATCH' | 'SALT_EQUIVALENT' | 'NONE';
   }> {
     const brandedRes = await queryDB(
       'SELECT * FROM branded_meds WHERE id = $1',
@@ -72,8 +100,8 @@ export class CatalogService {
     }
 
     const branded = brandedRes.rows[0];
-    const saltHash = branded.salt_hash;
-    const generic = saltHash ? await this.matchGeneric(saltHash) : null;
+    const match = await this.matchGeneric(branded.salt_hash, branded.salt_strength_hash);
+    const generic = match.generic;
 
     const savings = this.calculateSavings(
       parseFloat(branded.mrp) || 0,
@@ -97,6 +125,7 @@ export class CatalogService {
           }
         : null,
       savings,
+      match_tier: match.matchTier,
     };
   }
 
@@ -108,11 +137,11 @@ export class CatalogService {
    * @throws NotFoundError if no generic equivalent exists
    */
   async getGenericBySaltHash(saltHash: string): Promise<GenericMedicine> {
-    const generic = await this.matchGeneric(saltHash);
-    if (!generic) {
+    const match = await this.matchGeneric(saltHash);
+    if (!match.generic) {
       throw new NotFoundError('Generic equivalent');
     }
-    return generic;
+    return match.generic;
   }
 
   /**

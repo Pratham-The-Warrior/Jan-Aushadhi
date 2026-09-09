@@ -19,23 +19,31 @@ const useCartStore = create(
       // Cart actions
       addItem: (item) => set((state) => {
         const exists = state.items.find(i => i.drug_code === item.drug_code);
-        if (exists) {
-          return { items: state.items.map(i => i.drug_code === item.drug_code ? { ...i, quantity: i.quantity + 1 } : i) };
-        }
-        return { items: [...state.items, { ...item, quantity: 1 }] };
+        const newItems = exists
+          ? state.items.map(i => i.drug_code === item.drug_code ? { ...i, quantity: i.quantity + 1 } : i)
+          : [...state.items, { ...item, quantity: 1 }];
+        updateMedicalBasket(newItems).catch(() => {});
+        return { items: newItems };
       }),
 
-      removeItem: (drugCode) => set((state) => ({
-        items: state.items.filter(i => i.drug_code !== drugCode),
-      })),
+      removeItem: (drugCode) => set((state) => {
+        const newItems = state.items.filter(i => i.drug_code !== drugCode);
+        updateMedicalBasket(newItems).catch(() => {});
+        return { items: newItems };
+      }),
 
-      updateQuantity: (drugCode, quantity) => set((state) => ({
-        items: state.items.map(i => i.drug_code === drugCode ? { ...i, quantity: Math.max(1, quantity) } : i),
-      })),
+      updateQuantity: (drugCode, quantity) => set((state) => {
+        const newItems = state.items.map(i => i.drug_code === drugCode ? { ...i, quantity: Math.max(1, quantity) } : i);
+        updateMedicalBasket(newItems).catch(() => {});
+        return { items: newItems };
+      }),
 
       setStore: (store) => set({ selectedStore: store }),
       setAttestation: (val) => set({ legalAttestation: val }),
-      clearCart: () => set({ items: [], selectedStore: null, legalAttestation: false }),
+      clearCart: () => {
+        updateMedicalBasket([]).catch(() => {});
+        return set({ items: [], selectedStore: null, legalAttestation: false });
+      },
 
       // Recent searches
       addRecentSearch: (query) => set((state) => {

@@ -29,6 +29,7 @@ export const createRequirementSchema = {
       legal_attestation: { type: 'boolean' as const },
       delivery_address: { type: 'string' as const },
       payment_mode: { type: 'string' as const },
+      prescription_url: { type: 'string' as const },
       fulfillment_type: { type: 'string' as const, enum: ['PICKUP', 'DELIVERY'] },
       delivery_coords: {
         type: 'object' as const,
@@ -71,6 +72,23 @@ export const updateBasketSchema = {
     required: ['medical_basket'],
     properties: {
       medical_basket: { type: 'array' as const },
+    },
+  },
+};
+
+/** PATCH /api/v1/requirements/:id/cancel */
+export const cancelRequirementSchema = {
+  params: {
+    type: 'object' as const,
+    required: ['id'],
+    properties: {
+      id: { type: 'string' as const, minLength: 1 },
+    },
+  },
+  body: {
+    type: 'object' as const,
+    properties: {
+      reason: { type: 'string' as const },
     },
   },
 };
