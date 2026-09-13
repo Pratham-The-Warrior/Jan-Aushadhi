@@ -32,7 +32,16 @@ export default async function fulfillmentRoutes(server: FastifyInstance): Promis
   // ---- Create Requirement (Checkout) ----
   server.post(
     '/api/v1/requirements/create',
-    { preHandler: [verifyAuth], schema: createRequirementSchema },
+    {
+      preHandler: [verifyAuth],
+      schema: createRequirementSchema,
+      config: {
+        rateLimit: {
+          max: 10,
+          timeWindow: '1 minute',
+        },
+      },
+    },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const user = request.user!;
       const body = request.body as CreateRequirementPayload;

@@ -142,12 +142,14 @@ jobs:
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           script: |
-            cd ~/Jan-Aushadhi
+            set -euo pipefail
+            APP_DIR="$HOME/Jan-Aushadhi"
+
+            echo "--- Pulling latest code ---"
+            cd "$APP_DIR"
             git pull origin master
-            export $(grep -v '^#' deploy/.env.production | xargs)
-            docker compose -f docker-compose.prod.yml up --build -d
-            echo "--- Container Status ---"
-            docker compose -f docker-compose.prod.yml ps
-            echo "--- Health Check ---"
-            sleep 10
-            curl -sf http://localhost:5000/api/v1/health || echo "⚠️ Health check pending..."
+
+            echo "--- Executing automated deployment script ---"
+            chmod +x deploy/deploy.sh deploy/init-ssl.sh
+            ./deploy/deploy.sh
+

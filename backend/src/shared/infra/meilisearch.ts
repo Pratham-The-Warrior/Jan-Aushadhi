@@ -37,15 +37,19 @@ export function getMeiliIndex(indexName: string): Index {
 }
 
 /**
- * Verify Meilisearch connectivity at startup.
+ * Verify Meilisearch connectivity and authentication at startup.
+ * Authenticated call ensures no silent 401 failures during production searches.
  */
 export async function checkMeiliHealth(): Promise<boolean> {
   try {
     const health = await meiliClient.health();
-    console.log(`✅ Meilisearch: ${health.status}`);
+    // Validate authentication by querying index metadata (unauthenticated health check alone is insufficient)
+    await meiliClient.getIndexes({ limit: 1 });
+    console.log(`✅ Meilisearch: ${health.status} (authenticated)`);
     return true;
-  } catch {
-    console.warn('⚠️  Meilisearch not available — search will return errors');
+  } catch (err: any) {
+    console.warn(`⚠️  Meilisearch unavailable or authentication failed (${err?.message || err}) — search will use PostgreSQL fallback`);
     return false;
   }
 }
+

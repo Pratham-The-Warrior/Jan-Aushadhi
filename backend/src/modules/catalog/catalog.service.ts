@@ -1,20 +1,20 @@
 // ============================================================
 // Catalog Module — Service Layer
 // Branded→Generic matching via deterministic salt-hash.
-// Owns the Redis caching strategy for molecule lookups.
-// Pure business logic, no HTTP concerns.
+// Pure business logic and domain orchestration; delegates data
+// access to CatalogRepository.
 // ============================================================
 
-import { queryDB } from '../../shared/infra/database';
-import { getCached, setCache } from '../../shared/infra/redis';
-import { NotFoundError, ExternalServiceError } from '../../shared/errors';
-import { config } from '../../shared/config';
+import { CatalogRepository, type GenericMedRow } from './catalog.repository';
+import { NotFoundError } from '../../shared/errors';
 import { extractForm } from '../../shared/utils';
 import { APP_CONSTANTS } from '../../shared/constants';
 import type { GenericMedicine, SavingsResult } from '../../shared/types';
 
 export class CatalogService {
   private readonly cachePrefix = APP_CONSTANTS.REDIS_GENERIC_PREFIX;
+
+  constructor(private readonly repository: CatalogRepository = new CatalogRepository()) {}
 
   /**
    * Lookup a generic medicine using 2-Tier matching:
@@ -33,7 +33,7 @@ export class CatalogService {
     }
 
     const cacheKey = `${this.cachePrefix}${saltStrengthHash || saltHash}`;
-    const cached = await getCached(cacheKey);
+    const cached = await this.repository.getCachedMatch(cacheKey);
     if (cached) {
       try {
         return JSON.parse(cached);
@@ -44,32 +44,26 @@ export class CatalogService {
 
     // Tier 1: Try exact dose & salt match first
     if (saltStrengthHash) {
-      const tier1Res = await queryDB(
-        'SELECT * FROM generic_meds WHERE salt_strength_hash = $1 LIMIT 1',
-        [saltStrengthHash],
-      );
-      if (tier1Res.rows.length > 0) {
+      const tier1Row = await this.repository.findGenericBySaltStrengthHash(saltStrengthHash);
+      if (tier1Row) {
         const result = {
-          generic: this.mapGenericRow(tier1Res.rows[0]),
+          generic: this.mapGenericRow(tier1Row),
           matchTier: 'EXACT_MATCH' as const,
         };
-        await setCache(cacheKey, JSON.stringify(result), config.redisTtl);
+        await this.repository.setCachedMatch(cacheKey, JSON.stringify(result));
         return result;
       }
     }
 
     // Tier 2: Fallback to chemical molecule equivalent (ensures patients never get 0 results)
     if (saltHash) {
-      const tier2Res = await queryDB(
-        'SELECT * FROM generic_meds WHERE salt_hash = $1 ORDER BY id ASC LIMIT 1',
-        [saltHash],
-      );
-      if (tier2Res.rows.length > 0) {
+      const tier2Row = await this.repository.findGenericBySaltHash(saltHash);
+      if (tier2Row) {
         const result = {
-          generic: this.mapGenericRow(tier2Res.rows[0]),
+          generic: this.mapGenericRow(tier2Row),
           matchTier: 'SALT_EQUIVALENT' as const,
         };
-        await setCache(cacheKey, JSON.stringify(result), config.redisTtl);
+        await this.repository.setCachedMatch(cacheKey, JSON.stringify(result));
         return result;
       }
     }
@@ -90,21 +84,16 @@ export class CatalogService {
     savings: SavingsResult;
     match_tier: 'EXACT_MATCH' | 'SALT_EQUIVALENT' | 'NONE';
   }> {
-    const brandedRes = await queryDB(
-      'SELECT * FROM branded_meds WHERE id = $1',
-      [brandedId],
-    );
-
-    if (brandedRes.rows.length === 0) {
+    const branded = await this.repository.findBrandedById(brandedId);
+    if (!branded) {
       throw new NotFoundError('Branded medicine');
     }
 
-    const branded = brandedRes.rows[0];
     const match = await this.matchGeneric(branded.salt_hash, branded.salt_strength_hash);
     const generic = match.generic;
 
     const savings = this.calculateSavings(
-      parseFloat(branded.mrp) || 0,
+      typeof branded.mrp === 'string' ? parseFloat(branded.mrp) || 0 : branded.mrp || 0,
       generic?.mrp || 0,
     );
 
@@ -112,18 +101,14 @@ export class CatalogService {
       branded: {
         id: branded.id,
         name: branded.name,
-        mrp: parseFloat(branded.mrp),
+        mrp: typeof branded.mrp === 'string' ? parseFloat(branded.mrp) || 0 : branded.mrp,
         manufacturer: branded.manufacturer,
         pack_size: branded.pack_size_label,
         composition1: branded.composition1,
         composition2: branded.composition2,
         form: extractForm(branded.name || ''),
       },
-      generic: generic
-        ? {
-            ...generic,
-          }
-        : null,
+      generic: generic ? { ...generic } : null,
       savings,
       match_tier: match.matchTier,
     };
@@ -163,12 +148,12 @@ export class CatalogService {
 
   // ---- Private Helpers ----
 
-  /** Map a raw PostgreSQL row to a typed GenericMedicine */
-  private mapGenericRow(row: any): GenericMedicine {
+  /** Map a raw database row to a typed GenericMedicine */
+  private mapGenericRow(row: GenericMedRow): GenericMedicine {
     return {
       drug_code: row.drug_code,
       generic_name: row.generic_name,
-      mrp: parseFloat(row.mrp) || 0,
+      mrp: typeof row.mrp === 'string' ? parseFloat(row.mrp) || 0 : row.mrp || 0,
       unit_size: row.unit_size,
       group_name: row.group_name,
       salt_hash: row.salt_hash,

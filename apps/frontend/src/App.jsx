@@ -34,17 +34,6 @@ function LazyPage({ children }) {
   );
 }
 
-/** Route wrapped with layout + error boundary + suspense */
-function AppRoute({ children }) {
-  return (
-    <PageLayout>
-      <ErrorBoundary>
-        <LazyPage>{children}</LazyPage>
-      </ErrorBoundary>
-    </PageLayout>
-  );
-}
-
 /** Route guard to prevent access to unauthenticated users */
 function ProtectedRoute({ children }) {
   const { user, initialized } = useAuthStore();

@@ -111,9 +111,19 @@ function parseCSV(filePath: string): Record<string, string>[] {
   });
 }
 
+function resolveDataPath(filename: string): string {
+  const inDataDir = path.resolve(__dirname, '../../data', filename);
+  if (fs.existsSync(inDataDir)) return inDataDir;
+  const inRoot = path.resolve(__dirname, '../../', filename);
+  if (fs.existsSync(inRoot)) return inRoot;
+  const inApp = path.resolve('/app/data', filename);
+  if (fs.existsSync(inApp)) return inApp;
+  return inDataDir;
+}
+
 export async function importStores() {
   console.log('=== MODULE 1C: STORE IMPORT ===\n');
-  const csvPath = path.resolve(__dirname, '../../kendra_stores.csv');
+  const csvPath = resolveDataPath('kendra_stores.csv');
   
   if (!fs.existsSync(csvPath)) {
     console.error('❌ Kendra CSV not found.');

@@ -13,7 +13,11 @@ const isCloudDatabase =
   config.databaseUrl.includes('supabase.co') || 
   config.databaseUrl.includes('supabase.com') || 
   config.databaseUrl.includes('render.com') ||
-  config.databaseUrl.includes('aws.connect');
+  config.databaseUrl.includes('neon.tech') ||
+  config.databaseUrl.includes('railway.app') ||
+  config.databaseUrl.includes('aivencloud.com') ||
+  config.databaseUrl.includes('aws.connect') ||
+  config.databaseUrl.includes('sslmode=require');
 
 const useSSL = 
   process.env.DB_SSL === 'true' || 
@@ -24,7 +28,10 @@ const pool = new Pool({
   max: config.dbPoolMax,
   idleTimeoutMillis: config.dbIdleTimeout,
   connectionTimeoutMillis: config.dbConnectionTimeout,
-  ...(useSSL ? { ssl: { rejectUnauthorized: false } } : {}),
+  // rejectUnauthorized is controlled via DB_SSL_REJECT_UNAUTHORIZED env var.
+  // Default: true (verify cert) — secure for self-hosted Postgres.
+  // Set to false for Supabase connection pooler which uses a shared cert.
+  ...(useSSL ? { ssl: { rejectUnauthorized: config.dbSslRejectUnauthorized } } : {}),
 });
 
 // Log pool-level errors (e.g. unexpected disconnects)
@@ -60,6 +67,31 @@ export async function getClient(): Promise<PoolClient> {
 }
 
 /**
+ * Execute an operation within an ACID transaction.
+ * Automatically handles BEGIN, COMMIT, and ROLLBACK, and releases the client safely.
+ */
+export async function withTransaction<T>(
+  fn: (client: PoolClient) => Promise<T>
+): Promise<T> {
+  const client = await getClient();
+  try {
+    await client.query('BEGIN');
+    const result = await fn(client);
+    await client.query('COMMIT');
+    return result;
+  } catch (err) {
+    try {
+      await client.query('ROLLBACK');
+    } catch (rollbackErr) {
+      console.error('Failed to rollback transaction:', rollbackErr);
+    }
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+/**
  * Verify database connectivity at startup.
  * Non-fatal — logs a warning if the database is unreachable.
  */
@@ -90,3 +122,13 @@ export async function closeDatabasePool(): Promise<void> {
     console.error('Error closing PostgreSQL pool:', err);
   }
 }
+
+/**
+ * Access the underlying Pool instance.
+ */
+export function getPool(): Pool {
+  return pool;
+}
+
+export const closeDB = closeDatabasePool;
+

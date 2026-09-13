@@ -4,7 +4,7 @@ import { auth } from '../firebase';
 function getSanitizedApiBase() {
   let url = (import.meta.env.VITE_API_URL || 'http://localhost:5000').trim();
   if (url.includes('http://') || url.includes('https://')) {
-    const match = url.match(/(https?:\/\/[^\/\s]+)/g);
+    const match = url.match(/(https?:\/\/[^/\s]+)/g);
     if (match && match.length > 0) {
       url = match[match.length - 1];
     }

@@ -42,7 +42,11 @@ const useAuthStore = create((set) => ({
 
   logout: async () => {
     if (auth) {
-      try { await auth.signOut(); } catch {}
+      try {
+        await auth.signOut();
+      } catch (err) {
+        console.warn('⚠️ Sign out notice:', err);
+      }
     }
     set({ user: null, token: null });
   }

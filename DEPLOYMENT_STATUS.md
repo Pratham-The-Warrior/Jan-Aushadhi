@@ -52,26 +52,39 @@ Below is the complete reference table of all cloud platforms, account links, rep
 ```
 
 ### Detailed Component Operations
-* **Database Schemas Active**: `users`, `branded_meds`, `generic_meds`, `stores`, `requirements`, `store_inventory`, `order_status_log`.
-* **Automated Cloud Seeding**: Built-in background engine (`backend/src/shared/infra/autoseed.ts`) checks database tables on container boot. If empty, it ingests `A_Z_medicines_dataset_of_India.csv`, `Product List.csv`, and `kendra_stores.csv` directly into Supabase.
-* **Search Engine Fallback**: Operating via direct SQL `ILIKE` pattern matching on PostGIS data tables while running in single-container mode without a dedicated Meilisearch instance.
+* **Database Schemas Active**: Managed by automated SQL migrations (`backend/migrations/001_initial_schema.sql`, `002_v2_features.sql`, `003_v3_routing_and_upi.sql`) with `schema_migrations` table tracking. Tables active: `users`, `branded_meds`, `generic_meds`, `stores`, `requirements`, `store_inventory`, `order_status_log`.
+* **Automated Cloud Seeding**: Built-in background engine checks database tables on container boot. If empty, the ETL pipeline ingests `data/A_Z_medicines_dataset_of_India.csv`, `data/Product List_3_4_2026 @ 16_33_44.csv`, and `data/kendra_stores.csv` directly into PostgreSQL and Meilisearch.
+* **Search Engine**: Dual-mode — high-speed Meilisearch fuzzy indexing (Tier 1 exact match via `salt_strength_hash` and Tier 2 via `salt_hash`) with automatic SQL fallback.
 * **Auth Resilience**: Configured with fallback mechanisms (`firebase.js` and `authStore.js`) to support guest mode and local session states when production Firebase keys are unpopulated.
 
 ---
 
 ## 5. Deployment Troubleshooting & Engineering Modifications
 
-During initial deployment, several technical barriers were resolved and locked into the repository:
+During initial deployment and production hardening, several technical barriers were resolved and locked into the repository:
 
 1. **IPv6 vs IPv4 Routing (Supabase Connection)**:
    * **Issue**: Render containers run on IPv4 infrastructure and failed to resolve direct Supabase IPv6 endpoints (`db.xxx.supabase.co`), throwing `ENETUNREACH` network errors.
    * **Resolution**: Reconfigured connection strings to utilize Supabase's IPv4 Pooler host (`aws-1-ap-northeast-1.pooler.supabase.com:6543`) with `ssl: { rejectUnauthorized: false }` enabled in `backend/src/shared/infra/database.ts`.
 2. **Docker Build Context & CSV Ingestion**:
-   * **Issue**: Docker build processes failed because `.dockerignore` and `.gitignore` excluded `.csv` files. Furthermore, filenames containing spaces and `@` symbols broke standard `COPY` instructions.
-   * **Resolution**: Un-ignored data files, updated repository tracking, and refactored `Dockerfile` `COPY` steps to use JSON array formatting (`COPY ["Product List_3_4_2026 @ 16_33_44.csv", "/app/"]`).
-3. **Frontend API URL Sanitization**:
+   * **Issue**: Docker build processes failed when large CSV files were scattered across the root directory.
+   * **Resolution**: Consolidated datasets into a dedicated `data/` directory, added path resolution via `resolveDataPath()`, and updated `backend/Dockerfile` to copy datasets cleanly into `/app/data/`.
+3. **Database Transaction Safety & Schema Migrations**:
+   * **Issue**: Manual migration scripts (`setup_db.ts`, `migrate_v2.ts`) lacked rollback protection and version tracking.
+   * **Resolution**: Implemented `withTransaction<T>` ACID transaction engine in `database.ts`, created versioned migrations in `backend/migrations/`, and added the automated `migrator` service in `docker-compose.prod.yml`.
+4. **Frontend API URL Sanitization & Modular Layouts**:
    * **Issue**: Deployment environments occasionally injected trailing slashes or duplicate subpaths into `VITE_API_URL`.
-   * **Resolution**: Added string sanitization in `apps/admin/src/services/api-client.js` and counterpart frontend files to automatically normalize API endpoints prior to making HTTP calls.
+   * **Resolution**: Added string sanitization in API clients and extracted monolithic `App.jsx` layout logic into dedicated `components/layout/` suites (`Sidebar`, `TopBar`, `Loader`, `AccessDenied`, and layout shells).
+
+5. **Node ESM Module Resolution in Compiled Production**:
+   * **Issue**: Docker production images running `node dist/src/index.js` or `node dist/scripts/migrate.js` failed with `ERR_MODULE_NOT_FOUND` because native Node ESM requires bundled dependencies or `.js` extension specifiers.
+   * **Resolution**: Integrated `esbuild` production bundling into `backend/package.json` (`npm run build:backend`), generating self-contained ESM bundles in 38ms that execute flawlessly in Node 20/22.
+6. **Meilisearch Production Configuration & Memory Guarding**:
+   * **Issue**: When `MEILI_ENV=production`, Meilisearch strictly crashes if `MEILI_MASTER_KEY` is not set or is shorter than 16 bytes. Furthermore, indexing 250k medicines without memory constraints could trigger Linux OOMKilled errors on small VPS instances.
+   * **Resolution**: Added `validateStartupConfig()` to enforce key length, added `MEILI_MAX_INDEXING_MEMORY: 500Mb` and `MEILI_NO_ANALYTICS: "true"` in `docker-compose.prod.yml`, restored `backend/scripts/seed_meilisearch.ts`, and enhanced `checkMeiliHealth()` to verify authentication via `getIndexes()`.
+7. **Nginx SSL Bootstrap & Single-Command Deployment**:
+   * **Issue**: Nginx refused to boot without SSL certificates, blocking Certbot from running ACME challenges on port 80.
+   * **Resolution**: Created `deploy/init-ssl.sh` for automated dummy-to-real certificate bootstrapping and unified the entire workflow into `deploy/deploy.sh`.
 
 ---
 
@@ -92,64 +105,44 @@ Set up DNS A-Records with your domain registrar pointing to the static IP of you
 * `admin.yourdomain.com` -> `[VPS_IP_ADDRESS]`
 
 ### Step 2: Server Provisioning & Initialization
-Connect to your fresh Ubuntu instance via SSH and execute the automated setup script included in the codebase:
+Connect to your fresh Ubuntu instance via SSH:
 
 ```bash
 # Clone repository onto VPS
-git clone https://github.com/Pratham-The-Warrior/Jan-Aushadhi.git /opt/jan-aushadhi
-cd /opt/jan-aushadhi
+git clone https://github.com/Pratham-The-Warrior/Jan-Aushadhi.git ~/Jan-Aushadhi
+cd ~/Jan-Aushadhi
 
-# Grant execution permissions and run setup script
+# Run server setup script (installs Docker, Docker Compose, UFW, Fail2Ban)
 chmod +x ./deploy/setup-server.sh
 ./deploy/setup-server.sh
 ```
-*The `setup-server.sh` script automatically installs Docker Engine, Docker Compose, Nginx, and Certbot for SSL generation.*
 
-### Step 3: Production Environment File Configuration
-Create the production environment file at `/opt/jan-aushadhi/.env.production` containing full production keys:
-
-```env
-NODE_ENV=production
-PORT=5000
-
-# Database & Cache
-DATABASE_URL=postgresql://postgres:[PASSWORD]@[HOST]:5432/jan_aushadhi?sslmode=require
-REDIS_URL=redis://:[PASSWORD]@[REDIS_HOST]:6379
-
-# Search Engine (Dedicated Container)
-MEILISEARCH_HOST=http://meilisearch:7700
-MEILISEARCH_KEY=your_secure_production_master_key
-
-# External Integrations
-FIREBASE_PROJECT_ID=your-firebase-project-id
-FIREBASE_CLIENT_EMAIL=your-client-email@gserviceaccount.com
-FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
-
-TWILIO_ACCOUNT_SID=your_twilio_sid
-TWILIO_AUTH_TOKEN=your_twilio_token
-TWILIO_WHATSAPP_NUMBER=whatsapp:+14155238886
-```
-
-### Step 4: Launch Full Production Container Stack
-Deploy the multi-container stack via Docker Compose:
+### Step 3: Production Environment Configuration
+Configure `deploy/.env.production` with real credentials:
 
 ```bash
-docker-compose -f docker-compose.prod.yml up -d --build
+cp deploy/.env.production.example deploy/.env.production
+nano deploy/.env.production
 ```
-*This starts the Fastify API backend, dedicated Meilisearch engine, Redis cache instance, and Nginx reverse proxy simultaneously.*
 
-### Step 5: SSL Certificate Provisioning
-Issue SSL certificates using Certbot for secure HTTPS communication:
+Ensure `DOMAIN=yourdomain.com` and all `CHANGE_ME` placeholders are replaced with strong generated passwords (e.g. `openssl rand -base64 48`). Note that `MEILI_MASTER_KEY` must be at least 16 characters.
+
+### Step 4: One-Command Automated Deployment
+Execute the self-validating, automated deployment script:
 
 ```bash
-sudo certbot --nginx -d api.yourdomain.com -d app.yourdomain.com -d seller.yourdomain.com -d admin.yourdomain.com
+chmod +x deploy/deploy.sh deploy/init-ssl.sh
+./deploy/deploy.sh
 ```
 
-### Step 6: Automated CI/CD Setup (GitHub Actions)
-To enable automated deployments whenever changes are pushed to the `master` branch, configure the following Secrets in your GitHub Repository Settings (`Settings -> Secrets and variables -> Actions`):
-* `DEPLOY_HOST`: `[VPS_IP_ADDRESS]`
-* `DEPLOY_USER`: `ubuntu` (or your SSH username)
-* `DEPLOY_SSH_KEY`: Content of your private SSH key matching the public key stored in `~/.ssh/authorized_keys` on the VPS.
+This single command will:
+1. Run pre-flight checks validating `.env.production` secrets and format.
+2. Generate domain-specific Nginx reverse proxy configuration.
+3. Build all production container images using `esbuild` and Vite.
+4. Launch PostgreSQL, Redis, and Meilisearch, and run versioned database migrations.
+5. Bootstrap SSL certificates via Let's Encrypt (`deploy/init-ssl.sh`).
+6. Launch all web and backend services.
+7. Poll the backend readiness probe (`/api/v1/health/ready`) until HTTP 200 is confirmed.
 
 ---
 
@@ -157,7 +150,10 @@ To enable automated deployments whenever changes are pushed to the `master` bran
 
 | Component | Test Command / Action | Expected Result |
 | :--- | :--- | :--- |
-| **Backend API Health** | `curl https://api.yourdomain.com/health` | `{"status":"ok"}` |
-| **Database Connection** | Check logs via `docker-compose -f docker-compose.prod.yml logs api` | `PostgreSQL (PostGIS) Connected` |
-| **Meilisearch Indexing**| `curl https://api.yourdomain.com/api/v1/search?query=Paracetamol` | Instant JSON response from Meilisearch index |
+| **Backend Liveness** | `curl https://api.yourdomain.com/api/v1/health/live` | `{"status":"ok","uptime":...}` (HTTP 200) |
+| **Backend Readiness** | `curl https://api.yourdomain.com/api/v1/health/ready` | `{"ready":true,"dependencies":{...}}` (HTTP 200) |
+| **Full Health Diagnostics** | `curl https://api.yourdomain.com/api/v1/health` | Comprehensive component health report |
+| **Database Connection** | Check logs via `docker compose -f docker-compose.prod.yml logs backend` | `PostgreSQL (PostGIS) Connected` |
+| **Meilisearch Search** | `curl https://api.yourdomain.com/api/v1/search?query=Paracetamol` | Instant JSON response from Meilisearch index |
 | **SSL Verification** | Inspect browser certificate on `https://app.yourdomain.com` | Valid SSL issued by Let's Encrypt |
+

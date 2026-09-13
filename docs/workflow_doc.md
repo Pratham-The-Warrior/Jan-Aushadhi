@@ -203,7 +203,7 @@ sequenceDiagram
      AND drug_code = ANY($2)
      AND in_stock = false
    ```
-6. **Order Placement**: The nearest candidate store with all items in stock is assigned to the order. A ticket is created in `requirements` (e.g., `TKT-DAA04E`), an entry is added to `order_status_log`, and the results are returned to the client.
+6. **Order Placement**: The nearest candidate store with all items in stock is assigned to the order. Data operations are encapsulated in `FulfillmentRepository`: a ticket is created in `requirements` (e.g., `TKT-DAA04E`), an immutable transition is logged in `order_status_log`, and the results are returned to the client.
 
 ---
 
@@ -297,7 +297,7 @@ sequenceDiagram
 3. **Firebase User Creation**:
    * *If the user exists*: Firebase updates their password and details.
    * *If the user does not exist*: Firebase creates a new account.
-4. **Postgres Binding**: A SQL transaction upserts the user in PostgreSQL as a `STORE_OWNER` linked to the store, and updates the store's `seller_uid` and `verified_at` timestamp.
+4. **Postgres Binding (`AdminRepository.assignSellerTx`)**: An ACID transaction executed via `withTransaction<T>` upserts the user in PostgreSQL as a `STORE_OWNER` linked to the store, and updates the store's `seller_uid` and `verified_at` timestamp atomically.
 5. **Cache Purge**: The Redis role cache is cleared. The next time the operator accesses their dashboard, the system fetches their permissions from the database.
 
 ---
@@ -315,85 +315,43 @@ flowchart TD
     
     B --> C{Order Event Action}
     
-    C -- Accept Order --> D[Update requirements table status to ACCEPTED]
+    C -- Accept Order --> D[SellerRepository.updateOrderStatusTx via withTransaction]
     D --> E[Log status change to order_status_log]
     E --> B
     
-    C -- Toggle Stock Override F[Search catalog generic drug code]
+    C -- Toggle Stock Override --> F[Search catalog generic drug code]
     F --> G[Toggle In-Stock checkbox status]
-    G --> H[Execute SQL UPSERT store_inventory]
+    G --> H[SellerRepository.upsertInventoryItem atomic UPSERT]
     H --> B
  
     C -- Update Store Settings --> I[Modify operating hours or upi_vpa]
-    I --> J[Save changes directly to stores row]
+    I --> J[Save changes via SellerRepository.updateStoreProfile]
     J --> B
 ```
 
 ### Key Execution Steps
 1. **Authentication**: The pharmacist logs in using their Store Code and password. The client appends `@seller.janaushadhi.local` in the background for Firebase authentication.
-2. **Scoped Operations**: The dashboard pulls orders associated with their store code, restricting the view to relevant items.
-3. **Status Log Auditing**: Every status change (e.g. accepting an order or marking it ready) is recorded in `order_status_log` to maintain an audit trail.
-4. **Stock toggle**: Pharmacists search for medicines in the generic directory and toggle the stock status. The backend executes an atomic `ON CONFLICT DO UPDATE` statement in the `store_inventory` table.
-5. **Profile adjustments**: Modifying operating hours or UPI addresses updates the stores table, immediately altering delivery routing eligibility and checkout payments.
+2. **Scoped Operations**: The dashboard pulls orders associated with their store code, restricting the view to relevant items via `SellerRepository.findOrders`.
+3. **Status Log Auditing (`SellerRepository.updateOrderStatusTx`)**: Every status change (e.g. accepting an order or marking it ready) is executed within an ACID transaction via `withTransaction<T>`. It row-locks the requirement, validates status transition against `VALID_STATUS_TRANSITIONS`, updates the requirement, and appends an immutable entry to `order_status_log`.
+4. **Stock Toggle (`SellerRepository.upsertInventoryItem` / `bulkUpsertInventory`)**: Pharmacists search for medicines in the generic directory and toggle the stock status. The repository executes an idempotent `ON CONFLICT (pmbjk_code, drug_code) DO UPDATE` statement in `store_inventory`.
+5. **Profile Adjustments**: Modifying operating hours or UPI addresses updates the stores table via `SellerRepository.updateStoreProfile`, immediately altering delivery routing eligibility and checkout payments.
 
 ---
 
 ## 7. Automated Continuous Integration Workflow
 
 ### Business Objective
-Validate compilation integrity, type safety, linting conventions, and build configurations on every push and pull request.
+Validate compilation integrity, type safety, linting conventions, and multi-workspace build configurations on every push and pull request.
 
 ### Continuous Integration Pipeline (`.github/workflows/ci.yml`)
 
-```yaml
-name: Production Integrity Pipeline
+The pipeline validates all monorepo workspaces and builds multi-stage production Docker images:
 
-on:
-  push:
-    branches: [ master, main ]
-  pull_request:
-    branches: [ master, main ]
-
-jobs:
-  validate-workspace:
-    runs-on: ubuntu-latest
-
-    strategy:
-      matrix:
-        node-version: [20.x]
-
-    steps:
-    # 1. Fetch source code from Git
-    - name: Checkout Codebase
-      uses: actions/checkout@v4
-
-    # 2. Set up Node workspace caching
-    - name: Use Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@v4
-      with:
-        node-version: ${{ matrix.matrix.node-version }}
-        cache: 'npm'
-
-    # 3. Clean workspace install of lockfile dependencies
-    - name: Install Monorepo Dependencies
-      run: npm ci
-
-    # 4. Validate syntax rules on React clients
-    - name: Lint Frontend Portals
-      run: |
-        npm run lint:frontend
-        npm run lint:seller
-        npm run lint:admin
-
-    # 5. Verify type check boundaries
-    - name: Typecheck Backend Server
-      run: npm run typecheck:backend
-
-    # 6. Verify multi-stage container assets compile
-    - name: Validate Container Builds
-      run: |
-        docker build -t test-backend ./backend
-        docker build -t test-frontend ./apps/frontend
-        docker build -t test-seller ./apps/seller
-        docker build -t test-admin ./apps/admin
-```
+1. **Clean Monorepo Install**: `npm ci` guarantees exact lockfile reproduction.
+2. **Backend Type Safety**: `npm run typecheck:backend` (`tsc --noEmit`) validates all routes, services, repositories, and domain types.
+3. **Multi-Workspace Production Compilation**:
+   - `npm run build:backend`: Compiles TypeScript to `backend/dist/`.
+   - `npm run build:frontend`: Bundles client discovery portal with Vite.
+   - `npm run build:seller`: Bundles Seller Central partner console with Vite.
+   - `npm run build:admin`: Bundles Super Admin console with Vite.
+4. **Automated Docker Image Build & Push**: Builds and publishes container images to GitHub Container Registry (GHCR) on pushes to `master`.

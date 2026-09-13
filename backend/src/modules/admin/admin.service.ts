@@ -5,18 +5,18 @@
 // ============================================================
 
 import { getAuth } from 'firebase-admin/auth';
-import { queryDB, getClient } from '../../shared/infra/database';
 import { NotFoundError, ValidationError, ConflictError } from '../../shared/errors';
 import { invalidateRoleCache } from '../../shared/infra/rbac';
-import { VALID_STATUS_TRANSITIONS } from '../../shared/types';
 import type {
   AuthUser,
   PlatformStats,
   UserRole,
   RequirementStatus,
 } from '../../shared/types';
+import { AdminRepository } from './admin.repository';
 
 export class AdminService {
+  constructor(private repository: AdminRepository = new AdminRepository()) {}
 
   // ================================================================
   //  GLOBAL DASHBOARD
@@ -26,53 +26,15 @@ export class AdminService {
    * Get platform-wide statistics for the admin command center.
    */
   async getPlatformStats(): Promise<PlatformStats> {
-    // All queries run in parallel for speed
-    const [usersRes, storesRes, ordersRes, todayRes, weekRes, monthRes] = await Promise.all([
-      queryDB('SELECT COUNT(*) as total FROM users'),
-      queryDB(`SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE status = 'ACTIVE') as active FROM stores`),
-      queryDB(`SELECT COUNT(*) as total,
-                      COALESCE(SUM(total_generic_value), 0) as gmv,
-                      COALESCE(SUM(savings), 0) as savings
-               FROM requirements WHERE status NOT LIKE 'CANCELLED%'`),
-      queryDB(`SELECT COUNT(*) as total FROM requirements WHERE created_at >= CURRENT_DATE`),
-      queryDB(`SELECT COUNT(*) as total FROM requirements WHERE created_at >= NOW() - INTERVAL '7 days'`),
-      queryDB(`SELECT COUNT(*) as total FROM requirements WHERE created_at >= NOW() - INTERVAL '30 days'`),
-    ]);
-
-    const storeOwnersRes = await queryDB(
-      `SELECT COUNT(*) as total FROM users WHERE role = 'STORE_OWNER'`,
-    );
-
-    return {
-      total_users: parseInt(usersRes.rows[0].total),
-      total_stores: parseInt(storesRes.rows[0].total),
-      active_stores: parseInt(storesRes.rows[0].active),
-      total_orders: parseInt(ordersRes.rows[0].total),
-      total_gmv: parseFloat(ordersRes.rows[0].gmv),
-      total_savings: parseFloat(ordersRes.rows[0].savings),
-      orders_today: parseInt(todayRes.rows[0].total),
-      orders_this_week: parseInt(weekRes.rows[0].total),
-      orders_this_month: parseInt(monthRes.rows[0].total),
-      store_owners: parseInt(storeOwnersRes.rows[0].total),
-    };
+    return this.repository.getPlatformStats();
   }
 
   /**
    * Get the last N orders across all stores (live feed).
    */
   async getOrdersFeed(limit: number = 20): Promise<{ orders: unknown[] }> {
-    const result = await queryDB(
-      `SELECT r.id, r.status, r.total_generic_value, r.savings, r.created_at,
-              u.name as customer_name, s.name as store_name, s.state as store_state
-       FROM requirements r
-       LEFT JOIN users u ON r.user_id = u.firebase_uid
-       LEFT JOIN stores s ON r.pmbjk_code = s.pmbjk_code
-       ORDER BY r.created_at DESC
-       LIMIT $1`,
-      [limit],
-    );
-
-    return { orders: result.rows };
+    const orders = await this.repository.getOrdersFeed(limit);
+    return { orders };
   }
 
   // ================================================================
@@ -113,28 +75,16 @@ export class AdminService {
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
-    const countResult = await queryDB(
-      `SELECT COUNT(*) as total FROM stores s ${whereClause}`,
-      params,
-    );
-    const totalCount = parseInt(countResult.rows[0].total);
+    const totalCount = await this.repository.countStores(whereClause, params);
 
     params.push(limit, offset);
-    const result = await queryDB(
-      `SELECT s.*, u.name as seller_name, u.phone as seller_phone
-       FROM stores s
-       LEFT JOIN users u ON s.seller_uid = u.firebase_uid
-       ${whereClause}
-       ORDER BY s.name ASC
-       LIMIT $${paramIdx++} OFFSET $${paramIdx}`,
-      params,
-    );
+    const stores = await this.repository.findStores(whereClause, params);
 
     return {
       count: totalCount,
       page,
       totalPages: Math.ceil(totalCount / limit),
-      stores: result.rows,
+      stores,
     };
   }
 
@@ -142,32 +92,16 @@ export class AdminService {
    * Get a single store with detailed information.
    */
   async getStoreDetail(pmbjkCode: string): Promise<Record<string, unknown>> {
-    const result = await queryDB(
-      `SELECT s.*, u.name as seller_name, u.phone as seller_phone, u.email as seller_email
-       FROM stores s
-       LEFT JOIN users u ON s.seller_uid = u.firebase_uid
-       WHERE s.pmbjk_code = $1`,
-      [pmbjkCode],
-    );
-
-    if (result.rows.length === 0) {
+    const store = await this.repository.findStoreDetail(pmbjkCode);
+    if (!store) {
       throw new NotFoundError('Store');
     }
 
-    // Also get order stats for this store
-    const statsResult = await queryDB(
-      `SELECT COUNT(*) as total_orders,
-              COALESCE(SUM(total_generic_value), 0) as total_revenue
-       FROM requirements WHERE pmbjk_code = $1 AND status NOT LIKE 'CANCELLED%'`,
-      [pmbjkCode],
-    );
+    const stats = await this.repository.findStoreOrderStats(pmbjkCode);
 
     return {
-      ...result.rows[0],
-      stats: {
-        total_orders: parseInt(statsResult.rows[0].total_orders),
-        total_revenue: parseFloat(statsResult.rows[0].total_revenue),
-      },
+      ...store,
+      stats,
     };
   }
 
@@ -183,12 +117,8 @@ export class AdminService {
       throw new ValidationError(`Invalid store status: ${status}. Must be one of: ${validStatuses.join(', ')}`);
     }
 
-    const result = await queryDB(
-      'UPDATE stores SET status = $1 WHERE pmbjk_code = $2 RETURNING pmbjk_code',
-      [status, pmbjkCode],
-    );
-
-    if (result.rows.length === 0) {
+    const updated = await this.repository.updateStoreStatus(pmbjkCode, status);
+    if (!updated) {
       throw new NotFoundError('Store');
     }
 
@@ -208,14 +138,9 @@ export class AdminService {
       password?: string;
     },
   ): Promise<{ success: boolean }> {
-    const client = await getClient();
-
     // 1. Verify the store exists
-    const storeCheck = await queryDB(
-      'SELECT pmbjk_code, seller_uid FROM stores WHERE pmbjk_code = $1',
-      [pmbjkCode],
-    );
-    if (storeCheck.rows.length === 0) {
+    const store = await this.repository.findStoreForAssignment(pmbjkCode);
+    if (!store) {
       throw new NotFoundError('Store');
     }
 
@@ -260,50 +185,23 @@ export class AdminService {
     }
 
     // 3. Database assignment transaction
-    try {
-      await client.query('BEGIN');
-
-      // Check if store is already assigned to a different operator
-      const currentSeller = storeCheck.rows[0].seller_uid;
-      if (currentSeller && currentSeller !== userUid) {
-        throw new ConflictError(
-          `Store ${pmbjkCode} is already assigned to another seller (UID: ${currentSeller}).`,
-        );
-      }
-
-      // Upsert the user into public.users
-      await client.query(
-        `INSERT INTO users (firebase_uid, name, phone, email, role, linked_pmbjk_code)
-         VALUES ($1, $2, $3, $4, 'STORE_OWNER', $5)
-         ON CONFLICT (firebase_uid)
-         DO UPDATE SET 
-           name = EXCLUDED.name, 
-           phone = EXCLUDED.phone, 
-           email = EXCLUDED.email, 
-           role = 'STORE_OWNER', 
-           linked_pmbjk_code = EXCLUDED.linked_pmbjk_code,
-           is_suspended = FALSE`,
-        [userUid, payload.name, payload.phone, virtualEmail, pmbjkCode],
+    const currentSeller = store.seller_uid;
+    if (currentSeller && currentSeller !== userUid) {
+      throw new ConflictError(
+        `Store ${pmbjkCode} is already assigned to another seller (UID: ${currentSeller}).`,
       );
-
-      // Link store to operator
-      await client.query(
-        'UPDATE stores SET seller_uid = $1, verified_at = NOW() WHERE pmbjk_code = $2',
-        [userUid, pmbjkCode],
-      );
-
-      await client.query('COMMIT');
-
-      // 4. Invalidate role cache
-      await invalidateRoleCache(userUid);
-
-      return { success: true };
-    } catch (err) {
-      await client.query('ROLLBACK');
-      throw err;
-    } finally {
-      client.release();
     }
+
+    await this.repository.assignSellerTx(pmbjkCode, userUid, {
+      name: payload.name,
+      phone: payload.phone,
+      virtualEmail,
+    });
+
+    // 4. Invalidate role cache
+    await invalidateRoleCache(userUid);
+
+    return { success: true };
   }
 
   // ================================================================
@@ -339,26 +237,16 @@ export class AdminService {
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
-    const countResult = await queryDB(
-      `SELECT COUNT(*) as total FROM users ${whereClause}`,
-      params,
-    );
-    const totalCount = parseInt(countResult.rows[0].total);
+    const totalCount = await this.repository.countUsers(whereClause, params);
 
     params.push(limit, offset);
-    const result = await queryDB(
-      `SELECT firebase_uid, name, email, phone, role, linked_pmbjk_code, is_suspended, created_at
-       FROM users ${whereClause}
-       ORDER BY created_at DESC
-       LIMIT $${paramIdx++} OFFSET $${paramIdx}`,
-      params,
-    );
+    const users = await this.repository.findUsers(whereClause, params);
 
     return {
       count: totalCount,
       page,
       totalPages: Math.ceil(totalCount / limit),
-      users: result.rows,
+      users,
     };
   }
 
@@ -366,30 +254,16 @@ export class AdminService {
    * Get a single user with their order history summary.
    */
   async getUserDetail(uid: string): Promise<Record<string, unknown>> {
-    const result = await queryDB(
-      'SELECT firebase_uid, name, email, phone, role, linked_pmbjk_code, is_suspended, created_at FROM users WHERE firebase_uid = $1',
-      [uid],
-    );
-
-    if (result.rows.length === 0) {
+    const user = await this.repository.findUserDetail(uid);
+    if (!user) {
       throw new NotFoundError('User');
     }
 
-    const ordersResult = await queryDB(
-      `SELECT COUNT(*) as total_orders,
-              COALESCE(SUM(total_generic_value), 0) as total_spend,
-              COALESCE(SUM(savings), 0) as total_savings
-       FROM requirements WHERE user_id = $1 AND status NOT LIKE 'CANCELLED%'`,
-      [uid],
-    );
+    const stats = await this.repository.findUserOrderStats(uid);
 
     return {
-      ...result.rows[0],
-      stats: {
-        total_orders: parseInt(ordersResult.rows[0].total_orders),
-        total_spend: parseFloat(ordersResult.rows[0].total_spend),
-        total_savings: parseFloat(ordersResult.rows[0].total_savings),
-      },
+      ...user,
+      stats,
     };
   }
 
@@ -405,21 +279,9 @@ export class AdminService {
       throw new ValidationError('linked_pmbjk_code is required when assigning STORE_OWNER role');
     }
 
-    const result = await queryDB(
-      'UPDATE users SET role = $1, linked_pmbjk_code = $2 WHERE firebase_uid = $3 RETURNING firebase_uid',
-      [newRole, newRole === 'STORE_OWNER' ? linkedPmbjkCode : null, uid],
-    );
-
-    if (result.rows.length === 0) {
+    const updated = await this.repository.updateUserRole(uid, newRole, linkedPmbjkCode);
+    if (!updated) {
       throw new NotFoundError('User');
-    }
-
-    // If assigning as store owner, also link the store
-    if (newRole === 'STORE_OWNER' && linkedPmbjkCode) {
-      await queryDB(
-        'UPDATE stores SET seller_uid = $1, verified_at = NOW() WHERE pmbjk_code = $2',
-        [uid, linkedPmbjkCode],
-      );
     }
 
     // Invalidate cache immediately
@@ -432,12 +294,8 @@ export class AdminService {
    * Suspend or unsuspend a user account.
    */
   async suspendUser(uid: string, suspend: boolean): Promise<{ success: boolean }> {
-    const result = await queryDB(
-      'UPDATE users SET is_suspended = $1 WHERE firebase_uid = $2 RETURNING firebase_uid',
-      [suspend, uid],
-    );
-
-    if (result.rows.length === 0) {
+    const updated = await this.repository.suspendUser(uid, suspend);
+    if (!updated) {
       throw new NotFoundError('User');
     }
 
@@ -487,30 +345,16 @@ export class AdminService {
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
-    const countResult = await queryDB(
-      `SELECT COUNT(*) as total FROM requirements r ${whereClause}`,
-      params,
-    );
-    const totalCount = parseInt(countResult.rows[0].total);
+    const totalCount = await this.repository.countAllOrders(whereClause, params);
 
     params.push(limit, offset);
-    const result = await queryDB(
-      `SELECT r.*, u.name as customer_name, u.phone as customer_phone,
-              s.name as store_name, s.state as store_state
-       FROM requirements r
-       LEFT JOIN users u ON r.user_id = u.firebase_uid
-       LEFT JOIN stores s ON r.pmbjk_code = s.pmbjk_code
-       ${whereClause}
-       ORDER BY r.created_at DESC
-       LIMIT $${paramIdx++} OFFSET $${paramIdx}`,
-      params,
-    );
+    const orders = await this.repository.findAllOrders(whereClause, params);
 
     return {
       count: totalCount,
       page,
       totalPages: Math.ceil(totalCount / limit),
-      orders: result.rows,
+      orders,
     };
   }
 
@@ -521,32 +365,16 @@ export class AdminService {
     order: Record<string, unknown>;
     audit_trail: unknown[];
   }> {
-    const result = await queryDB(
-      `SELECT r.*, u.name as customer_name, u.phone as customer_phone, u.email as customer_email,
-              s.name as store_name, s.phone as store_phone, s.state as store_state
-       FROM requirements r
-       LEFT JOIN users u ON r.user_id = u.firebase_uid
-       LEFT JOIN stores s ON r.pmbjk_code = s.pmbjk_code
-       WHERE r.id = $1`,
-      [orderId],
-    );
-
-    if (result.rows.length === 0) {
+    const order = await this.repository.findOrderDetail(orderId);
+    if (!order) {
       throw new NotFoundError('Order');
     }
 
-    const auditResult = await queryDB(
-      `SELECT osl.*, u.name as changed_by_name
-       FROM order_status_log osl
-       LEFT JOIN users u ON osl.changed_by = u.firebase_uid
-       WHERE osl.requirement_id = $1
-       ORDER BY osl.created_at ASC`,
-      [orderId],
-    );
+    const auditTrail = await this.repository.findOrderAuditTrail(orderId);
 
     return {
-      order: result.rows[0],
-      audit_trail: auditResult.rows,
+      order,
+      audit_trail: auditTrail,
     };
   }
 
@@ -559,60 +387,8 @@ export class AdminService {
     admin: AuthUser,
     notes?: string,
   ): Promise<{ success: boolean }> {
-    const client = await getClient();
-
-    try {
-      await client.query('BEGIN');
-
-      const currentResult = await client.query(
-        'SELECT status FROM requirements WHERE id = $1 FOR UPDATE',
-        [orderId],
-      );
-
-      if (currentResult.rows.length === 0) {
-        throw new NotFoundError('Order');
-      }
-
-      const fromStatus = currentResult.rows[0].status;
-
-      // Admin can force any transition
-      const updateFields = ['status = $1', 'updated_at = NOW()'];
-      const updateValues: unknown[] = [newStatus];
-      let paramIdx = 2;
-
-      if (newStatus === 'COMPLETED') {
-        updateFields.push('completed_at = NOW()');
-      }
-      if (newStatus.startsWith('CANCELLED')) {
-        updateFields.push(`cancelled_by = $${paramIdx++}`);
-        updateValues.push('ADMIN');
-        if (notes) {
-          updateFields.push(`cancelled_reason = $${paramIdx++}`);
-          updateValues.push(notes);
-        }
-      }
-
-      updateValues.push(orderId);
-      await client.query(
-        `UPDATE requirements SET ${updateFields.join(', ')} WHERE id = $${paramIdx}`,
-        updateValues,
-      );
-
-      // Log the admin override in audit trail
-      await client.query(
-        `INSERT INTO order_status_log (requirement_id, from_status, to_status, changed_by, changed_by_role, notes)
-         VALUES ($1, $2, $3, $4, 'SUPER_ADMIN', $5)`,
-        [orderId, fromStatus, newStatus, admin.uid, notes || 'Admin override'],
-      );
-
-      await client.query('COMMIT');
-      return { success: true };
-    } catch (err) {
-      await client.query('ROLLBACK');
-      throw err;
-    } finally {
-      client.release();
-    }
+    await this.repository.overrideOrderStatusTx(orderId, newStatus, admin, notes);
+    return { success: true };
   }
 
   // ================================================================
@@ -623,31 +399,6 @@ export class AdminService {
    * Get catalog statistics (branded/generic counts, match rates).
    */
   async getCatalogStats(): Promise<Record<string, unknown>> {
-    const [brandedRes, genericRes, matchedRes] = await Promise.all([
-      queryDB('SELECT COUNT(*) as total FROM branded_meds'),
-      queryDB('SELECT COUNT(*) as total FROM generic_meds'),
-      queryDB(
-        `SELECT COUNT(DISTINCT b.salt_hash) as matched
-         FROM branded_meds b
-         INNER JOIN generic_meds g ON b.salt_hash = g.salt_hash
-         WHERE b.salt_hash IS NOT NULL`,
-      ),
-    ]);
-
-    const totalBrandedSalts = await queryDB(
-      'SELECT COUNT(DISTINCT salt_hash) as total FROM branded_meds WHERE salt_hash IS NOT NULL',
-    );
-
-    return {
-      branded_count: parseInt(brandedRes.rows[0].total),
-      generic_count: parseInt(genericRes.rows[0].total),
-      matched_salts: parseInt(matchedRes.rows[0].matched),
-      total_branded_salts: parseInt(totalBrandedSalts.rows[0].total),
-      match_rate: totalBrandedSalts.rows[0].total > 0
-        ? Math.round(
-            (parseInt(matchedRes.rows[0].matched) / parseInt(totalBrandedSalts.rows[0].total)) * 100 * 10,
-          ) / 10
-        : 0,
-    };
+    return this.repository.getCatalogStats();
   }
 }

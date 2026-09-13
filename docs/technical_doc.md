@@ -14,9 +14,17 @@ The Jan Aushadhi platform is engineered as a unified **npm Workspaces Monorepo**
 JAN-AUSHADHI/
 ├── package.json               # Root monorepo configuration & runner scripts
 ├── package-lock.json          # Unified lockfile for all packages
-├── docker-compose.yml         # Local developer infrastructure (Postgres, Redis, Meilisearch)
+├── docker-compose.dev.yml     # Local developer infrastructure (Postgres, Redis, Meilisearch)
 ├── docker-compose.prod.yml    # Production container orchestration
-├── nginx-proxy.conf           # Production Nginx reverse proxy subdomain routing configuration
+├── data/                      # Raw medicine and Kendra store CSV datasets
+│   ├── A_Z_medicines_dataset_of_India.csv
+│   ├── Product List_3_4_2026 @ 16_33_44.csv
+│   └── kendra_stores.csv
+├── deploy/                    # Production deployment scripts & proxy configs
+│   ├── setup-server.sh        # Automated VPS provisioning script
+│   └── nginx/                 # Nginx reverse proxy subdomain routing configuration
+│       ├── nginx-proxy.conf
+│       └── nginx-proxy.conf.template
 ├── .github/
 │   └── workflows/
 │       └── ci.yml             # Automated GitHub Actions validation pipeline
@@ -26,10 +34,15 @@ JAN-AUSHADHI/
 ├── scratch/                   # Developer scripts & verification tools
 ├── scripts/                   # Root-level helper scripts (e.g. PDF to CSV extraction)
 ├── backend/                   # [Package: janaushadhi-backend] Fastify REST API server
+│   ├── migrations/            # Versioned, transactional SQL migrations
+│   │   ├── 001_initial_schema.sql
+│   │   ├── 002_v2_features.sql
+│   │   └── 003_v3_routing_and_upi.sql
+│   └── src/                   # 4-layer clean architecture (routes, schema, service, repo)
 └── apps/
     ├── frontend/              # [Package: frontend] Patient Discovery React App
-    ├── seller/                # [Package: seller] Kendra Pharmacist React App
-    └── admin/                 # [Package: admin] Operations Control React App
+    ├── seller/                # [Package: seller] Kendra Pharmacist React App (modular layouts)
+    └── admin/                 # [Package: admin] Operations Control React App (modular layouts)
 ```
 
 ### Monorepo Dependency Orchestration (`package.json`)
@@ -96,7 +109,13 @@ The project consists of approximately **17,500 lines of source code** across 127
 
 ## 2. PostgreSQL + PostGIS Spatial Database Schema
 
-The database utilizes **PostGIS** spatial extensions to map, calculate, and route orders to the closest physical store. The database schema is initialized using [setup_db.ts](file:///c:/Users/Prathmesh%20Sarda/JAN-AUSHADHI/backend/scripts/setup_db.ts).
+The database utilizes **PostGIS** spatial extensions to map, calculate, and route orders to the closest physical store. The database schema is managed via automated, versioned SQL migrations executed transactionally through the migration engine (`backend/src/shared/infra/migrator.ts`) and CLI runner (`backend/scripts/migrate.ts`). Every migration step is tracked in the `schema_migrations` table to guarantee idempotency and sequential consistency:
+
+1. **`001_initial_schema.sql`**: Enables PostGIS (`CREATE EXTENSION IF NOT EXISTS postgis;`), provisions core tables (`users`, `branded_meds`, `generic_meds`, `stores`, `requirements`), GiST spatial indexes, and B-tree indexes.
+2. **`002_v2_features.sql`**: Adds role-based access control (`role`, `is_suspended`), `store_inventory` real-time stock overrides, and `order_status_log` immutable audit trail.
+3. **`003_v3_routing_and_upi.sql`**: Adds `upi_vpa`, `payment_status`, `payment_details`, `fulfillment_type`, `prescription_url`, and exact-match `salt_strength_hash` indexes.
+
+Multi-step database mutations are executed via the `withTransaction<T>` ACID transaction runner in `backend/src/shared/infra/database.ts`, which guarantees automatic `BEGIN`, `COMMIT`, `ROLLBACK` on error, and safe connection disposal.
 
 ```mermaid
 erDiagram
@@ -226,25 +245,38 @@ The server initialization decouples instance creation from network listening:
 * **Global Error Handler**: Centralizes error management. Catches standard AJV validation rules, customized domain-driven `AppError` exceptions, and unhandled system failures. In production, unhandled traces are masked and logged internally to prevent security leaks.
 * **Cross-Origin Resource Sharing (CORS)**: Configured dynamically via origin policies to support local subdomains securely.
 
-### Global Dependencies Map
+### Global Architecture Blueprint
+The backend strictly adheres to a symmetrical **4-layer architecture** across all six domain modules (`routes`, `schema`, `service`, `repository`), completely decoupling transport, validation, business logic, and database persistence:
+
 ```
-backend/src/
-├── app.ts                  # Server creator & global middleware registration
-├── index.ts                # App bootstrapper (port binder)
-├── hooks/                  # Global preHandler hooks (e.g. Request Context)
-├── shared/                 # Shared Infrastructure
-│   ├── config.ts           # Unified Config Manager (Zod schema verified)
-│   ├── constants.ts        # Common strings, Redises, TTLs
-│   ├── errors.ts           # Unified AppError Hierarchy
-│   ├── types.ts            # Absolute Type Definitions
-│   └── infra/              # Firebase, pg, Redis, Meilisearch, Twilio adapters
-└── modules/                # Domain Subsystems (Encapsulated Modules)
-    ├── search/             # Meilisearch indices and suggest engines
-    ├── catalog/            # Branded-to-generic mappings
-    ├── stores/             # Kendra coordinates directories
-    ├── fulfillment/        # Checkout and PostGIS routing
-    ├── seller/             # Operator stock and order controls
-    └── admin/              # Account provisioning and audits
+backend/
+├── migrations/             # Transactional SQL migration scripts (001, 002, 003)
+├── scripts/                # CLI commands (migrate.ts, etl_pipeline.ts, store_geocoding.ts)
+└── src/
+    ├── app.ts              # Fastify server creator & route registration
+    ├── index.ts            # Production bootstrapper & port binder
+    ├── hooks/              # Global preHandler hooks (context, authentication)
+    ├── shared/             # Enterprise infrastructure & domain types
+    │   ├── config.ts       # Validated environment configuration
+    │   ├── constants.ts    # System constants & Redis keys
+    │   ├── errors.ts       # Unified AppError exception hierarchy
+    │   ├── types.ts        # Backward-compatible re-export barrel
+    │   ├── types/          # Domain-modularized TypeScript interfaces
+    │   │   ├── user.ts     # Auth, session, cart payloads
+    │   │   ├── catalog.ts  # Branded & generic medicine definitions
+    │   │   ├── store.ts    # Kendra store & inventory models
+    │   │   ├── order.ts    # Requirement tickets & status lifecycle
+    │   │   ├── seller.ts   # Pharmacist analytics & metrics
+    │   │   ├── admin.ts    # Platform-wide telemetry & stats
+    │   │   └── index.ts    # Unified domain export barrel
+    │   └── infra/          # Adapters: database (withTransaction), redis, meili, firebase, rbac
+    └── modules/            # Symmetrical 4-File Modules
+        ├── catalog/        # catalog.routes.ts, .schema.ts, .service.ts, .repository.ts
+        ├── search/         # search.routes.ts, .schema.ts, .service.ts, .repository.ts
+        ├── stores/         # stores.routes.ts, .schema.ts, .service.ts, .repository.ts
+        ├── fulfillment/    # fulfillment.routes.ts, .schema.ts, .service.ts, .repository.ts
+        ├── seller/         # seller.routes.ts, .schema.ts, .service.ts, .repository.ts
+        └── admin/          # admin.routes.ts, .schema.ts, .service.ts, .repository.ts
 ```
 
 ---
@@ -366,17 +398,33 @@ Converts operational exceptions into structured HTTP JSON responses:
 
 ## 6. Frontend Portal Applications (`/apps/`)
 
+All frontends are React applications bundled with Vite and styled with modern design tokens and Tailwind CSS. The codebase employs a modular layout architecture where `App.jsx` serves as a lightweight root router (~34 lines), while structural presentation is encapsulated in dedicated `components/layout/` subdirectories.
+
 ### 6.1 Client Discovery Portal (`/apps/frontend`)
 * **Savings-First Cart**: Evaluates branded vs. generic pricing on the fly, showing users their total savings and savings percentage.
 * **HTML5 Coordinates Mapping**: Utilizes standard geolocation to fetch coords for auto-routing, falling back to a default location (e.g. Mumbai) if access is denied.
 * **Dynamic UPI QR Component**: Employs an instant payment scan-to-pay component that formats UPI deep-links (`upi://pay?pa={vpa}&pn=PMBJK%20Kendra&am={amount}&cu=INR&tn={ticket_id}`) and renders them instantly via standard API endpoints without heavy external libraries.
+* **Layout Organization**: Modularized navigation header, footer, bottom sheet navigation, and persistent drawer layouts.
 
 ### 6.2 Seller Central Partner Console (`/apps/seller`)
 * **Credential Resolution**: Pharmacists enter their Store Code and password. The interface appends `@seller.janaushadhi.local` in the background before authenticating.
 * **VPA Profile Configurator**: Allows operators to save their UPI ID, updating the PostgreSQL row immediately to receive dynamic scan payments.
+* **Enterprise Layout Architecture (`components/layout/`)**:
+  - `Sidebar.jsx`: Scoped navigation links with store brand identity and secure logout.
+  - `TopBar.jsx`: Context-aware page headers, dynamic greetings, notification indicators, and store avatar.
+  - `DashboardLayout.jsx`: Responsive layout container with animated transitions (`framer-motion`) and mobile drawer.
+  - `Loader.jsx` & `AccessDenied.jsx`: Dedicated stateful screens for session hydration and role boundary enforcement.
+  - `App.jsx`: Clean 34-line root coordinator.
 
 ### 6.3 Super Admin Console (`/apps/admin`)
 * **Onboarding Interface**: Provisions new operators, toggles store status, and monitors platform-wide statistics.
+* **Catalog Management**: Real-time telemetry on generic-to-branded match rates and salt indexing counts.
+* **Enterprise Layout Architecture (`components/layout/`)**:
+  - `Sidebar.jsx`: Command Center navigation and operator profile cards.
+  - `TopBar.jsx`: Systems health badge, platform administration telemetry header, and operator controls.
+  - `ConsoleLayout.jsx`: Protected shell with route transitions and mobile accessibility.
+  - `Loader.jsx` & `AccessDenied.jsx`: Role gating components preventing non-admin access.
+  - `App.jsx`: Clean 34-line root coordinator.
 
 ---
 
@@ -398,8 +446,8 @@ graph TD
     BE --> MS[(Meilisearch)]
 ```
 
-### Subdomain Mapping Configuration (`nginx-proxy.conf`)
-The routing maps the subdomains to their respective containers:
+### Subdomain Mapping Configuration (`deploy/nginx/nginx-proxy.conf`)
+The routing maps the subdomains to their respective containers. A production deployment script dynamically processes `deploy/nginx/nginx-proxy.conf.template` with the target `DOMAIN` via `envsubst`:
 ```nginx
 # Replace "yourdomain.com" with your actual domain before deploying.
 server {
@@ -440,6 +488,7 @@ server {
 The global composition coordinates production deployment:
 * **Service Isolation**: The database, search engine, and caching layers are placed behind internal bridge networks.
 * **Health Checks**: Containers wait to launch until Postgres and Redis are fully operational.
+* **Automated Migrations**: A dedicated `migrator` container automatically applies all pending SQL migrations (`backend/migrations/`) before the backend API starts up.
 
 ---
 
@@ -452,9 +501,9 @@ The global composition coordinates production deployment:
 
 ### Automated Validation CI/CD Pipeline (`.github/workflows/ci.yml`)
 The workflow operates on all pull requests and pushes to the main branch:
-1. **Linter Validation**: Verifies code consistency and syntax across all frontends.
-2. **Type Check Pipeline**: Performs TypeScript compilation verification for the backend and frontends.
-3. **Multi-Stage Build Validation**: Triggers compilation steps for the production container setups.
+1. **Linter Validation**: Verifies code consistency and syntax across all frontends (`lint:frontend`, `lint:seller`, `lint:admin`).
+2. **Type Check Pipeline**: Performs TypeScript compilation verification for the backend (`typecheck:backend`).
+3. **Multi-Stage Build Validation**: Triggers compilation steps for the production container setups (`build:backend`, `build:frontend`, `build:seller`, `build:admin`).
 
 ---
 
@@ -476,7 +525,8 @@ npm install
 ### 📦 Step 2: Start Infrastructure Containers
 Launch the database, redis, and search engine services in the background using Docker Compose:
 ```bash
-docker compose up -d
+npm run docker:dev
+# or: docker compose -f docker-compose.dev.yml up -d
 ```
 This runs:
 * **PostgreSQL + PostGIS** at `localhost:5432` (user/pass: `postgres`/`postgres`)
@@ -488,19 +538,16 @@ Create the environment files in the subdirectories:
 1. In [backend/.env](file:///c:/Users/Prathmesh%20Sarda/JAN-AUSHADHI/backend/.env), copy `backend/.env.example` and populate variables (credentials for database, firebase-admin service account keys, twilio API, etc.).
 2. For the client apps (`frontend`, `seller`, `admin`), configure the `VITE_API_URL` pointing to `http://localhost:5000/api/v1` and your client Firebase SDK keys.
 
-### 🗃️ Step 4: Initialize DB and Run Migration/ETL Pipelines
-Use the backend command scripts to setup schema, load drug lists, and geocode stores:
+### 🗃️ Step 4: Run Database Migrations & ETL Pipelines
+Use the backend command scripts to run versioned migrations, load drug datasets, and geocode stores:
 ```bash
-# 1. Create PostGIS extension and schema tables
-npm run db:setup --workspace=janaushadhi-backend
-
-# 2. Run schema migrations
+# 1. Run automated transactional migrations (001, 002, 003)
 npm run db:migrate --workspace=janaushadhi-backend
 
-# 3. Populate medicine datasets from CSV to PostgreSQL & Meilisearch
+# 2. Populate medicine datasets from data/ CSVs to PostgreSQL & Meilisearch
 npm run etl:run --workspace=janaushadhi-backend
 
-# 4. Process and geocode active Kendra store locations
+# 3. Process and geocode active Kendra store locations from data/kendra_stores.csv
 npm run etl:stores --workspace=janaushadhi-backend
 ```
 

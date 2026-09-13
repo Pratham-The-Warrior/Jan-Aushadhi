@@ -51,7 +51,6 @@ export default function Discovery() {
 
   // Counts for quick tabs
   const matchedCount = results.filter((r) => Boolean(r.generic)).length;
-  const unmatchedCount = results.length - matchedCount;
 
   // Apply filters + sort to results
   const displayResults = applyFiltersAndSort(results, filters);
@@ -578,7 +577,7 @@ export default function Discovery() {
                               {res.branded.composition1 && (
                                 <button
                                   onClick={() => {
-                                    const primarySalt = res.branded.composition1.split(/[\s\(]/)[0];
+                                    const primarySalt = res.branded.composition1.split(/[\s(]/)[0];
                                     setQuery(primarySalt);
                                     doSearch(primarySalt);
                                   }}

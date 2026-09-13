@@ -5,8 +5,7 @@
 // sellers from accessing data belonging to other stores.
 // ============================================================
 
-import { queryDB, getClient } from '../../shared/infra/database';
-import { NotFoundError, ValidationError, AuthorizationError } from '../../shared/errors';
+import { NotFoundError, ValidationError } from '../../shared/errors';
 import { VALID_STATUS_TRANSITIONS } from '../../shared/types';
 import type {
   AuthUser,
@@ -16,8 +15,10 @@ import type {
   StoreInventoryItem,
 } from '../../shared/types';
 import { APP_CONSTANTS } from '../../shared/constants';
+import { SellerRepository } from './seller.repository';
 
 export class SellerService {
+  constructor(private repository: SellerRepository = new SellerRepository()) {}
 
   // ================================================================
   //  SELLER STORE PROFILE
@@ -27,18 +28,11 @@ export class SellerService {
    * Get the seller's own store profile.
    */
   async getStoreProfile(pmbjkCode: string): Promise<Record<string, unknown>> {
-    const result = await queryDB(
-      `SELECT pmbjk_code, name, phone, address, pincode, state, district,
-              status, operating_hours, verified_at, upi_vpa
-       FROM stores WHERE pmbjk_code = $1`,
-      [pmbjkCode],
-    );
-
-    if (result.rows.length === 0) {
+    const store = await this.repository.getStoreProfile(pmbjkCode);
+    if (!store) {
       throw new NotFoundError('Store');
     }
-
-    return result.rows[0];
+    return store;
   }
 
   /**
@@ -79,10 +73,7 @@ export class SellerService {
     }
 
     values.push(pmbjkCode);
-    await queryDB(
-      `UPDATE stores SET ${setClauses.join(', ')} WHERE pmbjk_code = $${paramIdx}`,
-      values,
-    );
+    await this.repository.updateStoreProfile(pmbjkCode, setClauses, values);
 
     return { success: true };
   }
@@ -112,29 +103,17 @@ export class SellerService {
     }
 
     // Count total matching orders
-    const countResult = await queryDB(
-      `SELECT COUNT(*) as total FROM requirements r ${whereClause}`,
-      params,
-    );
-    const totalCount = parseInt(countResult.rows[0].total);
+    const totalCount = await this.repository.countOrders(whereClause, params);
 
     // Fetch paginated orders with customer info
-    params.push(limit, offset);
-    const result = await queryDB(
-      `SELECT r.*, u.name as customer_name, u.phone as customer_phone, u.email as customer_email
-       FROM requirements r
-       LEFT JOIN users u ON r.user_id = u.firebase_uid
-       ${whereClause}
-       ORDER BY r.created_at DESC
-       LIMIT $${paramIdx++} OFFSET $${paramIdx}`,
-      params,
-    );
+    const queryParams = [...params, limit, offset];
+    const orders = await this.repository.findOrders(whereClause, queryParams);
 
     return {
       count: totalCount,
       page,
       totalPages: Math.ceil(totalCount / limit),
-      orders: result.rows,
+      orders,
     };
   }
 
@@ -145,27 +124,16 @@ export class SellerService {
     pmbjkCode: string,
     orderId: string,
   ): Promise<{ order: Record<string, unknown>; audit_trail: unknown[] }> {
-    const result = await queryDB(
-      `SELECT r.*, u.name as customer_name, u.phone as customer_phone, u.email as customer_email
-       FROM requirements r
-       LEFT JOIN users u ON r.user_id = u.firebase_uid
-       WHERE r.id = $1 AND r.pmbjk_code = $2`,
-      [orderId, pmbjkCode],
-    );
-
-    if (result.rows.length === 0) {
+    const order = await this.repository.findOrderDetail(pmbjkCode, orderId);
+    if (!order) {
       throw new NotFoundError('Order');
     }
 
-    // Fetch audit trail for this order
-    const auditResult = await queryDB(
-      `SELECT * FROM order_status_log WHERE requirement_id = $1 ORDER BY created_at ASC`,
-      [orderId],
-    );
+    const auditTrail = await this.repository.findOrderAuditTrail(orderId);
 
     return {
-      order: result.rows[0],
-      audit_trail: auditResult.rows,
+      order,
+      audit_trail: auditTrail,
     };
   }
 
@@ -180,76 +148,50 @@ export class SellerService {
     user: AuthUser,
     notes?: string,
   ): Promise<{ success: boolean; order: Record<string, unknown> }> {
-    const client = await getClient();
+    const updatedOrder = await this.repository.updateOrderStatusTx(
+      pmbjkCode,
+      orderId,
+      (currentOrder) => {
+        const currentStatus = currentOrder.status as string;
 
-    try {
-      await client.query('BEGIN');
+        // Validate the status transition
+        const allowedTransitions = VALID_STATUS_TRANSITIONS[currentStatus] || [];
+        if (!allowedTransitions.includes(newStatus)) {
+          throw new ValidationError(
+            `Cannot transition from "${currentStatus}" to "${newStatus}". Allowed: ${allowedTransitions.join(', ') || 'none'}`,
+          );
+        }
 
-      // 1. Fetch current order and verify ownership
-      const currentResult = await client.query(
-        'SELECT * FROM requirements WHERE id = $1 AND pmbjk_code = $2 FOR UPDATE',
-        [orderId, pmbjkCode],
-      );
+        // Build the UPDATE query with status-specific timestamps
+        const updateFields: string[] = ['status = $1', 'updated_at = NOW()'];
+        const updateValues: unknown[] = [newStatus];
+        let paramIdx = 2;
 
-      if (currentResult.rows.length === 0) {
-        throw new NotFoundError('Order');
-      }
-
-      const currentStatus = currentResult.rows[0].status as string;
-
-      // 2. Validate the status transition
-      const allowedTransitions = VALID_STATUS_TRANSITIONS[currentStatus] || [];
-      if (!allowedTransitions.includes(newStatus)) {
-        throw new ValidationError(
-          `Cannot transition from "${currentStatus}" to "${newStatus}". Allowed: ${allowedTransitions.join(', ') || 'none'}`,
-        );
-      }
-
-      // 3. Build the UPDATE query with status-specific timestamps
-      const updateFields: string[] = ['status = $1', 'updated_at = NOW()'];
-      const updateValues: unknown[] = [newStatus];
-      let paramIdx = 2;
-
-      if (notes) {
-        updateFields.push(`seller_notes = $${paramIdx++}`);
-        updateValues.push(notes);
-      }
-
-      if (newStatus === 'ACCEPTED') {
-        updateFields.push('accepted_at = NOW()');
-      } else if (newStatus === 'COMPLETED') {
-        updateFields.push('completed_at = NOW()');
-      } else if (newStatus.startsWith('CANCELLED')) {
-        updateFields.push(`cancelled_by = $${paramIdx++}`);
-        updateValues.push('SELLER');
         if (notes) {
-          updateFields.push(`cancelled_reason = $${paramIdx++}`);
+          updateFields.push(`seller_notes = $${paramIdx++}`);
           updateValues.push(notes);
         }
-      }
 
-      updateValues.push(orderId);
-      const updatedResult = await client.query(
-        `UPDATE requirements SET ${updateFields.join(', ')} WHERE id = $${paramIdx} RETURNING *`,
-        updateValues,
-      );
+        if (newStatus === 'ACCEPTED') {
+          updateFields.push('accepted_at = NOW()');
+        } else if (newStatus === 'COMPLETED') {
+          updateFields.push('completed_at = NOW()');
+        } else if (newStatus.startsWith('CANCELLED')) {
+          updateFields.push(`cancelled_by = $${paramIdx++}`);
+          updateValues.push('SELLER');
+          if (notes) {
+            updateFields.push(`cancelled_reason = $${paramIdx++}`);
+            updateValues.push(notes);
+          }
+        }
 
-      // 4. Log the transition in the audit trail
-      await client.query(
-        `INSERT INTO order_status_log (requirement_id, from_status, to_status, changed_by, changed_by_role, notes)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [orderId, currentStatus, newStatus, user.uid, user.role || 'STORE_OWNER', notes || null],
-      );
+        updateValues.push(orderId);
+        return { newStatus, updateFields, updateValues, notes };
+      },
+      user,
+    );
 
-      await client.query('COMMIT');
-
-      return { success: true, order: updatedResult.rows[0] };
-    } catch (err) {
-      await client.query('ROLLBACK');
-      throw err;
-    } finally {
-      client.release();
-    }
+    return { success: true, order: updatedOrder };
   }
 
   /**
@@ -286,55 +228,18 @@ export class SellerService {
     const limit = options.limit || 50;
     const offset = (page - 1) * limit;
 
-    let countWhereClause = '';
-    const countParams: unknown[] = [];
-    if (options.search) {
-      countWhereClause = 'AND g.generic_name ILIKE $1';
-      countParams.push(`%${options.search}%`);
-    }
-
-    const countResult = await queryDB(
-      `SELECT COUNT(*) as total FROM generic_meds g WHERE 1=1 ${countWhereClause}`,
-      countParams,
-    );
-    const totalCount = parseInt(countResult.rows[0]?.total || '0', 10);
-
-    const queryParams: unknown[] = [pmbjkCode];
-    let mainWhereClause = '';
-    let paramIdx = 2;
-
-    if (options.search) {
-      mainWhereClause = `AND g.generic_name ILIKE $${paramIdx++}`;
-      queryParams.push(`%${options.search}%`);
-    }
-
-    queryParams.push(limit, offset);
-    const result = await queryDB(
-      `SELECT g.drug_code, g.generic_name, g.mrp, g.unit_size, g.group_name,
-              COALESCE(si.in_stock, TRUE) as in_stock,
-              si.last_updated
-       FROM generic_meds g
-       LEFT JOIN store_inventory si ON g.drug_code = si.drug_code AND si.pmbjk_code = $1
-       WHERE 1=1 ${mainWhereClause}
-       ORDER BY g.generic_name ASC
-       LIMIT $${paramIdx++} OFFSET $${paramIdx}`,
-      queryParams,
-    );
+    const totalCount = await this.repository.countGenericMeds(options.search);
+    const items = await this.repository.findInventoryItems(pmbjkCode, {
+      search: options.search,
+      limit,
+      offset,
+    });
 
     return {
       count: totalCount,
       page,
       totalPages: Math.ceil(totalCount / limit),
-      items: result.rows.map((r: any) => ({
-        pmbjk_code: pmbjkCode,
-        drug_code: r.drug_code,
-        in_stock: r.in_stock,
-        last_updated: r.last_updated || null,
-        generic_name: r.generic_name,
-        mrp: parseFloat(r.mrp),
-        unit_size: r.unit_size,
-        group_name: r.group_name,
-      })),
+      items,
     };
   }
 
@@ -347,14 +252,7 @@ export class SellerService {
     drugCode: string,
     inStock: boolean,
   ): Promise<{ success: boolean }> {
-    await queryDB(
-      `INSERT INTO store_inventory (pmbjk_code, drug_code, in_stock, last_updated)
-       VALUES ($1, $2, $3, NOW())
-       ON CONFLICT (pmbjk_code, drug_code)
-       DO UPDATE SET in_stock = $3, last_updated = NOW()`,
-      [pmbjkCode, drugCode, inStock],
-    );
-
+    await this.repository.upsertInventoryItem(pmbjkCode, drugCode, inStock);
     return { success: true };
   }
 
@@ -369,28 +267,8 @@ export class SellerService {
       throw new ValidationError('No inventory updates provided');
     }
 
-    const client = await getClient();
-    try {
-      await client.query('BEGIN');
-
-      for (const item of updates) {
-        await client.query(
-          `INSERT INTO store_inventory (pmbjk_code, drug_code, in_stock, last_updated)
-           VALUES ($1, $2, $3, NOW())
-           ON CONFLICT (pmbjk_code, drug_code)
-           DO UPDATE SET in_stock = $3, last_updated = NOW()`,
-          [pmbjkCode, item.drug_code, item.in_stock],
-        );
-      }
-
-      await client.query('COMMIT');
-      return { success: true, updated: updates.length };
-    } catch (err) {
-      await client.query('ROLLBACK');
-      throw err;
-    } finally {
-      client.release();
-    }
+    const updated = await this.repository.bulkUpsertInventory(pmbjkCode, updates);
+    return { success: true, updated };
   }
 
   // ================================================================
@@ -401,72 +279,15 @@ export class SellerService {
    * Get summary analytics for the seller's store.
    */
   async getAnalyticsSummary(pmbjkCode: string): Promise<SellerAnalyticsSummary> {
-    // Total orders & revenue
-    const totalResult = await queryDB(
-      `SELECT COUNT(*) as total_orders,
-              COALESCE(SUM(total_generic_value), 0) as total_revenue,
-              COALESCE(AVG(total_generic_value), 0) as avg_order_value
-       FROM requirements WHERE pmbjk_code = $1 AND status NOT LIKE 'CANCELLED%'`,
-      [pmbjkCode],
-    );
-
-    // Today's orders & revenue
-    const todayResult = await queryDB(
-      `SELECT COUNT(*) as orders_today,
-              COALESCE(SUM(total_generic_value), 0) as revenue_today
-       FROM requirements
-       WHERE pmbjk_code = $1 AND status NOT LIKE 'CANCELLED%'
-         AND created_at >= CURRENT_DATE`,
-      [pmbjkCode],
-    );
-
-    // Pending orders count
-    const pendingResult = await queryDB(
-      `SELECT COUNT(*) as pending
-       FROM requirements
-       WHERE pmbjk_code = $1 AND status IN ('PENDING_ACCEPTANCE', 'ACCEPTED', 'PREPARING')`,
-      [pmbjkCode],
-    );
-
-    const t = totalResult.rows[0];
-    const d = todayResult.rows[0];
-
-    return {
-      total_orders: parseInt(t.total_orders),
-      orders_today: parseInt(d.orders_today),
-      total_revenue: parseFloat(t.total_revenue),
-      revenue_today: parseFloat(d.revenue_today),
-      avg_order_value: Math.round(parseFloat(t.avg_order_value) * 100) / 100,
-      pending_orders: parseInt(pendingResult.rows[0].pending),
-    };
+    return this.repository.getAnalyticsSummary(pmbjkCode);
   }
 
   /**
    * Get daily analytics breakdown for charts (last 30 days).
    */
   async getDailyAnalytics(pmbjkCode: string): Promise<{ daily: SellerDailyAnalytics[] }> {
-    const result = await queryDB(
-      `SELECT DATE(created_at) as date,
-              COUNT(*) as orders,
-              COALESCE(SUM(total_generic_value), 0) as revenue,
-              COALESCE(SUM(savings), 0) as savings
-       FROM requirements
-       WHERE pmbjk_code = $1
-         AND status NOT LIKE 'CANCELLED%'
-         AND created_at >= NOW() - INTERVAL '30 days'
-       GROUP BY DATE(created_at)
-       ORDER BY date ASC`,
-      [pmbjkCode],
-    );
-
-    return {
-      daily: result.rows.map((r: any) => ({
-        date: r.date,
-        orders: parseInt(r.orders),
-        revenue: parseFloat(r.revenue),
-        savings: parseFloat(r.savings),
-      })),
-    };
+    const daily = await this.repository.getDailyAnalytics(pmbjkCode);
+    return { daily };
   }
 
   /**
@@ -475,17 +296,7 @@ export class SellerService {
   async exportOrders(
     pmbjkCode: string,
   ): Promise<{ orders: unknown[] }> {
-    const result = await queryDB(
-      `SELECT r.id, r.status, r.total_generic_value, r.total_branded_value, r.savings,
-              r.payment_mode, r.created_at, r.accepted_at, r.completed_at,
-              u.name as customer_name, u.phone as customer_phone
-       FROM requirements r
-       LEFT JOIN users u ON r.user_id = u.firebase_uid
-       WHERE r.pmbjk_code = $1
-       ORDER BY r.created_at DESC`,
-      [pmbjkCode],
-    );
-
-    return { orders: result.rows };
+    const orders = await this.repository.exportOrders(pmbjkCode);
+    return { orders };
   }
 }

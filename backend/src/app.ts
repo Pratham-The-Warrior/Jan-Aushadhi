@@ -11,7 +11,7 @@ import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
 
-import { config } from './shared/config';
+import { config, validateStartupConfig } from './shared/config';
 import { getLoggerConfig } from './shared/logger';
 import { AppError, toErrorResponse } from './shared/errors';
 
@@ -45,6 +45,9 @@ import adminRoutes from './modules/admin/admin.routes';
  * or CI environments, completely bypassing pesky "EADDRINUSE: port already in use" errors during parallel runs.
  */
 export async function buildApp(): Promise<FastifyInstance> {
+  // Validate configuration before binding or connecting
+  validateStartupConfig();
+
   const server = Fastify({
     logger: getLoggerConfig() as any,
     requestIdHeader: 'x-request-id',
@@ -68,8 +71,10 @@ export async function buildApp(): Promise<FastifyInstance> {
     credentials: true
   });
   await server.register(rateLimit, {
+    // Global: 100 requests/minute per IP for all read endpoints
     max: config.rateLimitMax,
     timeWindow: config.rateLimitWindow,
+    keyGenerator: (request) => request.ip,
   });
 
   // ---- Global Error Handler ----
@@ -123,21 +128,67 @@ export async function buildApp(): Promise<FastifyInstance> {
   await checkMeiliHealth();
   await initTwilio();
 
-  // ---- Health Check Endpoint ----
-  server.get('/api/v1/health', async () => ({
-    status: 'ok',
-    version: '2.0.0',
-    architecture: 'Modular Monolith',
-    stack: 'Fastify + TypeScript',
-    environment: config.env,
-    services: {
-      database: 'PostgreSQL + PostGIS',
-      search: 'Meilisearch',
-      cache: 'Redis',
-      notifications: isTwilioReady() ? 'Twilio WhatsApp (Active)' : 'Twilio WhatsApp (Mock)',
-      auth: isFirebaseReady() ? 'Firebase Admin (Active)' : 'Firebase Admin (Inactive)',
-    },
-  }));
+  // ---- Health Check Endpoints ----
+
+  // 1. Liveness Probe (process liveness for Docker / Kubernetes orchestrators)
+  server.get('/api/v1/health/live', async (_request, reply) => {
+    return reply.status(200).send({
+      status: 'ok',
+      uptime: process.uptime(),
+      timestamp: new Date().toISOString(),
+    });
+  });
+
+  // 2. Readiness Probe (deep dependency check — returns 503 if critical DB is down)
+  server.get('/api/v1/health/ready', async (_request, reply) => {
+    const [dbOk, redisOk, meiliOk] = await Promise.all([
+      checkDatabaseHealth(),
+      checkRedisHealth(),
+      checkMeiliHealth(),
+    ]);
+
+    const isReady = dbOk;
+    const statusCode = isReady ? 200 : 503;
+
+    return reply.status(statusCode).send({
+      ready: isReady,
+      status: isReady ? 'ready' : 'unready',
+      dependencies: {
+        database: dbOk ? 'healthy' : 'unreachable',
+        cache: redisOk ? 'healthy' : 'degraded',
+        search: meiliOk ? 'healthy' : 'degraded',
+      },
+      timestamp: new Date().toISOString(),
+    });
+  });
+
+  // 3. Full Health Diagnostic Endpoint (monitoring dashboards and dev diagnostics)
+  server.get('/api/v1/health', async (_request, reply) => {
+    const [dbOk, redisOk, meiliOk] = await Promise.all([
+      checkDatabaseHealth(),
+      checkRedisHealth(),
+      checkMeiliHealth(),
+    ]);
+
+    const overall = dbOk ? 'ok' : 'degraded';
+    const statusCode = dbOk ? 200 : 503;
+
+    return reply.status(statusCode).send({
+      status: overall,
+      version: '2.0.0',
+      architecture: 'Modular Monolith',
+      stack: 'Fastify + TypeScript',
+      environment: config.env,
+      uptimeSeconds: Math.floor(process.uptime()),
+      services: {
+        database: dbOk ? 'healthy' : 'unreachable',
+        cache: redisOk ? 'healthy' : 'unreachable',
+        search: meiliOk ? 'healthy' : 'unreachable',
+        notifications: isTwilioReady() ? 'Twilio WhatsApp (Active)' : 'Twilio WhatsApp (Mock)',
+        auth: isFirebaseReady() ? 'Firebase Admin (Active)' : 'Firebase Admin (Inactive)',
+      },
+    });
+  });
 
   // ---- Register Domain Modules ----
   await server.register(searchRoutes);

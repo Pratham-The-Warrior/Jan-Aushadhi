@@ -20,6 +20,8 @@
     "typecheck:backend": "npm run typecheck --workspace=janaushadhi-backend",
     "lint:frontend": "npm run lint --workspace=frontend",
     "lint:seller": "npm run lint --workspace=seller",
-    "lint:admin": "npm run lint --workspace=admin"
+    "lint:admin": "npm run lint --workspace=admin",
+    "docker:dev": "docker compose -f docker-compose.dev.yml up",
+    "docker:prod": "docker compose -f docker-compose.prod.yml up --build -d"
   }
 }

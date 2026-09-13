@@ -2,12 +2,13 @@
 // Fulfillment Module — Service Layer
 // Checkout, requirements, WhatsApp bridge, dashboard analytics,
 // and user profile management.
-// Pure business logic, no HTTP concerns.
+// Pure business logic and domain orchestration; delegates data
+// access to FulfillmentRepository.
 // ============================================================
 
 import crypto from 'crypto';
-import { queryDB } from '../../shared/infra/database';
-import { NotFoundError, ValidationError, ExternalServiceError } from '../../shared/errors';
+import { FulfillmentRepository } from './fulfillment.repository';
+import { NotFoundError, ValidationError } from '../../shared/errors';
 import { isTwilioReady, sendWhatsAppMessage } from '../../shared/infra/twilio';
 import type {
   AuthUser,
@@ -18,6 +19,7 @@ import type {
 } from '../../shared/types';
 
 export class FulfillmentService {
+  constructor(private readonly repository: FulfillmentRepository = new FulfillmentRepository()) {}
 
   // ================================================================
   //  REQUIREMENTS (Checkout → WhatsApp Handoff)
@@ -68,40 +70,18 @@ export class FulfillmentService {
       }
 
       const { lat, lng } = data.delivery_coords;
-      
-      // Auto-routing query: get active stores within 10km sorted by distance using PostGIS
-      const nearbyRes = await queryDB(
-        `SELECT pmbjk_code, name, address, pincode, state, district,
-                ST_Distance(location, ST_MakePoint($1, $2)::geography) AS distance
-         FROM stores
-         WHERE status = 'ACTIVE'
-           AND ST_DWithin(location, ST_MakePoint($1, $2)::geography, 10000)
-         ORDER BY distance ASC
-         LIMIT 20`,
-        [lng, lat],
-      );
+      const nearbyStores = await this.repository.findNearbyActiveStores(lng, lat, 10000);
 
-      if (nearbyRes.rows.length === 0) {
+      if (nearbyStores.length === 0) {
         throw new ValidationError('No active stores found within delivery search radius (10km).');
       }
 
-      // Check stock filters
-      const storeCodes = nearbyRes.rows.map((s: any) => s.pmbjk_code);
-      const drugCodes = data.drug_codes.map((d: any) => d.code);
+      const storeCodes = nearbyStores.map((s) => s.pmbjk_code);
+      const drugCodes = data.drug_codes.map((d) => d.code);
+      const outOfStockStores = await this.repository.findOutOfStockStoreCodes(storeCodes, drugCodes);
+      const blacklistedSet = new Set(outOfStockStores);
 
-      const stockCheckRes = await queryDB(
-        `SELECT pmbjk_code
-         FROM store_inventory
-         WHERE pmbjk_code = ANY($1)
-           AND drug_code = ANY($2)
-           AND in_stock = false`,
-        [storeCodes, drugCodes],
-      );
-
-      const blacklistedStores = new Set(stockCheckRes.rows.map((r: any) => r.pmbjk_code));
-      
-      const routedStore = nearbyRes.rows.find((s: any) => !blacklistedStores.has(s.pmbjk_code));
-
+      const routedStore = nearbyStores.find((s) => !blacklistedSet.has(s.pmbjk_code));
       if (!routedStore) {
         throw new ValidationError('No nearby stores have all items in stock to fulfill this delivery.');
       }
@@ -112,30 +92,21 @@ export class FulfillmentService {
     }
 
     // Lookup store details (VPA, etc.)
-    const storeDetailsRes = await queryDB(
-      `SELECT name, phone, upi_vpa FROM stores WHERE pmbjk_code = $1`,
-      [routedStoreCode],
-    );
-
-    if (storeDetailsRes.rows.length === 0) {
+    const storeDetails = await this.repository.findStoreDetails(routedStoreCode);
+    if (!storeDetails) {
       throw new ValidationError(`Store ${routedStoreCode} does not exist`);
     }
 
-    const { upi_vpa: storeUpiVpa, phone: storePhone } = storeDetailsRes.rows[0];
+    const storeUpiVpa = storeDetails.upi_vpa || null;
+    const storePhone = storeDetails.phone;
 
     // Generate unique ticket ID using cryptographically secure random
     const ticketId = `TKT-${crypto.randomUUID().replace(/-/g, '').slice(0, 12).toUpperCase()}`;
 
     // SERVER-SIDE PRICE VALIDATION & INTEGRITY CHECK:
-    // Do not trust client-submitted prices. Look up the verified MRP directly from generic_meds.
-    const requestedCodes = data.drug_codes.map((d: any) => d.code);
-    const dbMedsRes = await queryDB(
-      `SELECT drug_code, generic_name, mrp FROM generic_meds WHERE drug_code = ANY($1)`,
-      [requestedCodes],
-    );
-    const priceMap = new Map(
-      dbMedsRes.rows.map((r: any) => [r.drug_code, { mrp: parseFloat(r.mrp), name: r.generic_name }]),
-    );
+    // Look up verified MRP directly from generic_meds table.
+    const requestedCodes = data.drug_codes.map((d) => d.code);
+    const priceMap = await this.repository.findVerifiedGenericMeds(requestedCodes);
 
     let totalBrandedValue = 0;
     let totalGenericValue = 0;
@@ -148,201 +119,215 @@ export class FulfillmentService {
       const qty = Math.max(1, parseInt(item.quantity as any, 10) || 1);
       const brandedMrp = Math.max(
         genericMrp,
-        typeof item.branded_mrp === 'number' && item.branded_mrp > 0 ? item.branded_mrp : genericMrp * 2,
+        typeof item.branded_mrp === 'number' ? item.branded_mrp : genericMrp * 4,
       );
 
-      totalGenericValue += genericMrp * qty;
       totalBrandedValue += brandedMrp * qty;
+      totalGenericValue += genericMrp * qty;
 
       verifiedItems.push({
-        code: item.code,
-        name: genericName,
+        drug_code: item.code,
         quantity: qty,
+        name: genericName,
         mrp: genericMrp,
         branded_mrp: brandedMrp,
+        subtotal: Math.round(genericMrp * qty * 100) / 100,
       });
     }
 
-    totalGenericValue = Math.round(totalGenericValue * 100) / 100;
-    totalBrandedValue = Math.round(totalBrandedValue * 100) / 100;
-    const calculatedSavings = Math.max(0, Math.round((totalBrandedValue - totalGenericValue) * 100) / 100);
+    const totalSavings = Math.max(0, Math.round((totalBrandedValue - totalGenericValue) * 100) / 100);
+    const initialStatus = 'PENDING_ACCEPTANCE';
 
-    await queryDB(
-      `INSERT INTO requirements
-       (id, user_id, pmbjk_code, items, status, legal_attestation, delivery_address, payment_mode, 
-        total_branded_value, total_generic_value, savings, created_at, fulfillment_type, payment_status, payment_details, prescription_url)
-       VALUES ($1, $2, $3, $4, 'PENDING_ACCEPTANCE', $5, $6, $7, $8, $9, $10, NOW(), $11, 'PENDING', '{}', $12)`,
-      [
-        ticketId,
-        user.uid,
-        routedStoreCode,
-        JSON.stringify(verifiedItems),
-        true,
-        data.delivery_address || '',
-        data.payment_mode || 'COD',
-        totalBrandedValue,
-        totalGenericValue,
-        calculatedSavings,
-        fulfillmentType,
-        data.prescription_url || null,
-      ],
-    );
-
-    // Log initial status in audit trail
-    await queryDB(
-      `INSERT INTO order_status_log (requirement_id, from_status, to_status, changed_by, changed_by_role, notes)
-       VALUES ($1, NULL, 'PENDING_ACCEPTANCE', $2, 'CUSTOMER', 'Order placed via checkout')`,
-      [ticketId, user.uid],
-    ).catch(() => {
-      // Non-blocking — audit trail table might not exist in older deployments
+    // Persist requirement
+    await this.repository.createRequirement({
+      ticketId,
+      userId: user.uid,
+      pmbjkCode: routedStoreCode,
+      itemsJson: JSON.stringify(verifiedItems),
+      status: initialStatus,
+      legalAttestation: data.legal_attestation,
+      deliveryAddress: data.delivery_address || 'Self-Pickup at Kendra',
+      paymentMode: data.payment_mode || 'COD',
+      fulfillmentType,
+      prescriptionUrl: data.prescription_url,
+      totalBrandedValue: Math.round(totalBrandedValue * 100) / 100,
+      totalGenericValue: Math.round(totalGenericValue * 100) / 100,
+      savings: totalSavings,
+      paymentDetailsJson: JSON.stringify({
+        mode: data.payment_mode || 'COD',
+        status: 'PENDING',
+        vpa: storeUpiVpa,
+      }),
     });
 
-    // Optional automated Twilio WhatsApp dispatch to Kendra store
-    try {
-      if (isTwilioReady() && storePhone) {
-        const cleanPhone = storePhone.replace(/[^0-9]/g, '');
-        if (cleanPhone.length >= 10) {
-          const formattedPhone = cleanPhone.startsWith('91') ? `+${cleanPhone}` : `+91${cleanPhone}`;
-          const alertMsg = `*Jan Aushadhi Alert*\nNew Order Placed!\nTicket: ${ticketId}\nItems: ${verifiedItems.length} meds (Total: ₹${totalGenericValue.toFixed(2)})\nPlease open Seller Central to review.`;
-          sendWhatsAppMessage(formattedPhone, alertMsg).catch(() => {});
-        }
+    // Upsert customer record
+    await this.repository.upsertCustomer(user.uid, user.name, user.phone_number, user.email);
+
+    // Auto-dispatch WhatsApp confirmation if Twilio is configured
+    if (isTwilioReady()) {
+      const recipient = user.phone_number || storePhone;
+      if (recipient) {
+        const message = [
+          `*Jan Aushadhi Order Confirmed!*`,
+          `Ticket ID: *${ticketId}*`,
+          `Store: ${storeDetails.name} (${routedStoreCode})`,
+          `Fulfillment: ${fulfillmentType}`,
+          `Items: ${verifiedItems.length}`,
+          `Estimated Total: Rs.${totalGenericValue.toFixed(2)}`,
+          `You Saved: Rs.${totalSavings.toFixed(2)}`,
+          ``,
+          `Show this ticket at the Kendra to collect your medicines.`,
+        ].join('\n');
+
+        sendWhatsAppMessage(recipient, message).catch((err) => {
+          console.warn('⚠️  Async WhatsApp send failed:', err.message);
+        });
       }
-    } catch {
-      // Non-blocking
     }
 
     return {
       success: true,
       ticketId,
-      status: 'PENDING_ACCEPTANCE',
-      totalGenericValue,
-      savings: calculatedSavings,
-      upi_vpa: storeUpiVpa || null,
+      status: initialStatus,
+      totalGenericValue: Math.round(totalGenericValue * 100) / 100,
+      savings: totalSavings,
+      upi_vpa: storeUpiVpa,
       pmbjk_code: routedStoreCode,
     };
   }
 
   /**
-   * Generate a WhatsApp deep-link for a requirement ticket.
-   * Joins requirements with stores to get the store phone number.
+   * Get user's past requirements.
    *
-   * @param requirementId  Unique ticket ID
-   * @param user           Authenticated user
-   * @throws NotFoundError if requirement or store link not found
+   * @param userId  Firebase UID
+   * @param limit   Maximum records to return
    */
-  async getWhatsAppLink(requirementId: string, user: AuthUser): Promise<{ whatsappUrl: string }> {
-    const result = await queryDB(
-      `SELECT r.items, r.id as ticket_id, s.phone as store_phone, s.name as store_name
-       FROM requirements r
-       JOIN stores s ON r.pmbjk_code = s.pmbjk_code
-       WHERE r.id = $1 AND r.user_id = $2`,
-      [requirementId, user.uid],
-    );
+  async getUserRequirements(userId: string, limit: number = 50): Promise<any[]> {
+    const rows = await this.repository.findUserRequirements(userId, limit);
+    return rows.map((r: any) => ({
+      id: r.id,
+      ticketId: r.id,
+      pmbjk_code: r.pmbjk_code,
+      status: r.status,
+      items: typeof r.items === 'string' ? JSON.parse(r.items) : r.items,
+      total_generic_value: parseFloat(r.total_generic_value) || 0,
+      total_branded_value: parseFloat(r.total_branded_value) || 0,
+      savings: parseFloat(r.savings) || 0,
+      payment_mode: r.payment_mode,
+      payment_status: r.payment_status,
+      fulfillment_type: r.fulfillment_type,
+      delivery_address: r.delivery_address,
+      prescription_url: r.prescription_url,
+      seller_notes: r.seller_notes,
+      store: r.store_name ? { name: r.store_name, address: r.store_address, phone: r.store_phone } : null,
+      created_at: r.created_at,
+      updated_at: r.updated_at,
+      accepted_at: r.accepted_at,
+      completed_at: r.completed_at,
+    }));
+  }
 
-    if (result.rows.length === 0) {
-      throw new NotFoundError('Requirement or store link');
+  /**
+   * Get a single requirement by its ticket ID.
+   */
+  async getRequirementById(ticketId: string, userId?: string): Promise<any> {
+    const row = await this.repository.findRequirementById(ticketId);
+    if (!row) {
+      throw new NotFoundError(`Requirement ${ticketId}`);
     }
 
-    const { items, ticket_id, store_phone, store_name } = result.rows[0];
-    const parsedItems: any[] = Array.isArray(items)
-      ? items
-      : typeof items === 'string'
-        ? JSON.parse(items)
-        : [];
-    const drugList = parsedItems
-      .map((i: any) => `- ${i.name || i.code} (Qty: ${i.quantity || 1})`)
-      .join('\n');
+    // Access control: only creator or admin can view
+    if (userId && row.user_id !== userId) {
+      throw new NotFoundError(`Requirement ${ticketId}`);
+    }
 
-    const message = `Hello ${store_name},\n\nI have generated a Jan Aushadhi requirement ticket via the platform.\n\n*Ticket ID:* ${ticket_id}\n*Customer:* ${user.name || 'User'}\n*Phone:* ${user.phone_number || 'N/A'}\n\n*Items:* \n${drugList}\n\nPlease confirm availability for fulfillment. I have the physical prescription ready.`;
-
-    const encodedMessage = encodeURIComponent(message);
-    const cleanPhone = (store_phone || '').replace(/[^0-9]/g, '');
-    const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodedMessage}`;
-
-    return { whatsappUrl };
+    return {
+      id: row.id,
+      ticketId: row.id,
+      pmbjk_code: row.pmbjk_code,
+      status: row.status,
+      items: typeof row.items === 'string' ? JSON.parse(row.items) : rItems(row.items),
+      total_generic_value: parseFloat(row.total_generic_value) || 0,
+      total_branded_value: parseFloat(row.total_branded_value) || 0,
+      savings: parseFloat(row.savings) || 0,
+      payment_mode: row.payment_mode,
+      payment_status: row.payment_status,
+      fulfillment_type: row.fulfillment_type,
+      delivery_address: row.delivery_address,
+      prescription_url: row.prescription_url,
+      seller_notes: row.seller_notes,
+      store: row.store_name ? { name: row.store_name, address: row.store_address, phone: row.store_phone } : null,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+    };
   }
 
   /**
    * Cancel an order by customer.
-   * Only allowed when status is PENDING_ACCEPTANCE.
    */
-  async cancelOrder(
-    requirementId: string,
-    user: AuthUser,
-    reason?: string,
-  ): Promise<{ success: boolean; status: string }> {
-    const checkRes = await queryDB(
-      'SELECT status FROM requirements WHERE id = $1 AND user_id = $2',
-      [requirementId, user.uid],
-    );
-
-    if (checkRes.rows.length === 0) {
-      throw new NotFoundError('Requirement');
+  async cancelOrder(ticketId: string, user: AuthUser, reason?: string): Promise<{ success: boolean; message: string }> {
+    const row = await this.repository.findRequirementById(ticketId);
+    if (!row) {
+      throw new NotFoundError(`Requirement ${ticketId}`);
     }
 
-    const currentStatus = checkRes.rows[0].status;
-    if (currentStatus !== 'PENDING_ACCEPTANCE') {
-      throw new ValidationError(
-        `Cannot cancel order with status "${currentStatus}". Orders can only be cancelled while pending acceptance.`,
-      );
+    if (row.user_id !== user.uid) {
+      throw new NotFoundError(`Requirement ${ticketId}`);
     }
 
-    await queryDB(
-      `UPDATE requirements 
-       SET status = 'CANCELLED_BY_CUSTOMER',
-           cancelled_by = 'CUSTOMER',
-           cancelled_reason = $1,
-           updated_at = NOW()
-       WHERE id = $2 AND user_id = $3`,
-      [reason || 'Cancelled by customer', requirementId, user.uid],
-    );
+    // Can only cancel if pending or accepted
+    if (!['PENDING_ACCEPTANCE', 'ACCEPTED'].includes(row.status)) {
+      throw new ValidationError(`Cannot cancel an order in "${row.status}" status.`);
+    }
 
-    await queryDB(
-      `INSERT INTO order_status_log (requirement_id, from_status, to_status, changed_by, changed_by_role, notes)
-       VALUES ($1, 'PENDING_ACCEPTANCE', 'CANCELLED_BY_CUSTOMER', $2, 'CUSTOMER', $3)`,
-      [requirementId, user.uid, reason || 'Cancelled by customer'],
-    ).catch(() => {});
+    await this.repository.cancelRequirement(ticketId, user.uid, row.status, reason);
+    return { success: true, message: 'Order cancelled successfully.' };
+  }
 
-    return { success: true, status: 'CANCELLED_BY_CUSTOMER' };
+  // Alias
+  async cancelRequirement(ticketId: string, user: AuthUser, reason?: string) {
+    return this.cancelOrder(ticketId, user, reason);
   }
 
   /**
-   * Get a user's requirements history, ordered by most recent.
-   *
-   * @param userId  Firebase UID
+   * Generate a WhatsApp deep-link URL for an existing requirement.
    */
-  async getUserRequirements(userId: string): Promise<{ count: number; requirements: unknown[] }> {
-    try {
-      const result = await queryDB(
-        'SELECT * FROM requirements WHERE user_id = $1 ORDER BY created_at DESC LIMIT 50',
-        [userId],
-      );
-      return { count: result.rows.length, requirements: result.rows };
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown database error';
-      console.error('Failed to fetch user requirements:', message);
-      throw new ExternalServiceError('PostgreSQL', 'Failed to fetch requirements history');
+  async getWhatsAppLink(ticketId: string, user: AuthUser): Promise<{ whatsappUrl: string; message: string }> {
+    const order = await this.getRequirementById(ticketId, user.uid);
+    const store = order.store;
+
+    let phone = '919999999999';
+    if (store?.phone) {
+      const cleaned = store.phone.replace(/[^0-9]/g, '');
+      phone = cleaned.startsWith('91') ? cleaned : `91${cleaned}`;
     }
+
+    const items = order.items as any[];
+    const itemsList = items.map((i: any) => `• ${i.name} (x${i.quantity || 1}) - Rs.${i.subtotal || i.mrp}`).join('\n');
+
+    const message = [
+      `*Jan Aushadhi Prescription / Order Ticket*`,
+      `Ticket ID: *${order.id}*`,
+      `Date: ${new Date(order.created_at).toLocaleDateString('en-IN')}`,
+      `Fulfillment: ${order.fulfillment_type || 'PICKUP'}`,
+      order.delivery_address ? `Delivery Address: ${order.delivery_address}` : '',
+      ``,
+      `*Requested Medicines:*`,
+      itemsList,
+      ``,
+      `Estimated Generic Cost: *Rs.${order.total_generic_value.toFixed(2)}*`,
+      `Total Savings: *Rs.${order.savings.toFixed(2)}*`,
+      ``,
+      `Hello Kendra Pharmacist, please verify availability and confirm my order.`,
+    ].filter(Boolean).join('\n');
+
+    const whatsappUrl = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+    return { whatsappUrl, message };
   }
 
-  /**
-   * Get a single requirement by ID, scoped to the authenticated user.
-   *
-   * @param requirementId  Unique ticket ID
-   * @param userId         Firebase UID
-   * @throws NotFoundError if not found or not owned by user
-   */
-  async getRequirementById(requirementId: string, userId: string): Promise<unknown> {
-    const result = await queryDB(
-      'SELECT * FROM requirements WHERE id = $1 AND user_id = $2',
-      [requirementId, userId],
-    );
-
-    if (result.rows.length === 0) {
-      throw new NotFoundError('Requirement');
-    }
-
-    return result.rows[0];
+  // Alias
+  async getWhatsAppDeepLink(ticketId: string, user: AuthUser) {
+    return this.getWhatsAppLink(ticketId, user);
   }
 
   // ================================================================
@@ -350,55 +335,18 @@ export class FulfillmentService {
   // ================================================================
 
   /**
-   * Get aggregated dashboard stats for a user.
-   * Includes lifetime savings, order count, monthly projection,
-   * and active prescriptions.
-   *
-   * @param user  Authenticated user
+   * Get aggregated dashboard statistics for a user.
    */
   async getDashboard(user: AuthUser): Promise<{
     user: { uid: string; name?: string; phone?: string };
     stats: DashboardStats;
     active_prescriptions: unknown[];
   }> {
-    // 1. Lifetime stats
-    const lifetimeRes = await queryDB(
-      `SELECT
-         COALESCE(SUM(total_branded_value), 0) as lifetime_branded,
-         COALESCE(SUM(total_generic_value), 0) as lifetime_generic,
-         COALESCE(SUM(savings), 0) as lifetime_savings,
-         COUNT(*) as total_orders
-       FROM requirements
-       WHERE user_id = $1`,
-      [user.uid],
-    );
-    const lifetime = lifetimeRes.rows[0];
-
-    // 2. Monthly savings (for annual projection)
-    const monthlyRes = await queryDB(
-      `SELECT COALESCE(SUM(savings), 0) as monthly_savings
-       FROM requirements
-       WHERE user_id = $1 AND created_at >= NOW() - INTERVAL '30 days'`,
-      [user.uid],
-    );
-    const monthlySavings = parseFloat(monthlyRes.rows[0].monthly_savings);
-
-    // 3. Active prescriptions (items from last confirmed order)
-    const activeRes = await queryDB(
-      `SELECT items FROM requirements
-       WHERE user_id = $1 AND status = 'CONFIRMED'
-       ORDER BY created_at DESC
-       LIMIT 1`,
-      [user.uid],
-    );
-
-    let activePrescriptions: unknown[] = [];
-    if (activeRes.rows.length > 0) {
-      activePrescriptions =
-        typeof activeRes.rows[0].items === 'string'
-          ? JSON.parse(activeRes.rows[0].items)
-          : activeRes.rows[0].items;
-    }
+    const [lifetime, monthlySavings, activePrescriptions] = await Promise.all([
+      this.repository.findUserLifetimeStats(user.uid),
+      this.repository.findUser30DaySavings(user.uid),
+      this.repository.findActivePrescriptionItems(user.uid),
+    ]);
 
     const avgSavingsPercent =
       parseFloat(lifetime.lifetime_branded) > 0
@@ -411,38 +359,23 @@ export class FulfillmentService {
         average_savings_percent: Math.round(avgSavingsPercent * 10) / 10,
         annual_savings_projection: Math.round(monthlySavings * 12 * 100) / 100,
         lifetime_savings: parseFloat(lifetime.lifetime_savings),
-        total_orders: parseInt(lifetime.total_orders),
+        total_orders: parseInt(lifetime.total_orders, 10) || 0,
       },
       active_prescriptions: activePrescriptions,
     };
   }
 
+  // Alias
+  async getUserDashboard(user: AuthUser) {
+    return this.getDashboard(user);
+  }
+
   /**
    * Get monthly savings chart data for the last 6 months.
-   *
-   * @param userId  Firebase UID
    */
   async getMonthlyStats(userId: string): Promise<{ history: MonthlySavings[] }> {
-    const result = await queryDB(
-      `SELECT
-         TO_CHAR(created_at, 'Mon') as month,
-         DATE_TRUNC('month', created_at) as month_sort,
-         COALESCE(SUM(savings), 0) as savings,
-         COALESCE(SUM(total_generic_value), 0) as generic_spend
-       FROM requirements
-       WHERE user_id = $1 AND created_at >= NOW() - INTERVAL '6 months'
-       GROUP BY month, month_sort
-       ORDER BY month_sort ASC`,
-      [userId],
-    );
-
-    return {
-      history: result.rows.map((r: any) => ({
-        month: r.month,
-        savings: parseFloat(r.savings),
-        spend: parseFloat(r.generic_spend),
-      })),
-    };
+    const history = await this.repository.findMonthlySavingsChart(userId);
+    return { history };
   }
 
   // ================================================================
@@ -450,45 +383,44 @@ export class FulfillmentService {
   // ================================================================
 
   /**
-   * Get user profile from local PostgreSQL.
-   * Falls back to Firebase token data if no local record exists.
-   *
-   * @param user  Authenticated user
+   * Update the user's recurring medical basket.
    */
-  async getProfile(user: AuthUser): Promise<unknown> {
-    try {
-      const result = await queryDB(
-        'SELECT * FROM users WHERE firebase_uid = $1',
-        [user.uid],
-      );
+  async updateBasket(user: AuthUser | string, basket: BasketItem[]): Promise<{ success: boolean }> {
+    const uid = typeof user === 'string' ? user : user.uid;
+    await this.repository.updateMedicalBasket(uid, basket);
+    return { success: true };
+  }
 
-      if (result.rows.length === 0) {
-        return { uid: user.uid, name: user.name, phone: user.phone_number };
-      }
-
-      return result.rows[0];
-    } catch (err) {
-      // Graceful degradation: fall back to Firebase token data
-      // but log the error for operational visibility
-      const message = err instanceof Error ? err.message : 'Unknown database error';
-      console.error('Failed to fetch user profile from DB, using token fallback:', message);
-      return { uid: user.uid, name: user.name, phone: user.phone_number };
-    }
+  // Alias
+  async updateMedicalBasket(userId: string, basket: BasketItem[]) {
+    await this.repository.updateMedicalBasket(userId, basket);
   }
 
   /**
-   * Persist the user's medical basket to PostgreSQL.
-   * Implements the "Merge & Max" cart sync strategy.
-   *
-   * @param userId  Firebase UID
-   * @param basket  Cart items array
+   * Get user profile details.
    */
-  async updateBasket(userId: string, basket: BasketItem[]): Promise<{ success: boolean }> {
-    await queryDB(
-      'UPDATE users SET medical_basket = $1 WHERE firebase_uid = $2',
-      [JSON.stringify(basket || []), userId],
-    );
-
-    return { success: true };
+  async getProfile(user: AuthUser | string): Promise<any> {
+    const uid = typeof user === 'string' ? user : user.uid;
+    const profile = await this.repository.findUserProfile(uid);
+    if (!profile) {
+      throw new NotFoundError('User profile');
+    }
+    return {
+      ...profile,
+      medical_basket: typeof profile.medical_basket === 'string'
+        ? JSON.parse(profile.medical_basket)
+        : profile.medical_basket,
+    };
   }
+
+  // Alias
+  async getUserProfile(userId: string) {
+    const profile = await this.repository.findUserProfile(userId);
+    if (!profile) throw new NotFoundError('User profile');
+    return profile;
+  }
+}
+
+function rItems(items: unknown): unknown {
+  return typeof items === 'string' ? JSON.parse(items) : items;
 }

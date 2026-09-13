@@ -6,12 +6,13 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "start": "node dist/src/index.js",
-    "build": "tsc",
+    "build": "tsc --noEmit && esbuild src/index.ts scripts/migrate.ts scripts/etl_pipeline.ts scripts/store_geocoding.ts scripts/seed_meilisearch.ts --bundle --platform=node --format=esm --packages=external --outdir=dist",
     "typecheck": "tsc --noEmit",
-    "db:setup": "tsx scripts/setup_db.ts",
-    "db:migrate": "tsx scripts/migrate_v2.ts",
+    "db:setup": "tsx scripts/migrate.ts",
+    "db:migrate": "tsx scripts/migrate.ts",
     "etl:run": "tsx scripts/etl_pipeline.ts",
-    "etl:stores": "tsx scripts/store_geocoding.ts"
+    "etl:stores": "tsx scripts/store_geocoding.ts",
+    "meili:seed": "tsx scripts/seed_meilisearch.ts"
   },
   "keywords": [
     "janaushadhi",
@@ -31,14 +32,15 @@
     "meilisearch": "^0.57.0",
     "pg": "^8.20.0",
     "redis": "^5.11.0",
-    "twilio": "^5.13.1",
-    "tsx": "^4.21.0"
+    "twilio": "^5.13.1"
   },
   "devDependencies": {
     "@types/node": "^25.6.0",
     "@types/pg": "^8.20.0",
+    "esbuild": "^0.28.2",
     "pino-pretty": "^13.1.3",
     "ts-node": "^10.9.2",
+    "tsx": "^4.21.0",
     "typescript": "^6.0.2"
   }
 }

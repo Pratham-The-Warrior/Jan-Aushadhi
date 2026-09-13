@@ -36,7 +36,7 @@ function parseCSV(filePath: string): Record<string, string>[] {
   let content = fs.readFileSync(filePath, 'utf-8');
   // Handle UTF-8 BOM
   content = content.replace(/^\ufeff/, '');
-  
+
   const lines = content.split('\n').filter(l => l.trim());
   if (lines.length === 0) return [];
 
@@ -95,8 +95,8 @@ function generateSaltHashes(composition: string, nameString: string = ''): { sal
   // 5. Strip noise words that prevent exact matching between branded/generic
   const noiseWords = [
     // Forms & Packaging
-    'tablet', 'tablets', 'capsule', 'capsules', 'injection', 'vial', 'wfi', 
-    'oral', 'suspension', 'syrup', 'drops', 'drop', 'cream', 'ointment', 
+    'tablet', 'tablets', 'capsule', 'capsules', 'injection', 'vial', 'wfi',
+    'oral', 'suspension', 'syrup', 'drops', 'drop', 'cream', 'ointment',
     'gel', 'lotion', 'mouthwash', 'infusion', 'powder', 'dry', 'solution',
     'inj', 'syr', 'cap', 'tab',
     // Clinical modifers
@@ -104,7 +104,7 @@ function generateSaltHashes(composition: string, nameString: string = ''): { sal
     'sustained', 'coated', 'enteric', 'soft', 'hard', 'gelatin', 'chewable',
     'effervescent', 'intravenous', 'intramuscular', 'topical',
     // Chemical linkages & Salts
-    'and', 'with', 'per', 'ml', 'for', 'hydrochloride', 'sodium', 
+    'and', 'with', 'per', 'ml', 'for', 'hydrochloride', 'sodium',
     'potassium', 'trihydrate', 'acid', 'base', 'anhydrous', 'hcl',
     'dipropionate', 'stearate', 'sulphate', 'sulfate', 'maleate',
     'mesylate', 'hydrate', 'acetate', 'mesilate'
@@ -153,9 +153,19 @@ function generateSaltHash(composition: string, nameString: string = ''): string 
   return generateSaltHashes(composition, nameString).saltHash;
 }
 
+function resolveDataPath(filename: string): string {
+  const inDataDir = path.resolve(__dirname, '../../data', filename);
+  if (fs.existsSync(inDataDir)) return inDataDir;
+  const inRoot = path.resolve(__dirname, '../../', filename);
+  if (fs.existsSync(inRoot)) return inRoot;
+  const inApp = path.resolve('/app/data', filename);
+  if (fs.existsSync(inApp)) return inApp;
+  return inDataDir;
+}
+
 // ---- BRANDED MEDICINES INGESTION ----
 async function ingestBrandedMedicines() {
-  const csvPath = path.resolve(__dirname, '../../A_Z_medicines_dataset_of_India.csv');
+  const csvPath = resolveDataPath('A_Z_medicines_dataset_of_India.csv');
   console.log(`📂 Reading branded medicines from: ${csvPath}`);
 
   if (!fs.existsSync(csvPath)) {
@@ -176,7 +186,7 @@ async function ingestBrandedMedicines() {
 
     for (let i = 0; i < rows.length; i += BATCH_SIZE) {
       const batch = rows.slice(i, i + BATCH_SIZE);
-      
+
       const values: any[] = [];
       const placeholders: string[] = [];
 
@@ -231,7 +241,7 @@ async function ingestBrandedMedicines() {
 
 // ---- GENERIC MEDICINES INGESTION ----
 async function ingestGenericMedicines() {
-  const csvPath = path.resolve(__dirname, '../../Product List_3_4_2026 @ 16_33_44.csv');
+  const csvPath = resolveDataPath('Product List_3_4_2026 @ 16_33_44.csv');
   console.log(`\n📂 Reading generic medicines from: ${csvPath}`);
 
   if (!fs.existsSync(csvPath)) {
@@ -251,7 +261,7 @@ async function ingestGenericMedicines() {
 
     for (let i = 0; i < rows.length; i += BATCH_SIZE) {
       const batch = rows.slice(i, i + BATCH_SIZE);
-      
+
       const values: any[] = [];
       const placeholders: string[] = [];
 
@@ -324,7 +334,7 @@ async function indexMeilisearch() {
     // Configure index settings
     await index.updateSettings({
       searchableAttributes: ['name', 'manufacturer', 'composition1', 'composition2'],
-      filterableAttributes: ['salt_hash', 'manufacturer'],
+      filterableAttributes: ['salt_hash', 'salt_strength_hash', 'manufacturer'],
       sortableAttributes: ['mrp', 'name'],
     });
 
