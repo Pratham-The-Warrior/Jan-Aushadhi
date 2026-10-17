@@ -67,6 +67,11 @@ export default function Discovery() {
 
   // Counts for quick tabs
   const matchedCount = results.filter((r) => Boolean(r.generic)).length;
+  // Search forgives misspellings ("dollo" → Dolo). Say so when the first word typed
+  // appears in none of the top results, so nobody mistakes a near match for theirs.
+  const firstWord = (query.toLowerCase().match(/[a-z]{3,}/g) || []).find((w) => !['tab', 'tablet', 'cap', 'capsule', 'syrup'].includes(w));
+  const closestOnly = Boolean(firstWord) && results.length > 0 && !results.slice(0, 3).some((r) =>
+    `${r.branded?.name} ${r.branded?.composition1 || ''} ${r.branded?.composition2 || ''}`.toLowerCase().includes(firstWord));
 
   // Apply filters + sort to results
   const displayResults = applyFiltersAndSort(results, filters);
@@ -310,6 +315,11 @@ export default function Discovery() {
                   <div>
                     <h2 className="font-display text-xl font-bold text-on-surface">Results for &quot;{query}&quot;</h2>
                     <p className="text-sm text-on-surface/70">{matchedCount} of {results.length} brands have a Jan Aushadhi generic</p>
+                    {closestOnly && (
+                      <p className="text-sm text-warning font-medium mt-1">
+                        No exact match for &quot;{firstWord}&quot;. Showing the closest names. Check the spelling against your prescription.
+                      </p>
+                    )}
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="flex bg-surface-low p-1 rounded-lg border border-outline-variant/50" role="tablist">
