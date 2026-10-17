@@ -265,7 +265,7 @@ export default function Orders() {
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 320, color: 'var(--color-text-muted)', gap: '1rem', padding: '2rem' }}>
             <div style={{
               width: 64, height: 64, borderRadius: '50%',
-              background: 'rgba(16, 185, 129, 0.06)', border: '1px solid rgba(16, 185, 129, 0.12)',
+              background: 'rgba(17, 135, 138, 0.06)', border: '1px solid rgba(17, 135, 138, 0.12)',
               display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 4,
             }}>
               <Package size={32} style={{ color: 'var(--color-brand-500)' }} />

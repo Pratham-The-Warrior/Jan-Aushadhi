@@ -20,12 +20,20 @@ export default function NotFound() {
       <p className="text-on-surface/60 max-w-md mx-auto mb-10 text-lg">
         The page you are looking for doesn't exist or has been moved.
       </p>
-      <button
-        onClick={() => navigate('/')}
-        className="btn-primary py-3 px-8 flex items-center gap-2"
-      >
-        <ArrowLeft className="w-4 h-4" /> Return Home
-      </button>
+      <div className="flex flex-col sm:flex-row gap-3">
+        <button
+          onClick={() => navigate('/discovery')}
+          className="btn-primary py-3 px-8 flex items-center justify-center gap-2"
+        >
+          Search medicines
+        </button>
+        <button
+          onClick={() => navigate('/')}
+          className="btn-secondary py-3 px-8 flex items-center justify-center gap-2"
+        >
+          <ArrowLeft className="w-4 h-4" /> Home
+        </button>
+      </div>
     </div>
   );
 }

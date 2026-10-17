@@ -1,8 +1,9 @@
 // ============================================================
-// Module 1C: Store Import & Discovery Script
-// Imports stores from the extracted kendra_stores.csv,
-// assigns mock geolocations (since Google Maps is disabled),
-// and prepares the PostgreSQL stores table.
+// Module 1C: Store Import & Geocoding Script
+// Imports stores from kendra_stores.csv and places each one on the
+// map using PIN-code coordinates from pincode_geo.csv. Every store
+// records how precise its location is (see data/README.md), so the
+// API never presents a guessed location as an exact one.
 // ============================================================
 
 import { Pool } from 'pg';
@@ -24,63 +25,68 @@ const pool = new Pool({
   ...(isCloudDB ? { ssl: { rejectUnauthorized: false } } : {}),
 });
 
-interface StoreRecord {
-  pmbjk_code: string;
-  name: string;
-  phone: string;
-  address: string;
-  pincode: string;
-  state: string;
-  district: string;
-}
+export type LocationPrecision = 'pincode' | 'area' | 'district' | 'none';
 
-const STATE_CENTROIDS: Record<string, [number, number]> = {
-  'andhra pradesh': [15.9129, 79.7400],
-  'arunachal pradesh': [28.2180, 94.7278],
-  'assam': [26.2006, 92.9376],
-  'bihar': [25.0961, 85.3131],
-  'chhattisgarh': [21.2787, 81.8661],
-  'delhi': [28.7041, 77.1025],
-  'goa': [15.2993, 74.1240],
-  'gujarat': [22.2587, 71.1924],
-  'haryana': [29.0588, 76.0856],
-  'himachal pradesh': [31.1048, 77.1734],
-  'jharkhand': [23.6102, 85.2799],
-  'karnataka': [15.3173, 75.7139],
-  'kerala': [10.8505, 76.2711],
-  'madhya pradesh': [22.9734, 78.6569],
-  'maharashtra': [19.7515, 75.7139],
-  'manipur': [24.6637, 93.9063],
-  'meghalaya': [25.4670, 91.3662],
-  'mizoram': [23.1645, 92.9376],
-  'nagaland': [26.1584, 94.5624],
-  'odisha': [20.9517, 85.0985],
-  'punjab': [31.1471, 75.3412],
-  'rajasthan': [27.0238, 74.2179],
-  'sikkim': [27.5330, 88.5122],
-  'tamil nadu': [11.1271, 78.6569],
-  'telangana': [18.1124, 79.0193],
-  'tripura': [23.9408, 91.9882],
-  'uttar pradesh': [26.8467, 80.9462],
-  'uttarakhand': [30.0668, 79.0193],
-  'west bengal': [22.9868, 87.8550],
-  'jammu and kashmir': [33.7782, 76.5762],
-  'ladakh': [34.1526, 77.5771],
-  'puducherry': [11.9416, 79.8083],
-  'chandigarh': [30.7333, 76.7794],
+/** Source CSV truncates some long state names; map them to the full name. */
+const STATE_FIXES: Record<string, string> = {
+  'jammu and': 'Jammu And Kashmir',
+  'the dadra and': 'The Dadra And Nagar Haveli And Daman And Diu',
+  'the dadra and nagar haveli and': 'The Dadra And Nagar Haveli And Daman And Diu',
 };
 
-function getDeterministicCoordinates(state: string, pincode: string, idx: number): [number, number] {
-  const normState = (state || '').trim().toLowerCase();
-  const base = STATE_CENTROIDS[normState] || [20.5937, 78.9629];
-  const pinNum = parseInt(pincode || '0', 10);
-  const offsetLat = ((pinNum % 100) / 100 - 0.5) * 0.4 + ((idx % 20) - 10) * 0.01;
-  const offsetLng = (((pinNum / 100) % 100) / 100 - 0.5) * 0.4 + (((idx * 3) % 20) - 10) * 0.01;
-  return [
-    Math.round((base[0] + offsetLat) * 10000) / 10000,
-    Math.round((base[1] + offsetLng) * 10000) / 10000,
-  ];
+export function normalizeState(state: string): string {
+  const trimmed = (state || '').trim();
+  return STATE_FIXES[trimmed.toLowerCase()] || trimmed;
 }
+
+/** Extract a usable Indian mobile/landline number from free-text, or null. */
+export function extractPhone(text: string): string | null {
+  const match = (text || '').match(/(?:\+91[\s-]?|0)?[6-9]\d{9}\b/);
+  return match ? match[0].replace(/[\s-]/g, '') : null;
+}
+
+type LatLng = [number, number];
+
+/**
+ * Build a resolver from PIN code → coordinates. Falls back to the mean of
+ * PIN codes sharing a 4-digit prefix (postal area), then a 3-digit prefix
+ * (sorting district). Never invents a location beyond that.
+ */
+export function buildPincodeResolver(rows: Record<string, string>[]) {
+  const exact = new Map<string, LatLng>();
+  const sums = new Map<string, { lat: number; lng: number; n: number }>();
+
+  for (const r of rows) {
+    const pin = (r['pincode'] || '').trim();
+    const lat = parseFloat(r['latitude']);
+    const lng = parseFloat(r['longitude']);
+    if (!/^\d{6}$/.test(pin) || Number.isNaN(lat) || Number.isNaN(lng)) continue;
+    exact.set(pin, [lat, lng]);
+    for (const key of [pin.slice(0, 4), pin.slice(0, 3)]) {
+      const acc = sums.get(key) || { lat: 0, lng: 0, n: 0 };
+      acc.lat += lat; acc.lng += lng; acc.n += 1;
+      sums.set(key, acc);
+    }
+  }
+
+  const mean = (key: string): LatLng | null => {
+    const acc = sums.get(key);
+    return acc ? [acc.lat / acc.n, acc.lng / acc.n] : null;
+  };
+
+  return (pincode: string): { coords: LatLng | null; precision: LocationPrecision } => {
+    const pin = (pincode || '').trim();
+    if (!/^\d{6}$/.test(pin)) return { coords: null, precision: 'none' };
+    const hit = exact.get(pin);
+    if (hit) return { coords: hit, precision: 'pincode' };
+    const area = mean(pin.slice(0, 4));
+    if (area) return { coords: area, precision: 'area' };
+    const district = mean(pin.slice(0, 3));
+    if (district) return { coords: district, precision: 'district' };
+    return { coords: null, precision: 'none' };
+  };
+}
+
 function parseCSV(filePath: string): Record<string, string>[] {
   const content = fs.readFileSync(filePath, 'utf-8').replace(/^\ufeff/, '');
   const lines = content.split('\n').filter(l => l.trim());
@@ -133,46 +139,63 @@ export async function importStores() {
   const rows = parseCSV(csvPath);
   console.log(`📊 Parsed ${rows.length} store records from CSV`);
 
+  const pincodePath = resolveDataPath('pincode_geo.csv');
+  if (!fs.existsSync(pincodePath)) {
+    console.error('❌ pincode_geo.csv not found — cannot place stores on the map.');
+    return;
+  }
+  const resolvePincode = buildPincodeResolver(parseCSV(pincodePath));
+
   const client = await pool.connect();
 
   try {
-    // Clear existing stores
-    await client.query('DELETE FROM stores');
-
+    // Upsert rather than delete: pharmacists may have claimed a store, set a UPI ID,
+    // phone number or exact (geocoded) location that must survive a re-import.
     console.log('📥 Importing stores into PostgreSQL...');
     let imported = 0;
+    const precisionCounts: Record<string, number> = {};
     const BATCH_SIZE = 500;
+    const COLS = 9;
 
     for (let i = 0; i < rows.length; i += BATCH_SIZE) {
       const batch = rows.slice(i, i + BATCH_SIZE);
-      const values: any[] = [];
+      const values: unknown[] = [];
       const placeholders: string[] = [];
 
       batch.forEach((row, idx) => {
         const code = row['Kendra Code'] || `PMBJK-${row['Sr.No']}`;
         const name = row['Name'] || 'Unknown Kendra';
         const address = row['Address'] || '';
-        const pincode = row['Pin Code'] || '';
-        const state = row['State Name'] || '';
-        const district = row['District Name'] || '';
-        
-        const phoneMatch = address.match(/(?:\+91|0)?[6-9]\d{9}/);
-        const phone = phoneMatch ? phoneMatch[0] : '+91 00000 00000';
+        const pincode = (row['Pin Code'] || '').trim();
+        const state = normalizeState(row['State Name'] || '');
+        const district = (row['District Name'] || '').trim();
+        const phone = extractPhone(address);
 
-        const [lat, lng] = getDeterministicCoordinates(state, pincode, idx);
+        const { coords, precision } = resolvePincode(pincode);
+        precisionCounts[precision] = (precisionCounts[precision] || 0) + 1;
 
-        const offset = idx * 9;
+        const o = idx * COLS;
         placeholders.push(
-          `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6}, $${offset + 7}, ST_SetSRID(ST_MakePoint($${offset + 8}, $${offset + 9}), 4326)::geography)`
+          `($${o + 1}, $${o + 2}, $${o + 3}, $${o + 4}, $${o + 5}, $${o + 6}, $${o + 7}, ` +
+          `CASE WHEN $${o + 8}::float8 IS NULL THEN NULL ELSE ST_SetSRID(ST_MakePoint($${o + 8}::float8, $${o + 9}::float8), 4326)::geography END, ` +
+          `'${precision}')`
         );
-        values.push(code, name, phone, address, pincode, state, district, lng, lat);
+        values.push(code, name, phone, address, pincode, state, district, coords ? coords[1] : null, coords ? coords[0] : null);
       });
 
       if (placeholders.length > 0) {
         await client.query(
-          `INSERT INTO stores (pmbjk_code, name, phone, address, pincode, state, district, location)
+          `INSERT INTO stores (pmbjk_code, name, phone, address, pincode, state, district, location, location_precision)
            VALUES ${placeholders.join(', ')}
-           ON CONFLICT (pmbjk_code) DO NOTHING`,
+           ON CONFLICT (pmbjk_code) DO UPDATE SET
+             name = EXCLUDED.name,
+             address = EXCLUDED.address,
+             pincode = EXCLUDED.pincode,
+             state = EXCLUDED.state,
+             district = EXCLUDED.district,
+             phone = COALESCE(stores.phone, EXCLUDED.phone),
+             location = CASE WHEN stores.location_precision = 'geocoded' THEN stores.location ELSE EXCLUDED.location END,
+             location_precision = CASE WHEN stores.location_precision = 'geocoded' THEN 'geocoded' ELSE EXCLUDED.location_precision END`,
           values
         );
         imported += batch.length;
@@ -183,6 +206,7 @@ export async function importStores() {
       }
     }
 
+    console.log('   📍 Location precision:', JSON.stringify(precisionCounts));
     console.log(`\n🎉 Successfully imported ${imported} stores!`);
   } catch (err) {
     console.error('❌ Store import failed:', err);

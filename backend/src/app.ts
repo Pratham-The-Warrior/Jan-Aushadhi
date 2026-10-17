@@ -16,7 +16,7 @@ import { getLoggerConfig } from './shared/logger';
 import { AppError, toErrorResponse } from './shared/errors';
 
 // Infrastructure
-import { checkDatabaseHealth } from './shared/infra/database';
+import { checkDatabaseHealth, queryDB } from './shared/infra/database';
 import { initRedis, checkRedisHealth } from './shared/infra/redis';
 import { checkMeiliHealth } from './shared/infra/meilisearch';
 import { isFirebaseReady } from './shared/infra/firebase';
@@ -188,6 +188,27 @@ export async function buildApp(): Promise<FastifyInstance> {
         auth: isFirebaseReady() ? 'Firebase Admin (Active)' : 'Firebase Admin (Inactive)',
       },
     });
+  });
+
+  // 4. Public Platform Stats — live counts for marketing pages (cached in memory for 1 hour)
+  let statsCache: { at: number; body: Record<string, number> } | null = null;
+  server.get('/api/v1/stats', async (_request, reply) => {
+    if (statsCache && Date.now() - statsCache.at < 3_600_000) {
+      return reply.send(statsCache.body);
+    }
+    const res = await queryDB(`
+      SELECT
+        (SELECT COUNT(*) FROM stores WHERE status = 'ACTIVE') AS kendras,
+        (SELECT COUNT(DISTINCT (state, district)) FROM stores WHERE status = 'ACTIVE') AS districts,
+        (SELECT COUNT(DISTINCT state) FROM stores WHERE status = 'ACTIVE') AS states,
+        (SELECT COUNT(*) FROM generic_meds) AS generics,
+        (SELECT COUNT(*) FROM branded_meds b WHERE NOT b.is_discontinued
+           AND EXISTS (SELECT 1 FROM generic_meds g WHERE g.salt_strength_hash = b.salt_strength_hash)) AS exact_matches
+    `);
+    const row = res.rows[0] || {};
+    const body = Object.fromEntries(Object.entries(row).map(([k, v]) => [k, Number(v) || 0]));
+    statsCache = { at: Date.now(), body };
+    return reply.send(body);
   });
 
   // ---- Register Domain Modules ----

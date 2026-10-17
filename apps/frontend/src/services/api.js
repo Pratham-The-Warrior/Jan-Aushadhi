@@ -18,6 +18,7 @@ export {
   getUserProfile,
   updateMedicalBasket,
   healthCheck,
+  getPlatformStats,
 } from './fulfillment.api';
 
 // Re-export the error class for consumers that need it

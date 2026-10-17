@@ -204,7 +204,7 @@ export default function UsersPage() {
           position: 'fixed', bottom: '2rem', right: '2rem', zIndex: 100,
           padding: '1rem 1.5rem', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '0.75rem',
           boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
-          background: toast.type === 'success' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+          background: toast.type === 'success' ? 'rgba(17, 135, 138, 0.15)' : 'rgba(239, 68, 68, 0.15)',
           border: toast.type === 'success' ? '1px solid var(--color-brand-500)' : '1px solid var(--color-danger-500)',
           color: toast.type === 'success' ? 'var(--color-brand-400)' : 'var(--color-danger-500)',
           animation: 'fadeIn 0.2s ease forwards'
@@ -264,7 +264,7 @@ export default function UsersPage() {
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 320, color: 'var(--color-text-muted)', gap: '1rem', padding: '2rem' }}>
             <div style={{
               width: 64, height: 64, borderRadius: '50%',
-              background: 'rgba(99, 102, 241, 0.06)', border: '1px solid rgba(99, 102, 241, 0.12)',
+              background: 'rgba(17, 135, 138, 0.06)', border: '1px solid rgba(17, 135, 138, 0.12)',
               display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 4,
             }}>
               <Users size={32} style={{ color: 'var(--color-brand-500)' }} />
@@ -342,7 +342,7 @@ export default function UsersPage() {
                           </button>
                           <button
                             onClick={() => handleToggleSuspend(u.firebase_uid, u.is_suspended)}
-                            className={`btn-icon ${u.is_suspended ? 'text-emerald-500' : 'text-rose-500'}`}
+                            className={`btn-icon ${u.is_suspended ? 'text-brand-500' : 'text-rose-500'}`}
                             title={u.is_suspended ? 'Reactivate Account' : 'Suspend Account'}
                             disabled={actionLoading === u.firebase_uid + 'suspend'}
                             aria-label={u.is_suspended ? 'Reactivate' : 'Suspend'}
@@ -383,7 +383,7 @@ export default function UsersPage() {
         <div className="modal-overlay" onClick={() => setRoleModal(null)}>
           <form className="modal-content" onClick={e => e.stopPropagation()} onSubmit={handleRoleUpdateSubmit}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.25rem' }}>
-              <div style={{ width: 44, height: 44, borderRadius: 12, background: 'rgba(16,185,129,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ width: 44, height: 44, borderRadius: 12, background: 'rgba(17, 135, 138,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <UserCheck size={22} style={{ color: 'var(--color-brand-400)' }} />
               </div>
               <div>

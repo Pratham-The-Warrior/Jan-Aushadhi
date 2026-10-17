@@ -59,7 +59,7 @@ export default function TopBar({ onMenuClick }) {
             background: 'linear-gradient(135deg, var(--color-brand-500), var(--color-brand-700))',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontSize: '0.8125rem', fontWeight: 700, color: 'white',
-            boxShadow: '0 2px 8px rgba(16, 185, 129, 0.2)',
+            boxShadow: '0 2px 8px rgba(17, 135, 138, 0.2)',
           }}>
             {sellerProfile.name?.charAt(0)?.toUpperCase() || 'S'}
           </div>

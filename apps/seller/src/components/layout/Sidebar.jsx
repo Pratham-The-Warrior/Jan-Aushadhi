@@ -35,7 +35,7 @@ export default function Sidebar({ mobileOpen, onClose }) {
                 width: 36, height: 36, borderRadius: 10,
                 background: 'linear-gradient(135deg, var(--color-brand-500), var(--color-brand-700))',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                boxShadow: '0 4px 12px rgba(16, 185, 129, 0.25)',
+                boxShadow: '0 4px 12px rgba(17, 135, 138, 0.25)',
               }}>
                 <Store size={18} color="white" />
               </div>
@@ -56,7 +56,7 @@ export default function Sidebar({ mobileOpen, onClose }) {
 
         {/* Store Info */}
         {sellerProfile && (
-          <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid var(--color-border)', background: 'rgba(16, 185, 129, 0.03)' }}>
+          <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid var(--color-border)', background: 'rgba(17, 135, 138, 0.03)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
               <div style={{
                 width: 32, height: 32, borderRadius: 8,

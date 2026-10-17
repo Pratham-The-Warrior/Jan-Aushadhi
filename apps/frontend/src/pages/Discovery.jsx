@@ -3,15 +3,16 @@
 // Refactored: uses useSearch hook, extracted components
 // ============================================================
 
-import { useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Search, Filter, ArrowUpDown, Plus, MapPin, Loader2, Sparkles, Clock, X, Info, Pill, Beaker, TrendingUp, Heart, Activity, SlidersHorizontal, AlertCircle, Bell } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { Search, Loader2, Sparkles, Clock, X, Pill, SlidersHorizontal, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import useCartStore from '../store/cartStore';
 import useSearch from '../hooks/useSearch';
 import useClickOutside from '../hooks/useClickOutside';
 import SkeletonCard from '../components/common/SkeletonCard';
 import EmptyState from '../components/common/EmptyState';
+import { MatchedResultRow, UnmatchedResultRow } from '../components/discovery/ResultRow';
 import FilterSortPanel from '../components/discovery/FilterSortPanel';
 import { applyFiltersAndSort } from '../utils/filterUtils';
 import { toast } from '../store/toastStore';
@@ -33,21 +34,32 @@ function HighlightMatch({ text, query }) {
 }
 
 export default function Discovery() {
-  const navigate = useNavigate();
   const addItem = useCartStore((s) => s.addItem);
   const searchRef = useRef(null);
   const inputRef = useRef(null);
 
   const {
-    query, setQuery, results, loading, searched,
+    query, setQuery, results, loading, searched, error,
     suggestions, suggestLoading, showDropdown, setShowDropdown,
     activeIndex, setActiveIndex, recentSearches,
     doSearch, handleKeyDown, clearSearch, selectSuggestion,
   } = useSearch();
 
+  // Deep links: /discovery?q=telma (used by the home page search box and shared links)
+  const [searchParams] = useSearchParams();
+  const urlQuery = searchParams.get('q');
+  useEffect(() => {
+    if (urlQuery) {
+      setQuery(urlQuery);
+      doSearch(urlQuery);
+    }
+    // Run only when the URL query changes, not when doSearch's identity changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlQuery]);
+
   // Filter & sort state
   const [filterOpen, setFilterOpen] = useState(false);
-  const [filters, setFilters] = useState({ sortKey: 'savings_desc', savingsRange: 'all', matchFilter: 'matched' });
+  const [filters, setFilters] = useState({ sortKey: 'relevance', savingsRange: 'all', matchFilter: 'matched' });
 
   // Counts for quick tabs
   const matchedCount = results.filter((r) => Boolean(r.generic)).length;
@@ -55,20 +67,10 @@ export default function Discovery() {
   // Apply filters + sort to results
   const displayResults = applyFiltersAndSort(results, filters);
   const activeFilterCount = [
-    filters.sortKey !== 'savings_desc',
+    filters.sortKey !== 'relevance',
     filters.savingsRange !== 'all',
     filters.matchFilter !== 'matched',
   ].filter(Boolean).length;
-
-  const staggerContainer = {
-    hidden: { opacity: 0 },
-    show: { opacity: 1, transition: { staggerChildren: 0.1 } }
-  };
-
-  const fadeUpItem = {
-    hidden: { opacity: 0, y: 20 },
-    show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 300, damping: 24 } }
-  };
 
   useClickOutside(searchRef, () => setShowDropdown(false));
 
@@ -76,9 +78,12 @@ export default function Discovery() {
     if (!res.generic) return;
     addItem({
       drug_code: res.generic.drug_code, name: res.generic.name, mrp: res.generic.mrp,
-      branded_name: res.branded.name, branded_mrp: res.branded.mrp,
+      branded_name: res.branded.name,
+      // Only like-for-like matches count towards "you save" in the cart
+      branded_mrp: res.generic.match_tier === 'SALT_EQUIVALENT' ? undefined : res.branded.mrp,
       unit_size: res.generic.unit_size, group_name: res.generic.group_name,
     });
+    toast.success(`Added ${res.generic.name} to cart`);
   };
 
   const hasSuggestions = suggestions.length > 0;
@@ -94,14 +99,18 @@ export default function Discovery() {
         setFilters={setFilters}
       />
       {/* Search Header */}
-      <div className="bg-surface-low py-16 w-full px-4 border-b border-outline-variant">
+      <div className={`bg-surface-low w-full px-4 border-b border-outline-variant ${searched ? 'py-8' : 'py-12 md:py-16'}`}>
         <div className="max-w-4xl mx-auto text-center">
-          <h1 className="font-display text-4xl md:text-5xl font-bold tracking-tight text-on-surface mb-4">
-            Find Reliable <span className="text-primary">Generic Alternatives</span>
-          </h1>
-          <p className="text-on-surface/70 mb-10 max-w-2xl mx-auto text-lg leading-[1.6]">
-            Search by branded name to discover the JanAushadhi equivalent and save up to 90%.
-          </p>
+          {!searched && (
+            <>
+              <h1 className="font-display text-3xl md:text-5xl font-bold tracking-tight text-on-surface mb-3">
+                Find the <span className="text-primary">generic for your medicine</span>
+              </h1>
+              <p className="text-on-surface/70 mb-8 max-w-2xl mx-auto text-lg leading-[1.6]">
+                Type the brand name on your strip or prescription. We'll show the Jan Aushadhi generic with the same salt and strength.
+              </p>
+            </>
+          )}
 
           {/* Search Input */}
           <div className="relative max-w-3xl mx-auto" ref={searchRef}>
@@ -115,7 +124,7 @@ export default function Discovery() {
                   onChange={(e) => { setQuery(e.target.value); setShowDropdown(true); }}
                   onFocus={() => setShowDropdown(true)}
                   onKeyDown={handleKeyDown}
-                  placeholder="Start typing a medicine name…"
+                  placeholder="Type a brand name, e.g. Telma 40"
                   className="w-full py-4 px-4 text-base outline-none text-on-surface placeholder-on-surface/50 font-medium bg-transparent"
                   autoComplete="off"
                   aria-label="Search medicines"
@@ -159,7 +168,7 @@ export default function Discovery() {
                 {hasSuggestions && (
                   <>
                     <div className="flex justify-between items-center px-6 py-3 bg-surface-low border-b border-outline-variant">
-                      <div className="text-[10px] uppercase tracking-widest font-bold text-on-surface/50 flex items-center gap-2">
+                      <div className="text-xs font-bold text-on-surface/50 flex items-center gap-2">
                         <Sparkles className="w-3 h-3 text-primary" /> Suggestions
                       </div>
                       <div className="text-[10px] text-on-surface/40 font-medium">↑↓ navigate · Enter to search</div>
@@ -180,9 +189,8 @@ export default function Discovery() {
                           <div className="font-semibold text-on-surface text-sm truncate">
                             <HighlightMatch text={s.name} query={query} />
                           </div>
-                          <div className="text-xs text-on-surface/50 mt-0.5 flex items-center gap-2 truncate">
-                            {s.manufacturer && <span>{s.manufacturer}</span>}
-                            {s.composition && <><span className="opacity-30">•</span><span>{s.composition}</span></>}
+                          <div className="text-xs text-on-surface/55 mt-0.5 truncate">
+                            {s.composition || s.manufacturer}
                           </div>
                         </div>
                         {s.mrp > 0 && (
@@ -199,7 +207,7 @@ export default function Discovery() {
                 {showRecentInDropdown && !suggestLoading && (
                   <>
                     <div className="flex justify-between items-center px-6 py-3 bg-surface-low border-b border-outline-variant">
-                      <div className="text-[10px] uppercase tracking-widest font-bold text-on-surface/50 flex items-center gap-2">
+                      <div className="text-xs font-bold text-on-surface/50 flex items-center gap-2">
                         <Clock className="w-3 h-3" /> Recent Searches
                       </div>
                       <button onClick={() => setShowDropdown(false)}><X className="w-4 h-4 text-on-surface/50 hover:text-on-surface" /></button>
@@ -231,374 +239,121 @@ export default function Discovery() {
       </div>
 
       {/* Results */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        {searched && (
-          <div className="flex flex-col md:flex-row justify-between items-end mb-10">
-            <div>
-              <h2 className="font-display text-2xl font-bold text-on-surface mb-2">Search Results</h2>
-              <p className="text-sm text-on-surface/60">
-                Showing {displayResults.length} of {results.length} pharmaceutical equivalents for &quot;{query}&quot;
-              </p>
-            </div>
-            {results.length > 0 && (
-              <div className="flex gap-3 mt-4 md:mt-0">
-                <button
-                  onClick={() => setFilterOpen(true)}
-                  className={`btn-secondary py-2.5 px-5 flex items-center gap-2 text-xs uppercase tracking-widest font-bold relative ${activeFilterCount > 0 ? 'border-primary text-primary bg-primary/5' : ''
-                    }`}
-                >
-                  <Filter className="w-4 h-4" /> Filter
-                  {activeFilterCount > 0 && (
-                    <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-primary text-white text-[9px] font-bold rounded-full flex items-center justify-center">
-                      {activeFilterCount}
-                    </span>
-                  )}
-                </button>
-                <button
-                  onClick={() => setFilterOpen(true)}
-                  className="btn-secondary py-2.5 px-5 flex items-center gap-2 text-xs uppercase tracking-widest font-bold"
-                >
-                  <ArrowUpDown className="w-4 h-4" /> Sort
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 md:py-14">
         <div className="space-y-8">
           {!searched && !loading && (
-            <div className="py-8 animate-fadeIn">
-              <div className="flex items-center gap-3 mb-8">
-                <div className="w-10 h-10 bg-primary-light rounded-xl flex items-center justify-center shrink-0">
-                  <TrendingUp className="w-5 h-5 text-primary" />
-                </div>
-                <div>
-                  <h3 className="font-display text-2xl font-bold text-on-surface">Most Searched Generics</h3>
-                  <p className="text-sm text-on-surface/50 font-medium">Popular medicines people are saving on today</p>
-                </div>
-              </div>
-
-              <motion.div
-                variants={staggerContainer}
-                initial="hidden"
-                animate="show"
-                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6"
-              >
+            <div className="animate-fadeIn">
+              <h2 className="font-display text-xl font-bold text-on-surface mb-1">Popular searches</h2>
+              <p className="text-sm text-on-surface/60 mb-5">Common medicines people switch to Jan Aushadhi generics</p>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 {[
-                  { query: 'Paracetamol', name: 'Paracetamol 500mg', desc: 'Fever & Pain Relief', icon: <Pill className="w-6 h-6 text-primary" />, bg: 'bg-primary-light border-primary/20', badge: 'Save ~85%' },
-                  { query: 'Telmisartan', name: 'Telmisartan 40mg', desc: 'Blood Pressure', icon: <Heart className="w-6 h-6 text-accent" />, bg: 'bg-accent-soft border-accent/20', badge: 'Save ~90%' },
-                  { query: 'Metformin', name: 'Metformin 500mg', desc: 'Diabetes Management', icon: <Activity className="w-6 h-6 text-success" />, bg: 'bg-success-soft border-success/20', badge: 'Save ~88%' },
-                  { query: 'Pantoprazole', name: 'Pantoprazole 40mg', desc: 'Acidity & Digestion', icon: <Beaker className="w-6 h-6 text-warning" />, bg: 'bg-warning-soft border-warning/20', badge: 'Save ~80%' }
-                ].map((item, idx) => (
-                  <motion.div
-                    variants={fadeUpItem}
-                    whileHover={{ y: -4, scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    key={idx}
-                    onClick={() => {
-                      setQuery(item.query);
-                      doSearch();
-                    }}
-                    className={`p-6 rounded-3xl border flex flex-col justify-between shadow-sm transition-colors cursor-pointer group ${item.bg}`}
+                  { query: 'Dolo 650', name: 'Dolo 650', desc: 'Fever & pain' },
+                  { query: 'Telma 40', name: 'Telma 40', desc: 'Blood pressure' },
+                  { query: 'Glycomet', name: 'Glycomet', desc: 'Diabetes' },
+                  { query: 'Pan 40', name: 'Pan 40', desc: 'Acidity' },
+                ].map((item) => (
+                  <button
+                    key={item.query}
+                    onClick={() => { setQuery(item.query); doSearch(item.query); }}
+                    className="text-left p-4 rounded-xl bg-surface-lowest ghost-border hover:border-primary/40 hover:shadow-sm transition-all group"
                   >
-                    <div className="flex justify-between items-start mb-6">
-                      <div className="w-12 h-12 bg-white/60 backdrop-blur-sm rounded-xl flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform duration-300">
-                        {item.icon}
-                      </div>
-                      <span className="text-[10px] font-bold uppercase tracking-widest bg-white/60 px-2 py-1 rounded shadow-sm text-on-surface/70">
-                        {item.badge}
-                      </span>
-                    </div>
-                    <div>
-                      <h4 className="font-display font-bold text-lg text-on-surface mb-1 group-hover:text-primary transition-colors">{item.name}</h4>
-                      <p className="text-xs font-semibold text-on-surface/50 uppercase tracking-widest">{item.desc}</p>
-                    </div>
-                  </motion.div>
+                    <div className="font-display font-bold text-on-surface group-hover:text-primary transition-colors">{item.name}</div>
+                    <div className="text-sm text-on-surface/55">{item.desc}</div>
+                  </button>
                 ))}
-              </motion.div>
+              </div>
             </div>
           )}
 
           {loading && <SkeletonCard count={3} />}
 
           <AnimatePresence>
-            {!loading && searched && results.length === 0 && (
+            {!loading && searched && error && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                 <EmptyState
-                  icon={<Search className="w-10 h-10 text-on-surface/10" />}
-                  title="No Matching Generic Found"
-                  description={`We couldn't find a direct JanAushadhi equivalent for "${query}". Try checking the spelling or searching for the primary chemical salt.`}
-                  action={<button onClick={clearSearch} className="text-primary font-bold text-sm uppercase tracking-widest hover:underline">Clear Search</button>}
+                  icon={<Search className="w-10 h-10 text-on-surface/20" />}
+                  title="Search is temporarily unavailable"
+                  description="We couldn't reach the medicine database. Please check your connection and try again in a moment."
+                  action={<button onClick={() => doSearch(query)} className="btn-secondary py-2.5 px-5 text-sm">Try again</button>}
+                />
+              </motion.div>
+            )}
+
+            {!loading && searched && !error && results.length === 0 && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                <EmptyState
+                  icon={<Search className="w-10 h-10 text-on-surface/20" />}
+                  title={`No medicines found for "${query}"`}
+                  description="Check the spelling, or search by the salt name printed on the strip (for example, Paracetamol)."
+                  action={<button onClick={() => { clearSearch(); inputRef.current?.focus(); }} className="btn-secondary py-2.5 px-5 text-sm">Clear search</button>}
                 />
               </motion.div>
             )}
 
             {!loading && results.length > 0 && (
               <div>
-                {/* Result Segmented Tabs & Filter Bar */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
-                  <div className="flex items-center gap-1.5 bg-surface-low p-1.5 rounded-2xl border border-outline-variant/40 w-fit">
+                {/* Result toolbar */}
+                <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-5">
+                  <div>
+                    <h2 className="font-display text-xl font-bold text-on-surface">Results for &quot;{query}&quot;</h2>
+                    <p className="text-sm text-on-surface/60">{matchedCount} of {results.length} brands have a Jan Aushadhi generic</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex bg-surface-low p-1 rounded-lg border border-outline-variant/50" role="tablist">
+                      {[
+                        { key: 'matched', label: 'With generic', count: matchedCount },
+                        { key: 'all', label: 'All brands', count: results.length },
+                      ].map((tab) => (
+                        <button
+                          key={tab.key}
+                          role="tab"
+                          aria-selected={filters.matchFilter === tab.key}
+                          onClick={() => setFilters((f) => ({ ...f, matchFilter: tab.key }))}
+                          className={`px-3 py-1.5 rounded-md text-sm font-semibold transition-all ${
+                            filters.matchFilter === tab.key ? 'bg-surface-lowest text-primary shadow-sm' : 'text-on-surface/60 hover:text-on-surface'
+                          }`}
+                        >
+                          {tab.label} <span className="text-on-surface/40 font-medium">{tab.count}</span>
+                        </button>
+                      ))}
+                    </div>
                     <button
-                      onClick={() => setFilters(f => ({ ...f, matchFilter: 'matched' }))}
-                      className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
-                        filters.matchFilter === 'matched'
-                          ? 'bg-surface-lowest text-primary shadow-sm'
-                          : 'text-on-surface/60 hover:text-on-surface'
-                      }`}
+                      onClick={() => setFilterOpen(true)}
+                      className={`btn-secondary py-2 px-3 text-sm font-semibold inline-flex items-center gap-1.5 ${activeFilterCount > 0 ? 'border-primary text-primary' : ''}`}
                     >
-                      <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-sm" />
-                      Jan Aushadhi Equivalents
-                      <span className="bg-primary/10 text-primary text-[10px] px-2 py-0.5 rounded-full font-extrabold">
-                        {matchedCount}
-                      </span>
-                    </button>
-
-                    <button
-                      onClick={() => setFilters(f => ({ ...f, matchFilter: 'all' }))}
-                      className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
-                        filters.matchFilter === 'all'
-                          ? 'bg-surface-lowest text-primary shadow-sm'
-                          : 'text-on-surface/60 hover:text-on-surface'
-                      }`}
-                    >
-                      All Market Brands
-                      <span className="bg-on-surface/10 text-on-surface/70 text-[10px] px-2 py-0.5 rounded-full font-extrabold">
-                        {results.length}
-                      </span>
+                      <SlidersHorizontal className="w-4 h-4" /> Sort{activeFilterCount > 0 && ` (${activeFilterCount})`}
                     </button>
                   </div>
-
-                  <button
-                    onClick={() => setFilterOpen(true)}
-                    className="btn-secondary py-2.5 px-4 text-xs font-bold uppercase tracking-wider flex items-center gap-2 w-fit"
-                  >
-                    <SlidersHorizontal className="w-3.5 h-3.5" />
-                    Sort & Filters {activeFilterCount > 0 && `(${activeFilterCount})`}
-                  </button>
                 </div>
 
-                {/* No PMBJP Generic Available Notice */}
                 {matchedCount === 0 && (
-                  <div className="p-6 bg-amber-500/10 border border-amber-500/20 rounded-2xl mb-8 flex items-start gap-4 text-left animate-fadeIn">
-                    <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5 shrink-0" />
-                    <div>
-                      <h4 className="font-display font-bold text-base text-on-surface">No direct Jan Aushadhi generic listed for "{query}"</h4>
-                      <p className="text-xs text-on-surface/70 mt-1 leading-relaxed">
-                        We found {results.length} commercial brand(s) in the national registry, but PMBJP does not currently formulate this exact combination. You can explore the commercial reference cards below or consult a Kendra pharmacist for equivalent therapy.
-                      </p>
-                    </div>
+                  <div className="p-4 bg-warning-soft border border-warning/30 rounded-xl mb-5 flex items-start gap-3">
+                    <AlertCircle className="w-5 h-5 text-warning mt-0.5 shrink-0" />
+                    <p className="text-sm text-on-surface/80">
+                      None of these brands has a Jan Aushadhi generic with the same composition yet. A Kendra pharmacist may suggest an alternative your doctor can approve.
+                    </p>
                   </div>
                 )}
 
-                <motion.div
-                  variants={staggerContainer}
-                  initial="hidden"
-                  animate="show"
-                  className="space-y-8"
-                >
+                <div className="space-y-3">
                   {displayResults.length === 0 ? (
-                    <div className="py-12 text-center bg-surface-lowest rounded-2xl ghost-border p-8">
-                      <p className="text-on-surface/50 font-medium">No results match your current filter criteria.</p>
+                    <div className="py-10 text-center bg-surface-lowest rounded-xl ghost-border">
+                      <p className="text-on-surface/60">No results match these filters.</p>
                       <button
-                        onClick={() => setFilters({ sortKey: 'savings_desc', savingsRange: 'all', matchFilter: 'all' })}
-                        className="text-primary font-bold text-sm mt-3 hover:underline"
+                        onClick={() => setFilters({ sortKey: 'relevance', savingsRange: 'all', matchFilter: 'all' })}
+                        className="text-primary font-semibold text-sm mt-2 hover:underline"
                       >
-                        Reset Filters & Show All
+                        Reset filters
                       </button>
                     </div>
                   ) : (
                     displayResults.map((res) => (
-                      res.generic ? (
-                        /* Card 1: Verified Jan Aushadhi Generic Match */
-                        <motion.div
-                          variants={fadeUpItem}
-                          key={res.id}
-                          className="relative flex flex-col md:flex-row bg-surface-lowest rounded-2xl ghost-border p-8 pt-10 clinical-shadow group hover:border-primary/20 transition-all"
-                        >
-                          {/* Branded */}
-                          <div className="w-full md:w-[35%] pr-8 pb-8 md:pb-0 relative z-10 border-r-0 md:border-r border-outline-variant/30">
-                            <div className="text-[10px] font-bold tracking-widest text-on-surface/50 uppercase mb-3 flex items-center gap-2">
-                              <Beaker className="w-3.5 h-3.5" /> Branded Medication
-                            </div>
-                            <h3 className="font-display text-2xl font-bold text-on-surface mb-2 group-hover:text-primary transition-colors">
-                              {res.branded.name}
-                            </h3>
-                            <div className="text-sm text-on-surface/60 mb-8 font-medium">{res.branded.manufacturer}</div>
-                            <div className="bg-surface-low border border-outline-variant p-6 rounded-md w-full max-w-[240px] ghost-border">
-                              <div className="text-[10px] font-bold tracking-widest text-on-surface/50 uppercase mb-2">Estimated MRP</div>
-                              <div className="font-display text-3xl font-bold text-on-surface">₹{(res.branded.mrp || 0).toFixed(2)}</div>
-                            </div>
-                          </div>
-
-                          {/* Savings Badge - Mobile */}
-                          <div className="md:hidden flex items-center justify-center py-6 bg-primary/5 my-4 rounded-md border border-primary/10">
-                            <div className="text-primary font-bold text-sm">SAVE {res.savings.percentage}% WITH JAN AUSHADHI</div>
-                          </div>
-
-                          {/* Connector + Savings Badge - Desktop */}
-                          <div className="absolute top-1/2 left-[35%] -translate-x-1/2 -translate-y-1/2 hidden md:flex flex-col items-center z-20">
-                            <div className="w-10 h-10 bg-primary border-4 border-surface-lowest text-white flex items-center justify-center rounded-lg shadow-sm">
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14m-7-7 7 7-7 7" /></svg>
-                            </div>
-                            {res.savings?.percentage > 0 && (
-                              <div className="mt-3 bg-primary text-white text-[10px] font-bold px-2 py-1 rounded-sm uppercase tracking-wider shadow-sm">
-                                SAVE {res.savings.percentage}%
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Generic */}
-                          <div className="w-full md:w-[65%] md:pl-16 relative z-10 flex flex-col justify-between">
-                            <div>
-                              <div className="flex justify-between items-start mb-8 gap-4">
-                                <div>
-                                  <div className="flex items-center gap-3 mb-3">
-                                    <div className="text-[10px] font-bold tracking-widest text-on-surface/60 uppercase flex items-center gap-2">
-                                      <Pill className="w-3.5 h-3.5" /> PMBJP Equivalent
-                                    </div>
-                                    {res.generic.match_tier === 'EXACT_MATCH' ? (
-                                      <div className="bg-[#e6f4ea] border border-[#a8dab5] text-[#137333] text-[10px] font-bold tracking-wider px-2 py-0.5 rounded-sm uppercase">
-                                        ✓ Exact Strength Match
-                                      </div>
-                                    ) : (
-                                      <div className="bg-[#fef7e0] border border-[#f9ab00] text-[#b06000] text-[10px] font-bold tracking-wider px-2 py-0.5 rounded-sm uppercase">
-                                        ⚡ Salt Equivalent
-                                      </div>
-                                    )}
-                                  </div>
-                                  <h3 className="font-display text-2xl font-bold text-primary mb-2 leading-tight">
-                                    {res.generic.name}
-                                  </h3>
-                                  <div className="text-sm text-on-surface/60 font-medium font-body flex items-center gap-3">
-                                    <span className="bg-surface-low px-2 py-0.5 rounded ghost-border">Code: {res.generic.drug_code}</span>
-                                    <span className="opacity-30">•</span>
-                                    <span>{res.generic.group_name}</span>
-                                  </div>
-                                </div>
-                                <div className="text-right shrink-0">
-                                  <div className="text-[10px] font-bold tracking-widest text-on-surface/50 uppercase mb-2">JanAushadhi Price</div>
-                                  <div className="font-display text-3xl font-bold text-primary">₹{(res.generic.mrp || 0).toFixed(2)}</div>
-                                </div>
-                              </div>
-
-                              {res.branded.composition1 && (
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 mb-8">
-                                  <div>
-                                    <div className="text-[10px] font-bold tracking-widest text-on-surface/50 uppercase mb-4 flex items-center gap-2">
-                                      <Info className="w-3.5 h-3.5" /> Chemical Composition
-                                    </div>
-                                    <div className="text-sm pb-2 border-b border-outline-variant/30 font-semibold text-on-surface/80">
-                                      {res.branded.composition1}
-                                    </div>
-                                    {res.branded.composition2 && (
-                                      <div className="text-sm pt-2 font-semibold text-on-surface/80">{res.branded.composition2}</div>
-                                    )}
-                                  </div>
-                                  <div className="hidden sm:block">
-                                    <div className="text-[10px] font-bold tracking-widest text-on-surface/50 uppercase mb-4">Storage & Form</div>
-                                    <div className="text-sm font-medium text-on-surface/70 bg-surface-low p-3 rounded-md ghost-border inline-flex items-center gap-2">
-                                      <Pill className="w-4 h-4 text-primary" /> {res.branded.form || 'Tablet'}
-                                    </div>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-
-                            <div className="flex flex-col sm:flex-row justify-end gap-3 mt-6">
-                              <motion.button
-                                whileHover={{ scale: 1.02 }}
-                                whileTap={{ scale: 0.98 }}
-                                onClick={() => navigate('/fulfillment')}
-                                className="btn-primary flex-1 sm:flex-initial sm:w-48 py-3.5 flex items-center justify-center gap-2 text-sm uppercase tracking-widest font-bold"
-                              >
-                                <MapPin className="w-4 h-4" /> Find in Store
-                              </motion.button>
-                              <motion.button
-                                whileHover={{ scale: 1.02 }}
-                                whileTap={{ scale: 0.98 }}
-                                onClick={() => navigate(`/product/${res.branded.id}`)}
-                                className="btn-secondary flex-1 sm:flex-initial sm:w-40 py-3.5 flex items-center justify-center gap-2 text-sm uppercase tracking-widest font-bold"
-                              >
-                                View Details
-                              </motion.button>
-                              <motion.button
-                                whileHover={{ scale: 1.02 }}
-                                whileTap={{ scale: 0.98 }}
-                                onClick={() => handleAddToCart(res)}
-                                className="btn-secondary flex-1 sm:flex-initial sm:w-48 py-3.5 flex items-center justify-center gap-2 text-sm uppercase tracking-widest font-bold"
-                              >
-                                <Plus className="w-5 h-5" /> Add to Order
-                              </motion.button>
-                            </div>
-                          </div>
-                        </motion.div>
-                      ) : (
-                        /* Card 2: Clean Commercial Reference Card (No PMBJP generic) */
-                        <motion.div
-                          variants={fadeUpItem}
-                          key={res.id}
-                          className="relative flex flex-col md:flex-row bg-surface-lowest rounded-2xl ghost-border p-8 clinical-shadow border-l-4 border-l-amber-500/80 group hover:border-outline-variant transition-all"
-                        >
-                          <div className="w-full md:w-[60%] pr-0 md:pr-8 pb-6 md:pb-0 md:border-r border-outline-variant/30">
-                            <div className="flex items-center gap-3 mb-3">
-                              <span className="text-[10px] font-bold tracking-widest text-on-surface/50 uppercase flex items-center gap-2">
-                                <Beaker className="w-3.5 h-3.5 text-amber-500" /> Commercial Formulation
-                              </span>
-                              <span className="bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-400 text-[10px] font-bold px-2 py-0.5 rounded-sm uppercase tracking-wider">
-                                No PMBJP Direct Equivalent
-                              </span>
-                            </div>
-                            <h3 className="font-display text-2xl font-bold text-on-surface mb-2">{res.branded.name}</h3>
-                            <div className="text-sm text-on-surface/60 mb-6 font-medium">{res.branded.manufacturer}</div>
-
-                            <div className="space-y-3">
-                              <div className="text-[10px] font-bold tracking-widest text-on-surface/50 uppercase flex items-center gap-2">
-                                <Info className="w-3.5 h-3.5" /> Active Chemical Composition
-                              </div>
-                              <div className="text-sm font-semibold text-on-surface/80 bg-surface-low p-3.5 rounded-lg ghost-border">
-                                {res.branded.composition1 || 'Composition details not specified'}
-                                {res.branded.composition2 && (
-                                  <div className="mt-2 pt-2 border-t border-outline-variant/20">{res.branded.composition2}</div>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="w-full md:w-[40%] md:pl-8 flex flex-col justify-between pt-6 md:pt-0">
-                            <div>
-                              <div className="text-[10px] font-bold tracking-widest text-on-surface/50 uppercase mb-2">Commercial MRP</div>
-                              <div className="font-display text-3xl font-bold text-on-surface mb-4">₹{(res.branded.mrp || 0).toFixed(2)}</div>
-                              <p className="text-xs text-on-surface/60 leading-relaxed mb-6">
-                                Jan Aushadhi does not currently formulate an approved generic under this exact brand composition. You can search the active chemical salt to find related single-ingredient generics.
-                              </p>
-                            </div>
-
-                            <div className="flex flex-wrap gap-2 justify-end">
-                              {res.branded.composition1 && (
-                                <button
-                                  onClick={() => {
-                                    const primarySalt = res.branded.composition1.split(/[\s(]/)[0];
-                                    setQuery(primarySalt);
-                                    doSearch(primarySalt);
-                                  }}
-                                  className="btn-secondary py-2.5 px-4 text-xs font-bold uppercase tracking-wider flex items-center gap-2"
-                                >
-                                  <Search className="w-3.5 h-3.5" /> Search Active Salt
-                                </button>
-                              )}
-                              <button
-                                onClick={() => toast.success(`Demand recorded for "${res.branded.name}". We've notified Jan Aushadhi procurement teams.`)}
-                                className="btn-ghost py-2.5 px-4 text-xs font-bold uppercase tracking-wider flex items-center gap-2 text-on-surface/70 hover:text-primary"
-                              >
-                                <Bell className="w-3.5 h-3.5" /> Request Generic
-                              </button>
-                            </div>
-                          </div>
-                        </motion.div>
-                      )
+                      res.generic
+                        ? <MatchedResultRow key={res.id} res={res} onAdd={handleAddToCart} />
+                        : <UnmatchedResultRow key={res.id} res={res} onSearchSalt={(salt) => { setQuery(salt); doSearch(salt); }} />
                     ))
                   )}
-                </motion.div>
+                </div>
               </div>
             )}
           </AnimatePresence>

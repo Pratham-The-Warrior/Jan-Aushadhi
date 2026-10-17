@@ -31,8 +31,14 @@ export interface GenericMedicine {
 
 /** Computed savings between branded and generic */
 export interface SavingsResult {
+  /** Rupees saved for the same quantity as the branded pack */
   absolute: number;
   percentage: number;
+  /**
+   * 'per_unit' when both pack sizes parsed to the same unit and prices were
+   * compared per tablet / ml / g; 'per_pack' when only pack MRPs could be compared.
+   */
+  basis?: 'per_unit' | 'per_pack';
 }
 
 /** Combined search result: branded → generic pair with savings */
@@ -41,7 +47,7 @@ export interface DiscoveryResult {
   branded: BrandedMedicine;
   generic: GenericMedicine | null;
   savings: SavingsResult;
-  match_tier?: 'EXACT_MATCH' | 'SALT_EQUIVALENT' | 'NONE';
+  match_tier?: 'EXACT_MATCH' | 'CLOSE_MATCH' | 'SALT_EQUIVALENT' | 'NONE';
 }
 
 /** Lightweight suggestion returned by autocomplete */

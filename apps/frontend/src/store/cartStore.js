@@ -97,7 +97,8 @@ const useCartStore = create(
 
 // Reusable selectors for derived cart values
 export const selectSubtotal = (s) => s.items.reduce((sum, i) => sum + i.mrp * i.quantity, 0);
-export const selectBrandedTotal = (s) => s.items.reduce((sum, i) => sum + (i.branded_mrp || 0) * i.quantity, 0);
+// Items without a comparable brand price (e.g. different strength) count as no saving.
+export const selectBrandedTotal = (s) => s.items.reduce((sum, i) => sum + (i.branded_mrp ?? i.mrp ?? 0) * i.quantity, 0);
 export const selectSavings = (s) => selectBrandedTotal(s) - selectSubtotal(s);
 export const selectItemCount = (s) => s.items.reduce((sum, i) => sum + i.quantity, 0);
 

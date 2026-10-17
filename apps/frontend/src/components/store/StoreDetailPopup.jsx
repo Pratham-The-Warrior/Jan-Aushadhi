@@ -6,6 +6,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Store, MapPin, ShieldCheck, ArrowRight } from 'lucide-react';
+import { formatDistance, locationNote } from '../../utils/storeUtils';
 
 /**
  * @param {object}  props
@@ -30,9 +31,9 @@ export default function StoreDetailPopup({ store }) {
               <span className="text-[10px] bg-primary/10 text-primary font-bold px-2 py-0.5 rounded tracking-wider">
                 {store.pmbjk_code}
               </span>
-              <span className="bg-[#e6f4ea] text-[#137333] text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-wider flex items-center gap-1">
-                <span className="w-1.5 h-1.5 bg-[#137333] rounded-full" /> Open
-              </span>
+              {formatDistance(store) && (
+                <span className="text-[10px] text-on-surface/60 font-bold">{formatDistance(store)} away</span>
+              )}
             </div>
           </div>
         </div>
@@ -40,12 +41,12 @@ export default function StoreDetailPopup({ store }) {
         {/* Details Grid */}
         <div className="grid grid-cols-2 gap-3 mb-5">
           <div className="bg-surface-low rounded-lg p-3 ghost-border">
-            <div className="text-[9px] font-bold tracking-widest text-on-surface/40 uppercase mb-1">Location</div>
+            <div className="text-xs font-bold text-on-surface/40 mb-1">Location</div>
             <div className="text-xs text-on-surface/80 font-medium leading-relaxed">{store.district}, {store.state}</div>
           </div>
           <div className="bg-surface-low rounded-lg p-3 ghost-border">
-            <div className="text-[9px] font-bold tracking-widest text-on-surface/40 uppercase mb-1">Contact</div>
-            <div className="text-xs text-on-surface/80 font-medium">{store.phone || 'N/A'}</div>
+            <div className="text-xs font-bold text-on-surface/40 mb-1">Contact</div>
+            <div className="text-xs text-on-surface/80 font-medium">{store.phone || 'Phone not listed'}</div>
           </div>
         </div>
 
@@ -53,13 +54,14 @@ export default function StoreDetailPopup({ store }) {
         <p className="text-xs text-on-surface/50 leading-relaxed mb-5 bg-surface-low/50 rounded-lg p-3 ghost-border">
           <MapPin className="w-3 h-3 text-primary/50 inline mr-1.5 -mt-0.5" />
           {store.address}
+          {locationNote(store) && <span className="block mt-1 text-on-surface/40">{locationNote(store)}</span>}
         </p>
 
         {/* Certification */}
         <div className="flex items-center gap-2 mb-5 bg-primary/4 rounded-lg p-3 border border-primary/10">
           <ShieldCheck className="w-4 h-4 text-primary shrink-0" />
-          <span className="text-[10px] text-primary font-bold uppercase tracking-wider">
-            Government Certified PMBJK Outlet
+          <span className="text-xs text-primary font-bold">
+            Registered PMBJP Kendra
           </span>
         </div>
 

@@ -75,6 +75,13 @@ export async function updateMedicalBasket(basket) {
 // ---- Health Check ----
 
 /**
+ * Live platform counts (Kendras, districts, generics, exact brand matches).
+ */
+export async function getPlatformStats() {
+  return apiGet('/api/v1/stats');
+}
+
+/**
  * Check backend API health.
  */
 export async function healthCheck() {

@@ -176,7 +176,7 @@ export default function Inventory() {
           position: 'fixed', bottom: '2rem', right: '2rem', zIndex: 100,
           padding: '1rem 1.5rem', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '0.75rem',
           boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
-          background: toast.type === 'success' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+          background: toast.type === 'success' ? 'rgba(17, 135, 138, 0.15)' : 'rgba(239, 68, 68, 0.15)',
           border: toast.type === 'success' ? '1px solid var(--color-brand-500)' : '1px solid var(--color-danger-500)',
           color: toast.type === 'success' ? 'var(--color-brand-400)' : 'var(--color-danger-500)',
           animation: 'fadeIn 0.2s ease forwards'
@@ -236,7 +236,7 @@ export default function Inventory() {
         {bulkMode && (
           <div style={{ 
             display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem',
-            padding: '0.75rem 1rem', background: 'rgba(16, 185, 129, 0.05)', border: '1px dashed var(--color-brand-700)', borderRadius: '10px'
+            padding: '0.75rem 1rem', background: 'rgba(17, 135, 138, 0.05)', border: '1px dashed var(--color-brand-700)', borderRadius: '10px'
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
               <input

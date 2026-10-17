@@ -26,6 +26,9 @@ jobs:
       - name: Typecheck Backend
         run: npm run typecheck:backend
 
+      - name: Test Backend (medicine matcher gold cases)
+        run: npm run test:backend
+
       - name: Build Backend
         run: npm run build:backend
 

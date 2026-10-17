@@ -7,6 +7,8 @@
 import { queryDB } from './database';
 import { getMeiliClient } from './meilisearch';
 import { seedBrandedMedicines, seedGenericMedicines } from '../../../scripts/seed_meilisearch';
+import { importStores } from '../../../scripts/store_geocoding';
+import { buildMedicineMatches, matchesAreCurrent } from '../../modules/catalog/match-builder';
 
 export async function autoSeedDatabaseIfNeeded(): Promise<void> {
   // 1. PostgreSQL check
@@ -24,7 +26,32 @@ export async function autoSeedDatabaseIfNeeded(): Promise<void> {
     console.warn('⚠️  PostgreSQL auto-seed check warning:', err?.message || err);
   }
 
-  // 2. Meilisearch Index Check & Auto-Seeding
+  // 2. Branded → generic matches: build on first boot or after a matcher upgrade.
+  try {
+    const brandedCount = await queryDB('SELECT COUNT(*) FROM branded_meds');
+    if (Number(brandedCount.rows[0]?.count || 0) > 0 && !(await matchesAreCurrent())) {
+      console.log('🧪 Medicine matches missing or outdated. Rebuilding in background...');
+      buildMedicineMatches().catch((e) => console.warn('Match build error:', e?.message || e));
+    }
+  } catch (err: any) {
+    console.warn('⚠️  Medicine match check warning:', err?.message || err);
+  }
+
+  // 3. Store locations: rows imported before pincode geocoding carry no
+  //    location_precision and had their synthetic coordinates cleared by
+  //    migration 004. Re-import so "stores near me" works again.
+  try {
+    const res = await queryDB('SELECT COUNT(*) FROM stores WHERE location_precision IS NULL');
+    const stale = parseInt(res.rows[0]?.count || '0', 10);
+    if (stale > 0) {
+      console.log(`📍 ${stale} stores lack verified coordinates. Re-geocoding from PIN codes in background...`);
+      importStores().catch((e) => console.warn('Store re-geocoding error:', e?.message || e));
+    }
+  } catch (err: any) {
+    console.warn('⚠️  Store location check warning:', err?.message || err);
+  }
+
+  // 4. Meilisearch Index Check & Auto-Seeding
   try {
     const meili = getMeiliClient();
     const index = meili.index('medicines');

@@ -54,7 +54,7 @@ export default function Settings() {
     
     const lower = statusStr.toLowerCase();
     if (lower.includes('active') || lower.includes('ok') || lower.includes('postgre') || lower.includes('meili') || lower.includes('redis')) {
-      return <CheckCircle2 size={16} className="text-emerald-500" />;
+      return <CheckCircle2 size={16} className="text-brand-500" />;
     }
     if (lower.includes('mock') || lower.includes('inactive')) {
       return <AlertCircle size={16} className="text-amber-500" />;
@@ -79,7 +79,7 @@ export default function Settings() {
           position: 'fixed', bottom: '2rem', right: '2rem', zIndex: 100,
           padding: '1rem 1.5rem', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '0.75rem',
           boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
-          background: toast.type === 'success' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+          background: toast.type === 'success' ? 'rgba(17, 135, 138, 0.15)' : 'rgba(239, 68, 68, 0.15)',
           border: toast.type === 'success' ? '1px solid var(--color-brand-500)' : '1px solid var(--color-danger-500)',
           color: toast.type === 'success' ? 'var(--color-brand-400)' : 'var(--color-danger-500)',
           animation: 'fadeIn 0.2s ease forwards'

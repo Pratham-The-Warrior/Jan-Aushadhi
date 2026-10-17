@@ -59,7 +59,7 @@ export default function Login() {
           position: 'absolute', top: '-20%', right: '-10%',
           width: '60vw', height: '60vw', maxWidth: 700, maxHeight: 700,
           borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(16, 185, 129, 0.08) 0%, transparent 70%)',
+          background: 'radial-gradient(circle, rgba(17, 135, 138, 0.08) 0%, transparent 70%)',
           animation: 'gradientShift 8s ease infinite',
         }} />
         {/* Gradient orb 2 */}
@@ -67,7 +67,7 @@ export default function Login() {
           position: 'absolute', bottom: '-15%', left: '-10%',
           width: '50vw', height: '50vw', maxWidth: 600, maxHeight: 600,
           borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(16, 185, 129, 0.06) 0%, transparent 70%)',
+          background: 'radial-gradient(circle, rgba(17, 135, 138, 0.06) 0%, transparent 70%)',
           animation: 'gradientShift 12s ease infinite reverse',
         }} />
         {/* Grid overlay */}
@@ -88,7 +88,7 @@ export default function Login() {
             width: 72, height: 72, borderRadius: 20, margin: '0 auto 1.25rem',
             background: 'linear-gradient(135deg, var(--color-brand-500), var(--color-brand-700))',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 8px 32px rgba(16, 185, 129, 0.3), 0 0 0 1px rgba(16, 185, 129, 0.1)',
+            boxShadow: '0 8px 32px rgba(17, 135, 138, 0.3), 0 0 0 1px rgba(17, 135, 138, 0.1)',
           }}>
             <Store size={32} color="white" />
           </div>
@@ -189,7 +189,7 @@ export default function Login() {
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
           marginTop: '1.75rem', padding: '0.75rem', borderRadius: 10,
-          background: 'rgba(16, 185, 129, 0.04)', border: '1px solid rgba(16, 185, 129, 0.08)',
+          background: 'rgba(17, 135, 138, 0.04)', border: '1px solid rgba(17, 135, 138, 0.08)',
         }}>
           <Shield size={14} style={{ color: 'var(--color-brand-500)' }} />
           <p style={{ fontSize: '0.6875rem', color: 'var(--color-text-muted)', lineHeight: 1.5 }}>

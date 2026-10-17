@@ -161,7 +161,7 @@ export default function StoreProfile() {
           position: 'fixed', bottom: '2rem', right: '2rem', zIndex: 100,
           padding: '1rem 1.5rem', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '0.75rem',
           boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
-          background: toast.type === 'success' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+          background: toast.type === 'success' ? 'rgba(17, 135, 138, 0.15)' : 'rgba(239, 68, 68, 0.15)',
           border: toast.type === 'success' ? '1px solid var(--color-brand-500)' : '1px solid var(--color-danger-500)',
           color: toast.type === 'success' ? 'var(--color-brand-400)' : 'var(--color-danger-500)',
           animation: 'fadeIn 0.2s ease forwards'
@@ -187,7 +187,7 @@ export default function StoreProfile() {
           {/* Store Info Card */}
           <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-              <div style={{ width: 44, height: 44, borderRadius: 12, background: 'rgba(16,185,129,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ width: 44, height: 44, borderRadius: 12, background: 'rgba(17, 135, 138,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <Store size={22} style={{ color: 'var(--color-brand-400)' }} />
               </div>
               <div>

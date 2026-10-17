@@ -150,7 +150,7 @@ export default function Dashboard() {
     return [
       { name: 'Today', count: stats.orders_today, fill: 'var(--color-brand-500)' },
       { name: 'Last 7 Days', count: stats.orders_this_week, fill: '#8b5cf6' },
-      { name: 'Last 30 Days', count: stats.orders_this_month, fill: '#10b981' }
+      { name: 'Last 30 Days', count: stats.orders_this_month, fill: '#11878a' }
     ];
   };
 
@@ -184,7 +184,7 @@ export default function Dashboard() {
         ) : (
           <>
             <MetricCard icon={TrendingUp} label="Platform GMV" value={formatCurrency(stats?.total_gmv)} subtitle="Aggregated gross volume" accent="var(--color-brand-500)" />
-            <MetricCard icon={PiggyBank} label="Total Savings" value={formatCurrency(stats?.total_savings)} subtitle={`${stats?.total_gmv > 0 ? ((stats.total_savings / (stats.total_gmv + stats.total_savings)) * 100).toFixed(0) : 0}% average generic savings`} accent="#10b981" />
+            <MetricCard icon={PiggyBank} label="Total Savings" value={formatCurrency(stats?.total_savings)} subtitle={`${stats?.total_gmv > 0 ? ((stats.total_savings / (stats.total_gmv + stats.total_savings)) * 100).toFixed(0) : 0}% average generic savings`} accent="#11878a" />
             <MetricCard icon={Store} label="Registered Stores" value={stats?.total_stores || 0} subtitle={`${stats?.active_stores || 0} active PMBJK Kendras`} accent="#f59e0b" />
             <MetricCard icon={Users} label="Total Users" value={stats?.total_users || 0} subtitle={`${stats?.store_owners || 0} registered operators`} accent="#3b82f6" />
           </>
@@ -332,7 +332,7 @@ export default function Dashboard() {
                   <span style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--color-text-primary)', marginTop: 4 }}>
                     {formatCurrency(order.total_generic_value)}
                   </span>
-                  <span style={{ fontSize: '0.75rem', color: '#10b981', fontWeight: 500 }}>
+                  <span style={{ fontSize: '0.75rem', color: '#11878a', fontWeight: 500 }}>
                     Saved {formatCurrency(order.savings)}
                   </span>
                 </div>

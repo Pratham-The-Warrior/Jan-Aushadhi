@@ -5,13 +5,14 @@
 
 import { useState, useEffect, useRef } from 'react';
 import {
-  MapPin, Search, AlertCircle, Locate, Building2, Globe, Map, Compass,
+  MapPin, Search, AlertCircle, Locate, Building2, Globe, Map, Compass, List,
 } from 'lucide-react';
-import { getStoresByPincode, getStoreStates, getStoresByDistrict } from '../services/api';
+import { getStoresByPincode, getStoreStates, getStoresByDistrict, getNearbyStores } from '../services/api';
 import useCartStore from '../store/cartStore';
 import StatBadge from '../components/common/StatBadge';
 import StoreCard from '../components/store/StoreCard';
 import StoreMapArea from '../components/store/StoreMapArea';
+import usePlatformStats from '../hooks/usePlatformStats';
 
 export default function Fulfillment() {
   // --- STATE MANAGEMENT ---
@@ -33,12 +34,16 @@ export default function Fulfillment() {
   const [selectedStore, setSelectedStore] = useState(null);
   const [gpsLoading, setGpsLoading] = useState(false);
   const [searchedLabel, setSearchedLabel] = useState('');
+  // Mobile only: show the list or the map (desktop shows both side by side)
+  const [view, setView] = useState('list');
 
   // Sync the selected store to the global cart store so the checkout page knows where to fulfill the order.
   const setCartStore = useCartStore((s) => s.setStore);
 
   // Ref to the pincode input, used to programmatically submit the form after auto-detecting location.
   const inputRef = useRef(null);
+
+  const stats = usePlatformStats();
 
   // Load the list of available Indian States/UTs from the database when the page first mounts.
   // This populates the state selection dropdown.
@@ -110,8 +115,8 @@ export default function Fulfillment() {
   };
 
   // ---- GPS: Use My Location ----
-  // Leveraging HTML5 Geolocation to grab coordinates, then reverse-geocoding via OpenStreetMap's Nominatim
-  // API to determine the user's pincode. Once found, we automatically trigger a pincode search.
+  // Ask the backend for Kendras within 10 km of the device (PostGIS, sorted by distance).
+  // If none are mapped that close, widen to 25 km before giving up.
   const handleUseLocation = () => {
     if (!navigator.geolocation) {
       setError('Geolocation is not supported by your browser.');
@@ -122,25 +127,26 @@ export default function Fulfillment() {
 
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
+        const { latitude, longitude } = pos.coords;
         try {
-          // OpenStreetMap Nominatim is free and keyless, making it perfect for lightweight client-side reverse lookups.
-          const res = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&format=json`
-          );
-          const data = await res.json();
-          const pc = data?.address?.postcode;
+          let data = await getNearbyStores(latitude, longitude, 10000);
+          let label = 'Within 10 km of you';
+          if (!data.stores?.length) {
+            data = await getNearbyStores(latitude, longitude, 25000);
+            label = 'Within 25 km of you';
+          }
 
-          if (pc) {
-            setPincode(pc);
-            setSearchMode('pincode');
-            // Clever UX step: We trigger form submission automatically once the pincode is resolved.
-            // Using requestSubmit() instead of form.submit() triggers standard HTML validation and submit hooks.
-            setTimeout(() => inputRef.current?.form?.requestSubmit(), 100);
+          if (data.stores?.length > 0) {
+            setSearchedLabel(label);
+            setStores(data.stores);
+            setSelectedStore(data.stores[0]);
+            setCartStore(data.stores[0]);
           } else {
-            setError('Could not determine your pincode. Please enter it manually.');
+            setStores([]);
+            setError('No mapped Kendras within 25 km. Try searching by pincode or district.');
           }
         } catch {
-          setError('Location lookup failed. Please enter your pincode manually.');
+          setError('Nearby search failed. Please enter your pincode instead.');
         }
         setGpsLoading(false);
       },
@@ -159,24 +165,20 @@ export default function Fulfillment() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 md:py-14">
           <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6">
             <div>
-              <div className="flex items-center gap-2 mb-3">
-                <div className="w-8 h-8 bg-primary/10 rounded-md flex items-center justify-center">
-                  <MapPin className="w-4 h-4 text-primary" />
-                </div>
-                <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-primary">PMBJK Store Network</span>
-              </div>
               <h1 className="font-display text-3xl md:text-4xl font-bold text-on-surface tracking-tight mb-2">
-                Find Your <span className="text-primary">Jan Aushadhi Kendra</span>
+                Find a <span className="text-primary">Jan Aushadhi Kendra</span>
               </h1>
               <p className="text-on-surface/60 text-base max-w-lg leading-relaxed">
-                Search by pincode or district to locate the nearest government-certified medicine outlet.
+                Search by pincode or district, or use your location to see the nearest Kendras.
               </p>
             </div>
-            <div className="flex flex-wrap gap-3">
-              <StatBadge value="10,000+" label="Kendras" icon={Building2} />
-              <StatBadge value="700+" label="Districts" icon={Globe} />
-              <StatBadge value="36" label="States / UTs" icon={Map} />
-            </div>
+            {stats && (
+              <div className="hidden sm:flex flex-wrap gap-3">
+                <StatBadge value={stats.kendras.toLocaleString('en-IN')} label="Kendras" icon={Building2} />
+                <StatBadge value={stats.districts.toLocaleString('en-IN')} label="Districts" icon={Globe} />
+                <StatBadge value={stats.states} label="States / UTs" icon={Map} />
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -192,7 +194,7 @@ export default function Fulfillment() {
               <div className="flex gap-1 mb-5 bg-surface-low p-1 rounded-lg">
                 {[{ key: 'pincode', label: 'Pincode', icon: MapPin }, { key: 'district', label: 'State & District', icon: Globe }].map((m) => (
                   <button key={m.key} onClick={() => setSearchMode(m.key)}
-                    className={`flex-1 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-md transition-all flex items-center justify-center gap-2 ${searchMode === m.key ? 'bg-surface-lowest shadow-sm text-primary border border-outline-variant/50' : 'text-on-surface/50 hover:text-on-surface'}`}>
+                    className={`flex-1 py-2.5 text-sm font-semibold rounded-md transition-all flex items-center justify-center gap-2 ${searchMode === m.key ? 'bg-surface-lowest shadow-sm text-primary border border-outline-variant/50' : 'text-on-surface/50 hover:text-on-surface'}`}>
                     <m.icon className="w-3.5 h-3.5" /> {m.label}
                   </button>
                 ))}
@@ -231,7 +233,7 @@ export default function Fulfillment() {
                 )}
 
                 <button type="button" onClick={handleUseLocation} disabled={gpsLoading}
-                  className="w-full py-3 rounded-lg text-xs font-bold uppercase tracking-widest flex items-center justify-center gap-2 text-primary bg-primary/6 hover:bg-primary/10 border border-primary/15 transition-all disabled:opacity-50">
+                  className="w-full py-3 rounded-lg text-xs font-bold flex items-center justify-center gap-2 text-primary bg-primary/6 hover:bg-primary/10 border border-primary/15 transition-all disabled:opacity-50">
                   {gpsLoading
                     ? <><div className="w-3.5 h-3.5 border-2 border-primary border-t-transparent rounded-full animate-spin" /> Detecting...</>
                     : <><Locate className="w-3.5 h-3.5" /> Use My Location</>}
@@ -250,15 +252,28 @@ export default function Fulfillment() {
             {stores.length > 0 && (
               <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="font-display font-bold text-on-surface text-lg">{stores.length} Kendra{stores.length !== 1 ? 's' : ''} Found</h2>
-                  <p className="text-xs text-on-surface/50 font-medium mt-0.5">Showing results for {searchedLabel}</p>
+                  <h2 className="font-display font-bold text-on-surface text-lg">{stores.length} Kendra{stores.length !== 1 ? 's' : ''} found</h2>
+                  <p className="text-sm text-on-surface/55 mt-0.5">{searchedLabel}</p>
                 </div>
-                <div className="text-[10px] text-primary font-bold uppercase tracking-widest bg-primary/8 px-3 py-1.5 rounded-md">{stores.length} Results</div>
+                {/* Mobile: switch between list and map instead of stacking them */}
+                <div className="lg:hidden flex bg-surface-low p-1 rounded-lg border border-outline-variant/50" role="tablist" aria-label="Results view">
+                  {[{ key: 'list', label: 'List', icon: List }, { key: 'map', label: 'Map', icon: Map }].map((v) => (
+                    <button
+                      key={v.key}
+                      role="tab"
+                      aria-selected={view === v.key}
+                      onClick={() => setView(v.key)}
+                      className={`px-3 py-1.5 rounded-md text-sm font-semibold inline-flex items-center gap-1.5 ${view === v.key ? 'bg-surface-lowest text-primary shadow-sm' : 'text-on-surface/60'}`}
+                    >
+                      <v.icon className="w-4 h-4" /> {v.label}
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
 
             {/* Store List */}
-            <div className="space-y-3 max-h-[calc(100vh-460px)] overflow-y-auto pr-1 no-scrollbar pb-24 lg:pb-4">
+            <div className={`space-y-3 lg:max-h-[calc(100vh-460px)] lg:overflow-y-auto lg:pr-1 no-scrollbar pb-4 ${view === 'map' && stores.length > 0 ? 'hidden lg:block' : ''}`}>
               {loading && (
                 <div className="text-center py-16">
                   <div className="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin mx-auto mb-5" />
@@ -273,7 +288,7 @@ export default function Fulfillment() {
                   </div>
                   <h3 className="font-display font-bold text-on-surface text-xl mb-2">Find Your Nearest Kendra</h3>
                   <p className="text-sm text-on-surface/50 leading-relaxed max-w-xs mx-auto mb-8">
-                    Enter your pincode or use GPS to discover government-certified medicine outlets near you.
+                    Enter your pincode or use your location to see Jan Aushadhi Kendras near you.
                   </p>
                   <div className="flex flex-col gap-3 text-left max-w-xs mx-auto">
                     {[{ icon: MapPin, text: 'Search by 6-digit PIN code' }, { icon: Globe, text: 'Browse by state and district' }, { icon: Locate, text: 'Auto-detect your location' }].map((h, i) => (
@@ -292,7 +307,7 @@ export default function Fulfillment() {
           </div>
 
           {/* Right: Map */}
-          <div className="flex-1 min-h-[500px] lg:min-h-0 relative">
+          <div className={`flex-1 relative ${view === 'list' || stores.length === 0 ? 'hidden lg:block' : ''}`}>
             <StoreMapArea stores={stores} selectedStore={selectedStore} onSelectStore={handleSelectStore} />
           </div>
         </div>
