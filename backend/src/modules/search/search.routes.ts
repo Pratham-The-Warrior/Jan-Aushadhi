@@ -29,14 +29,11 @@ export default async function searchRoutes(server: FastifyInstance): Promise<voi
       const hits = await searchService.search(query, limit);
       if (hits.length === 0) return reply.send([]);
 
-      // Enrich each hit with generic match and savings
-      const fullResults = await Promise.all(
-        hits.map(async (branded: any) => {
-          const saltHash = branded.salt_hash;
-          const matchResult = saltHash
-            ? await catalogService.matchGeneric(saltHash, branded.salt_strength_hash)
-            : { generic: null, matchTier: 'NONE' as const };
-          const generic = matchResult.generic;
+      // Enrich each hit with its precomputed generic match and savings
+      const matches = await catalogService.matchForBranded(hits.map((h: any) => Number(h.id)));
+      const fullResults = hits.map((branded: any) => {
+          const matchResult = matches.get(Number(branded.id));
+          const generic = matchResult?.generic ?? null;
 
           const savings = catalogService.calculateSavings(
             parseFloat(branded.mrp) || 0,
@@ -55,31 +52,27 @@ export default async function searchRoutes(server: FastifyInstance): Promise<voi
               pack_size: branded.pack_size,
               composition1: branded.composition1,
               composition2: branded.composition2,
-              salt_hash: branded.salt_hash,
-              salt_strength_hash: branded.salt_strength_hash,
               form: branded.form || 'Other',
             },
-            generic: generic
+            generic: generic && matchResult
               ? {
                   drug_code: generic.drug_code,
                   name: generic.generic_name,
                   mrp: generic.mrp,
                   unit_size: generic.unit_size,
                   group_name: generic.group_name,
-                  salt_hash: generic.salt_hash,
-                  salt_strength_hash: generic.salt_strength_hash,
                   match_tier: matchResult.matchTier,
+                  match_notes: matchResult.notes,
                 }
               : null,
             savings,
           };
-        }),
-      );
+        });
 
       // Sort: exact (same-strength) matches first, then different-strength matches,
       // then unmatched; within a tier, highest savings first.
-      const tierRank = (r: typeof fullResults[number]) =>
-        r.generic?.match_tier === 'EXACT_MATCH' ? 0 : r.generic ? 1 : 2;
+      const TIER_RANK: Record<string, number> = { EXACT_MATCH: 0, CLOSE_MATCH: 1, SALT_EQUIVALENT: 2 };
+      const tierRank = (r: typeof fullResults[number]) => (r.generic ? TIER_RANK[r.generic.match_tier] ?? 3 : 3);
       fullResults.sort((a, b) => {
         if (tierRank(a) !== tierRank(b)) return tierRank(a) - tierRank(b);
         return (b.savings?.percentage || 0) - (a.savings?.percentage || 0);

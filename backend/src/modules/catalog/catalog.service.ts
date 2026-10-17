@@ -8,68 +8,44 @@
 import { CatalogRepository, type GenericMedRow } from './catalog.repository';
 import { NotFoundError } from '../../shared/errors';
 import { extractForm, parsePackQuantity } from '../../shared/utils';
-import { APP_CONSTANTS } from '../../shared/constants';
 import type { GenericMedicine, SavingsResult } from '../../shared/types';
 
-export class CatalogService {
-  private readonly cachePrefix = APP_CONSTANTS.REDIS_GENERIC_PREFIX;
+export type MatchTier = 'EXACT_MATCH' | 'CLOSE_MATCH' | 'SALT_EQUIVALENT' | 'NONE';
 
+export interface GenericMatch {
+  generic: GenericMedicine;
+  matchTier: Exclude<MatchTier, 'NONE'>;
+  /** Why this is not an exact match (empty for exact matches) */
+  notes: string[];
+  /** A pharmacist/admin confirmed this pairing */
+  reviewed: boolean;
+}
+
+export class CatalogService {
   constructor(private readonly repository: CatalogRepository = new CatalogRepository()) {}
 
   /**
-   * Lookup a generic medicine using 2-Tier matching:
-   * Tier 1 (EXACT_MATCH): same salts, same strengths, same form — a true substitute.
-   * Tier 2 (SALT_EQUIVALENT): same salts and form but a DIFFERENT strength. This is not
-   *   a drop-in substitute; clients must tell the patient to confirm the dose with a doctor.
+   * Best PMBJP generic for each branded medicine, from the precomputed
+   * medicine_matches table (structured matcher, see shared/matching).
    *
-   * @param saltHash          Deterministic hash of the chemical molecule + form
-   * @param saltStrengthHash  Deterministic hash of molecule + strength + form
+   * Tiers:
+   *   EXACT_MATCH     same ingredients, strengths, dosage form and release
+   *   CLOSE_MATCH     same ingredients and strengths; form/salt variant on the same route
+   *   SALT_EQUIVALENT same ingredients, different/unknown strength or release — not a
+   *                   substitute; clients must tell the patient to ask their doctor
    */
-  async matchGeneric(saltHash: string, saltStrengthHash?: string | null): Promise<{
-    generic: GenericMedicine | null;
-    matchTier: 'EXACT_MATCH' | 'SALT_EQUIVALENT' | 'NONE';
-  }> {
-    if (!saltHash && !saltStrengthHash) {
-      return { generic: null, matchTier: 'NONE' };
+  async matchForBranded(brandedIds: number[]): Promise<Map<number, GenericMatch>> {
+    const rows = await this.repository.findMatchesForBranded(brandedIds);
+    const result = new Map<number, GenericMatch>();
+    for (const row of rows) {
+      result.set(row.branded_id, {
+        generic: this.mapGenericRow(row),
+        matchTier: row.tier,
+        notes: Array.isArray(row.notes) ? row.notes : [],
+        reviewed: row.review_status === 'confirmed',
+      });
     }
-
-    const cacheKey = `${this.cachePrefix}${saltStrengthHash || saltHash}`;
-    const cached = await this.repository.getCachedMatch(cacheKey);
-    if (cached) {
-      try {
-        return JSON.parse(cached);
-      } catch {
-        // Continue to database on corrupted cache entry
-      }
-    }
-
-    // Tier 1: Try exact dose & salt match first
-    if (saltStrengthHash) {
-      const tier1Row = await this.repository.findGenericBySaltStrengthHash(saltStrengthHash);
-      if (tier1Row) {
-        const result = {
-          generic: this.mapGenericRow(tier1Row),
-          matchTier: 'EXACT_MATCH' as const,
-        };
-        await this.repository.setCachedMatch(cacheKey, JSON.stringify(result));
-        return result;
-      }
-    }
-
-    // Tier 2: Fallback to chemical molecule equivalent (ensures patients never get 0 results)
-    if (saltHash) {
-      const tier2Row = await this.repository.findGenericBySaltHash(saltHash);
-      if (tier2Row) {
-        const result = {
-          generic: this.mapGenericRow(tier2Row),
-          matchTier: 'SALT_EQUIVALENT' as const,
-        };
-        await this.repository.setCachedMatch(cacheKey, JSON.stringify(result));
-        return result;
-      }
-    }
-
-    return { generic: null, matchTier: 'NONE' };
+    return result;
   }
 
   /**
@@ -83,15 +59,17 @@ export class CatalogService {
     branded: Record<string, unknown>;
     generic: GenericMedicine | null;
     savings: SavingsResult;
-    match_tier: 'EXACT_MATCH' | 'SALT_EQUIVALENT' | 'NONE';
+    match_tier: MatchTier;
+    match_notes: string[];
+    match_reviewed: boolean;
   }> {
     const branded = await this.repository.findBrandedById(brandedId);
     if (!branded) {
       throw new NotFoundError('Branded medicine');
     }
 
-    const match = await this.matchGeneric(branded.salt_hash, branded.salt_strength_hash);
-    const generic = match.generic;
+    const match = (await this.matchForBranded([branded.id])).get(branded.id);
+    const generic = match?.generic ?? null;
 
     const savings = this.calculateSavings(
       typeof branded.mrp === 'string' ? parseFloat(branded.mrp) || 0 : branded.mrp || 0,
@@ -113,7 +91,9 @@ export class CatalogService {
       },
       generic: generic ? { ...generic } : null,
       savings,
-      match_tier: match.matchTier,
+      match_tier: match?.matchTier ?? 'NONE',
+      match_notes: match?.notes ?? [],
+      match_reviewed: match?.reviewed ?? false,
     };
   }
 
@@ -125,11 +105,11 @@ export class CatalogService {
    * @throws NotFoundError if no generic equivalent exists
    */
   async getGenericBySaltHash(saltHash: string): Promise<GenericMedicine> {
-    const match = await this.matchGeneric(saltHash);
-    if (!match.generic) {
+    const row = await this.repository.findGenericBySaltHash(saltHash);
+    if (!row) {
       throw new NotFoundError('Generic equivalent');
     }
-    return match.generic;
+    return this.mapGenericRow(row);
   }
 
   /**

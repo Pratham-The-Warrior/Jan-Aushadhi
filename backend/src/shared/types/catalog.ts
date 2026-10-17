@@ -47,7 +47,7 @@ export interface DiscoveryResult {
   branded: BrandedMedicine;
   generic: GenericMedicine | null;
   savings: SavingsResult;
-  match_tier?: 'EXACT_MATCH' | 'SALT_EQUIVALENT' | 'NONE';
+  match_tier?: 'EXACT_MATCH' | 'CLOSE_MATCH' | 'SALT_EQUIVALENT' | 'NONE';
 }
 
 /** Lightweight suggestion returned by autocomplete */

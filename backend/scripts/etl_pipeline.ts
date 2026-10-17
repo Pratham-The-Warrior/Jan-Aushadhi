@@ -11,6 +11,7 @@ import * as crypto from 'crypto';
 import { Pool } from 'pg';
 import { Meilisearch } from 'meilisearch';
 import * as dotenv from 'dotenv';
+import { buildMedicineMatches } from '../src/modules/catalog/match-builder';
 import { fileURLToPath } from 'url';
 
 dotenv.config();
@@ -387,6 +388,9 @@ export async function runETL() {
     await ingestBrandedMedicines();
     await ingestGenericMedicines();
     await printStats();
+
+    // Structured branded → generic matching (replaces hash equality at query time)
+    await buildMedicineMatches();
 
     // Attempt Meilisearch indexing (may fail if service not running)
     try {

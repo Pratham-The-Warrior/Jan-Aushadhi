@@ -12,6 +12,7 @@ import useSearch from '../hooks/useSearch';
 import useClickOutside from '../hooks/useClickOutside';
 import SkeletonCard from '../components/common/SkeletonCard';
 import EmptyState from '../components/common/EmptyState';
+import MatchBadge, { MatchNotes } from '../components/discovery/MatchBadge';
 import FilterSortPanel from '../components/discovery/FilterSortPanel';
 import { applyFiltersAndSort } from '../utils/filterUtils';
 import { toast } from '../store/toastStore';
@@ -469,18 +470,7 @@ export default function Discovery() {
                                     <div className="text-[10px] font-bold tracking-widest text-on-surface/60 uppercase flex items-center gap-2">
                                       <Pill className="w-3.5 h-3.5" /> PMBJP Equivalent
                                     </div>
-                                    {res.generic.match_tier === 'EXACT_MATCH' ? (
-                                      <div className="bg-[#e6f4ea] border border-[#a8dab5] text-[#137333] text-[10px] font-bold tracking-wider px-2 py-0.5 rounded-sm uppercase">
-                                        ✓ Exact Strength Match
-                                      </div>
-                                    ) : (
-                                      <div
-                                        title="Same active ingredients, but a different strength. Ask your doctor before switching."
-                                        className="bg-[#fef7e0] border border-[#f9ab00] text-[#b06000] text-[10px] font-bold tracking-wider px-2 py-0.5 rounded-sm uppercase"
-                                      >
-                                        ⚠ Different Strength
-                                      </div>
-                                    )}
+                                    <MatchBadge tier={res.generic.match_tier} />
                                   </div>
                                   <h3 className="font-display text-2xl font-bold text-primary mb-2 leading-tight">
                                     {res.generic.name}
@@ -490,11 +480,7 @@ export default function Discovery() {
                                     <span className="opacity-30">•</span>
                                     <span>{res.generic.group_name}</span>
                                   </div>
-                                  {res.generic.match_tier !== 'EXACT_MATCH' && (
-                                    <p className="mt-3 text-xs font-medium text-[#b06000] leading-relaxed max-w-md">
-                                      Same active ingredients at a different strength. Not a direct substitute — check the dose with your doctor before switching.
-                                    </p>
-                                  )}
+                                  <MatchNotes tier={res.generic.match_tier} notes={res.generic.match_notes} className="mt-3 max-w-md" />
                                 </div>
                                 <div className="text-right shrink-0">
                                   <div className="text-[10px] font-bold tracking-widest text-on-surface/50 uppercase mb-2">JanAushadhi Price</div>

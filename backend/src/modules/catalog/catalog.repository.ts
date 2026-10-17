@@ -5,8 +5,6 @@
 // ============================================================
 
 import { queryDB } from '../../shared/infra/database';
-import { getCached, setCache } from '../../shared/infra/redis';
-import { config } from '../../shared/config';
 
 export interface BrandedMedRow {
   id: number;
@@ -37,6 +35,14 @@ export interface GenericMedRow {
   clinical_data?: Record<string, unknown>;
 }
 
+export interface MatchRow extends GenericMedRow {
+  branded_id: number;
+  tier: 'EXACT_MATCH' | 'CLOSE_MATCH' | 'SALT_EQUIVALENT';
+  score: number;
+  notes: string[];
+  review_status: 'auto' | 'confirmed';
+}
+
 export class CatalogRepository {
   /**
    * Fetch branded medicine record by primary key.
@@ -50,18 +56,7 @@ export class CatalogRepository {
   }
 
   /**
-   * Tier 1 exact match: Chemical salt + exact dosage strength + form.
-   */
-  async findGenericBySaltStrengthHash(saltStrengthHash: string): Promise<GenericMedRow | null> {
-    const res = await queryDB(
-      'SELECT * FROM generic_meds WHERE salt_strength_hash = $1 LIMIT 1',
-      [saltStrengthHash],
-    );
-    return (res.rows[0] as GenericMedRow) || null;
-  }
-
-  /**
-   * Tier 2 broad match: Chemical salt + form equivalent fallback.
+   * Any generic sharing a salt-hash (legacy /catalog/by-salt endpoint).
    */
   async findGenericBySaltHash(saltHash: string): Promise<GenericMedRow | null> {
     const res = await queryDB(
@@ -72,16 +67,18 @@ export class CatalogRepository {
   }
 
   /**
-   * Retrieve cached generic match result from Redis.
+   * Precomputed best generic for each branded id (see match-builder.ts).
+   * Rejected reviews are excluded.
    */
-  async getCachedMatch(cacheKey: string): Promise<string | null> {
-    return getCached(cacheKey);
-  }
-
-  /**
-   * Store generic match result in Redis cache.
-   */
-  async setCachedMatch(cacheKey: string, value: string, ttl: number = config.redisTtl): Promise<void> {
-    await setCache(cacheKey, value, ttl);
+  async findMatchesForBranded(brandedIds: number[]): Promise<MatchRow[]> {
+    if (brandedIds.length === 0) return [];
+    const res = await queryDB(
+      `SELECT m.branded_id, m.tier, m.score, m.notes, m.review_status, g.*
+       FROM medicine_matches m
+       JOIN generic_meds g ON g.id = m.generic_id
+       WHERE m.branded_id = ANY($1) AND m.review_status <> 'rejected'`,
+      [brandedIds],
+    );
+    return res.rows as MatchRow[];
   }
 }

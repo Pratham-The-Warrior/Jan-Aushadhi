@@ -9,6 +9,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ShieldCheck, AlertTriangle, Pill, Beaker, ThermometerSun, Clock, ArrowLeft, Plus, Heart, Info, ClipboardList } from 'lucide-react';
 import { getDiscovery } from '../services/api';
 import useCartStore from '../store/cartStore';
+import MatchBadge, { MatchNotes } from '../components/discovery/MatchBadge';
 
 export default function ProductDetail() {
   const { id } = useParams();
@@ -58,7 +59,12 @@ export default function ProductDetail() {
   // The discovery API returns `generic_name` and a top-level `match_tier`;
   // normalise so the page and cart work with one shape.
   const generic = data.generic
-    ? { ...data.generic, name: data.generic.generic_name ?? data.generic.name, match_tier: data.match_tier }
+    ? {
+        ...data.generic,
+        name: data.generic.generic_name ?? data.generic.name,
+        match_tier: data.match_tier,
+        match_notes: data.match_notes || [],
+      }
     : null;
   const isExact = generic?.match_tier === 'EXACT_MATCH';
   const tabs = [
@@ -126,11 +132,7 @@ export default function ProductDetail() {
                 <div>
                   <div className="flex items-center gap-3 mb-3">
                     <div className="text-[10px] font-bold tracking-widest text-primary uppercase">JanAushadhi Equivalent</div>
-                    {isExact ? (
-                      <div className="bg-[#e6f4ea] border border-[#a8dab5] text-[#137333] text-[10px] font-bold px-2 py-0.5 rounded-sm uppercase tracking-wider">✓ Exact Strength Match</div>
-                    ) : (
-                      <div className="bg-[#fef7e0] border border-[#f9ab00] text-[#b06000] text-[10px] font-bold px-2 py-0.5 rounded-sm uppercase tracking-wider">⚠ Different Strength</div>
-                    )}
+                    <MatchBadge tier={generic.match_tier} />
                   </div>
                   <h2 className="font-display text-2xl md:text-4xl font-bold text-primary mb-2 leading-tight">{generic.name}</h2>
                   <div className="text-sm text-on-surface/60 font-bold uppercase tracking-widest flex items-center gap-2">
@@ -148,12 +150,9 @@ export default function ProductDetail() {
               </div>
 
               {!isExact && (
-                <div className="flex gap-3 items-start bg-[#fef7e0] border border-[#f9ab00]/60 text-[#7a4300] p-4 rounded-md mb-6 text-sm leading-relaxed">
-                  <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" />
-                  <span>
-                    This generic has the same active ingredients as {branded.name} but at a <strong>different strength</strong>.
-                    It is not a direct substitute — confirm the dose with your doctor or pharmacist before switching.
-                  </span>
+                <div className={`flex gap-3 items-start p-4 rounded-md mb-6 border ${generic.match_tier === 'CLOSE_MATCH' ? 'bg-[#e8f0fe] border-[#aecbfa]/70' : 'bg-[#fef7e0] border-[#f9ab00]/60'}`}>
+                  <AlertTriangle className={`w-5 h-5 shrink-0 mt-0.5 ${generic.match_tier === 'CLOSE_MATCH' ? 'text-[#1a56b0]' : 'text-[#b06000]'}`} />
+                  <MatchNotes tier={generic.match_tier} notes={generic.match_notes} className="text-sm" />
                 </div>
               )}
 

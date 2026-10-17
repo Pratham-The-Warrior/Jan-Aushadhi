@@ -7,7 +7,6 @@
 export const APP_CONSTANTS = {
   // Search & Cache
   MEILI_MEDICINES_INDEX: 'medicines',
-  REDIS_GENERIC_PREFIX: 'generic:',
   REDIS_USER_ROLE_PREFIX: 'user_role:',
   REDIS_USER_ROLE_TTL: 300, // 5 minutes — role cache
 
