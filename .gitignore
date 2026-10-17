@@ -62,3 +62,6 @@ backend/fix_*.js
 /scripts/
 !backend/scripts/
 
+
+# Local Redis snapshots
+dump.rdb
