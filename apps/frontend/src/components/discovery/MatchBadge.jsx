@@ -16,7 +16,7 @@ const TIERS = {
   },
   SALT_EQUIVALENT: {
     label: '⚠ Not a Direct Substitute',
-    className: 'bg-[#fef7e0] border-[#f9ab00] text-[#b06000]',
+    className: 'bg-[#fef7e0] border-[#f9ab00] text-[#8a4b00]',
     help: 'Same active ingredients, but the strength or release type differs. Ask your doctor before switching.',
   },
 };
@@ -39,7 +39,7 @@ export default function MatchBadge({ tier }) {
 export function MatchNotes({ tier, notes, className = '' }) {
   const info = matchInfo(tier);
   if (!info || tier === 'EXACT_MATCH') return null;
-  const color = tier === 'CLOSE_MATCH' ? 'text-[#1a56b0]' : 'text-[#b06000]';
+  const color = tier === 'CLOSE_MATCH' ? 'text-[#1a56b0]' : 'text-[#8a4b00]';
   return (
     <div className={`text-xs font-medium leading-relaxed ${color} ${className}`}>
       <p>{info.help}</p>

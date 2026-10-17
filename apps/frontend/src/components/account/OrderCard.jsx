@@ -14,7 +14,7 @@ function Tracker({ step }) {
         return (
           <li key={label} className="flex-1 min-w-0">
             <div className={`h-1.5 rounded-full ${done ? 'bg-primary' : 'bg-on-surface/10'}`} />
-            <div className={`text-xs mt-1.5 truncate ${done ? 'text-primary font-semibold' : 'text-on-surface/45'}`}>{label}</div>
+            <div className={`text-xs mt-1.5 truncate ${done ? 'text-primary font-semibold' : 'text-on-surface/70'}`}>{label}</div>
           </li>
         );
       })}
@@ -32,7 +32,7 @@ export default function OrderCard({ order, onReorder, onCancel }) {
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="font-display font-bold text-on-surface">Order #{order.id}</div>
-          <div className="text-sm text-on-surface/55">
+          <div className="text-sm text-on-surface/70">
             {formatDate(order.created_at)} · {items.length} {items.length === 1 ? 'item' : 'items'} · {formatINR(order.total_generic_value)}
           </div>
         </div>

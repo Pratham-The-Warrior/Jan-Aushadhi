@@ -6,11 +6,11 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, MapPin, ShieldCheck, FlaskConical, Building2, ArrowRight } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { Search, MapPin, ClipboardList, ShieldCheck, FlaskConical, Building2, ArrowRight } from 'lucide-react';
 import usePlatformStats from '../hooks/usePlatformStats';
 import { searchMedicines } from '../services/api';
 import { formatINR } from '../utils/format';
+import usePageMeta from '../hooks/usePageMeta';
 
 const EXAMPLES = ['Telma 40', 'Pan 40', 'Dolo 650', 'Glycomet 500'];
 
@@ -71,18 +71,18 @@ function HeroSearch() {
         className="flex items-center bg-surface-lowest rounded-xl clinical-shadow ghost-border p-1.5 focus-within:border-primary/50"
         role="search"
       >
-        <Search className="w-5 h-5 text-on-surface/40 ml-3 shrink-0" />
+        <Search className="w-5 h-5 text-on-surface/70 ml-3 shrink-0" />
         <input
           value={value}
           onChange={(e) => setValue(e.target.value)}
           placeholder="Type your medicine, e.g. Telma 40"
-          className="flex-1 min-w-0 py-3 px-3 bg-transparent outline-none text-base text-on-surface placeholder-on-surface/40"
+          className="flex-1 min-w-0 py-3 px-3 bg-transparent outline-none text-base text-on-surface placeholder-on-surface/60"
           aria-label="Search for a medicine"
         />
         <button type="submit" className="btn-primary py-3 px-5 md:px-6 text-base font-semibold shrink-0">Compare</button>
       </form>
       <div className="flex flex-wrap items-center gap-2 mt-3 text-sm">
-        <span className="text-on-surface/50">Try:</span>
+        <span className="text-on-surface/70">Try:</span>
         {EXAMPLES.map((ex) => (
           <button key={ex} onClick={() => go(ex)} className="px-3 py-1 rounded-full bg-surface-lowest ghost-border text-on-surface/75 hover:text-primary hover:border-primary/40 transition-colors">
             {ex}
@@ -108,14 +108,14 @@ function ExampleCard({ example }) {
       <div className="space-y-4">
         <div className="flex items-baseline justify-between gap-4">
           <div className="min-w-0">
-            <div className="text-xs text-on-surface/50">Brand</div>
+            <div className="text-xs text-on-surface/70">Brand</div>
             <div className="font-display font-bold text-on-surface truncate">{branded.name}</div>
           </div>
-          <div className="font-display text-xl font-bold text-on-surface/50 line-through decoration-2 shrink-0">{formatINR(branded.mrp)}</div>
+          <div className="font-display text-xl font-bold text-on-surface/70 line-through decoration-2 shrink-0">{formatINR(branded.mrp)}</div>
         </div>
         <div className="flex items-baseline justify-between gap-4">
           <div className="min-w-0">
-            <div className="text-xs text-on-surface/50">Jan Aushadhi generic · same salt & strength</div>
+            <div className="text-xs text-on-surface/70">Jan Aushadhi generic · same salt & strength</div>
             <div className="font-display font-bold text-primary leading-snug">{generic.name}</div>
           </div>
           <div className="font-display text-3xl font-bold text-primary shrink-0">{formatINR(generic.mrp)}</div>
@@ -129,12 +129,8 @@ function ExampleCard({ example }) {
   );
 }
 
-const fadeUp = {
-  hidden: { opacity: 0, y: 16 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: [0.16, 1, 0.3, 1] } },
-};
-
 export default function Home() {
+  usePageMeta({});
   const stats = usePlatformStats();
   const example = useExampleSaving('Telma 40');
 
@@ -143,24 +139,27 @@ export default function Home() {
       {/* Hero */}
       <section className="bg-surface">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 pb-14 md:pt-20 md:pb-20 grid grid-cols-1 lg:grid-cols-[1.15fr_1fr] gap-10 lg:gap-14 items-center">
-          <motion.div initial="hidden" animate="show" transition={{ staggerChildren: 0.08 }} className="space-y-6">
-            <motion.p variants={fadeUp} className="text-sm font-semibold text-primary">For patients across India · Pradhan Mantri Bhartiya Janaushadhi Pariyojana</motion.p>
-            <motion.h1 variants={fadeUp} className="font-display text-4xl md:text-[3.25rem] font-bold text-on-surface leading-[1.08] tracking-tight">
+          <div className="space-y-6">
+            <p className="text-sm font-semibold text-primary">For patients across India · Pradhan Mantri Bhartiya Janaushadhi Pariyojana</p>
+            <h1 className="font-display text-4xl md:text-[3.25rem] font-bold text-on-surface leading-[1.08] tracking-tight">
               Same medicine.<br /><span className="text-primary">Up to 90% cheaper.</span>
-            </motion.h1>
-            <motion.p variants={fadeUp} className="text-lg text-on-surface/70 max-w-xl leading-relaxed">
+            </h1>
+            <p className="text-lg text-on-surface/70 max-w-xl leading-relaxed">
               Type the brand your doctor prescribed. We show the Jan Aushadhi generic with the same salt and strength, what you save, and the nearest Kendra that sells it.
-            </motion.p>
-            <motion.div variants={fadeUp}><HeroSearch /></motion.div>
-            <motion.div variants={fadeUp}>
+            </p>
+            <div><HeroSearch /></div>
+            <div>
               <Link to="/fulfillment" className="inline-flex items-center gap-2 text-primary font-semibold hover:underline">
                 <MapPin className="w-4 h-4" /> Or find a Jan Aushadhi Kendra near you
               </Link>
-            </motion.div>
-          </motion.div>
-          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2, duration: 0.4 }}>
+              <Link to="/prescription" className="flex items-center gap-2 text-primary font-semibold hover:underline mt-2">
+                <ClipboardList className="w-4 h-4" /> Take several medicines? Check your whole prescription
+              </Link>
+            </div>
+          </div>
+          <div className="animate-slideUp">
             <ExampleCard example={example} />
-          </motion.div>
+          </div>
         </div>
       </section>
 
@@ -176,7 +175,7 @@ export default function Home() {
             ].map((s) => (
               <div key={s.label}>
                 <div className="font-display text-3xl md:text-4xl font-bold text-on-surface"><AnimatedNumber target={s.value} /></div>
-                <div className="text-sm text-on-surface/60 mt-1">{s.label}</div>
+                <div className="text-sm text-on-surface/70 mt-1">{s.label}</div>
               </div>
             ))}
           </div>
@@ -208,9 +207,9 @@ export default function Home() {
       <section className="bg-primary text-white">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16 md:py-20 grid grid-cols-1 md:grid-cols-2 gap-10 items-center">
           <div>
-            <FlaskConical className="w-8 h-8 text-white/70 mb-4" />
+            <FlaskConical className="w-8 h-8 text-white/90 mb-4" />
             <h2 className="font-display text-2xl md:text-3xl font-bold mb-4">Why is it so much cheaper?</h2>
-            <p className="text-white/85 text-lg leading-relaxed">
+            <p className="text-white/90 text-lg leading-relaxed">
               A generic has the same active ingredient, in the same dose and form, as the branded medicine. You are not paying for advertising or the brand name — the medicine inside is the same.
             </p>
           </div>
@@ -221,7 +220,7 @@ export default function Home() {
               'Prices are set by PMBI, the agency that runs the scheme, and printed on every pack',
             ].map((t) => (
               <li key={t} className="flex items-start gap-3 bg-white/10 rounded-xl p-4">
-                <ShieldCheck className="w-5 h-5 shrink-0 mt-0.5 text-white/80" />
+                <ShieldCheck className="w-5 h-5 shrink-0 mt-0.5 text-white/90" />
                 <span className="text-white/95">{t}</span>
               </li>
             ))}
@@ -232,7 +231,7 @@ export default function Home() {
       {/* Final CTA */}
       <section className="max-w-6xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-16 md:py-20 text-center">
         <h2 className="font-display text-2xl md:text-3xl font-bold text-on-surface mb-3">Check your medicines now</h2>
-        <p className="text-on-surface/65 mb-8">It takes 10 seconds and you don't need an account.</p>
+        <p className="text-on-surface/70 mb-8">It takes 10 seconds and you don't need an account.</p>
         <div className="max-w-xl mx-auto text-left"><HeroSearch /></div>
       </section>
     </div>

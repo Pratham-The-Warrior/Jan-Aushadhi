@@ -4,7 +4,7 @@
 // (replaces the separate /wellness and /dashboard pages)
 // ============================================================
 
-import { useEffect, useState } from 'react';
+import { Suspense, lazy, useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Pill, Package, PiggyBank, Settings as SettingsIcon, LayoutGrid, Plus, LogOut, ChevronRight, Search } from 'lucide-react';
 import { getUserDashboard, getRequirements, getDashboardMonthly, cancelRequirement } from '../services/api';
@@ -12,8 +12,11 @@ import useCartStore from '../store/cartStore';
 import useAuthStore from '../store/authStore';
 import { toast } from '../store/toastStore';
 import OrderCard from '../components/account/OrderCard';
-import SavingsChart from '../components/account/SavingsChart';
 import { formatINR, formatPhone, formatRupees, orderStatus, parseOrderItems } from '../utils/format';
+import usePageMeta from '../hooks/usePageMeta';
+
+// The chart library is large; load it only when the Savings tab is opened.
+const SavingsChart = lazy(() => import('../components/account/SavingsChart'));
 
 const TABS = [
   { key: 'overview', label: 'Overview', icon: LayoutGrid },
@@ -40,9 +43,9 @@ function Panel({ title, action, children, className = '' }) {
 function Stat({ label, value, hint }) {
   return (
     <div className="bg-surface-lowest rounded-xl ghost-border p-4">
-      <div className="text-sm text-on-surface/60">{label}</div>
+      <div className="text-sm text-on-surface/70">{label}</div>
       <div className="font-display text-2xl md:text-3xl font-bold text-on-surface mt-1">{value}</div>
-      {hint && <div className="text-xs text-on-surface/45 mt-1">{hint}</div>}
+      {hint && <div className="text-xs text-on-surface/70 mt-1">{hint}</div>}
     </div>
   );
 }
@@ -51,7 +54,7 @@ function EmptyNote({ title, body, action }) {
   return (
     <div className="text-center py-10 px-4">
       <p className="font-semibold text-on-surface/80">{title}</p>
-      <p className="text-sm text-on-surface/55 mt-1">{body}</p>
+      <p className="text-sm text-on-surface/70 mt-1">{body}</p>
       {action && <div className="mt-4">{action}</div>}
     </div>
   );
@@ -66,7 +69,7 @@ function MedicineRow({ med, onAdd }) {
       </div>
       <div className="flex-1 min-w-0">
         <div className="font-semibold text-on-surface leading-snug">{med.name}</div>
-        <div className="text-sm text-on-surface/55 mt-0.5">
+        <div className="text-sm text-on-surface/70 mt-0.5">
           {formatINR(med.mrp)}{med.unit_size ? ` per ${med.unit_size}` : ''}
           {saving > 0 && <span className="text-success font-medium"> · saves {formatINR(saving)}</span>}
         </div>
@@ -79,6 +82,7 @@ function MedicineRow({ med, onAdd }) {
 }
 
 export default function Account() {
+  usePageMeta({ title: 'Your account' });
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const tab = TABS.some((t) => t.key === params.get('tab')) ? params.get('tab') : 'overview';
@@ -160,7 +164,7 @@ export default function Account() {
             </div>
             <div className="min-w-0">
               <h1 className="font-display text-2xl md:text-3xl font-bold text-on-surface truncate">{displayName}</h1>
-              <p className="text-sm text-on-surface/60 truncate">
+              <p className="text-sm text-on-surface/70 truncate">
                 {[formatPhone(user?.phoneNumber), user?.email].filter(Boolean).join(' · ')}
               </p>
             </div>
@@ -175,7 +179,7 @@ export default function Account() {
                 aria-selected={tab === t.key}
                 onClick={() => setTab(t.key)}
                 className={`flex items-center gap-2 px-3 md:px-4 py-3 text-sm font-semibold whitespace-nowrap border-b-2 transition-colors ${
-                  tab === t.key ? 'border-primary text-primary' : 'border-transparent text-on-surface/60 hover:text-on-surface'
+                  tab === t.key ? 'border-primary text-primary' : 'border-transparent text-on-surface/70 hover:text-on-surface'
                 }`}
               >
                 <t.icon className="w-4 h-4" /> {t.label}
@@ -285,14 +289,16 @@ export default function Account() {
                   <Stat label="Orders" value={stats.total_orders || 0} />
                 </div>
                 <Panel title="Month by month">
-                  <SavingsChart data={monthly} />
+                  <Suspense fallback={<div className="h-64 rounded-xl bg-surface-low animate-pulse" />}>
+                    <SavingsChart data={monthly} />
+                  </Suspense>
                 </Panel>
                 {medicines.length > 0 && (
                   <Panel title="Savings by medicine">
                     <div className="overflow-x-auto -mx-5 md:mx-0">
                       <table className="w-full text-sm min-w-[520px]">
                         <thead>
-                          <tr className="text-left text-on-surface/55 border-b border-outline-variant">
+                          <tr className="text-left text-on-surface/70 border-b border-outline-variant">
                             <th className="font-medium py-2 px-5 md:px-0">Medicine</th>
                             <th className="font-medium py-2 text-right">Brand price</th>
                             <th className="font-medium py-2 text-right">Jan Aushadhi</th>
@@ -305,7 +311,7 @@ export default function Account() {
                             return (
                               <tr key={m.code || m.drug_code || m.name}>
                                 <td className="py-3 px-5 md:px-0 font-medium text-on-surface">{m.name}</td>
-                                <td className="py-3 text-right text-on-surface/60">{m.branded_mrp ? formatINR(m.branded_mrp) : '—'}</td>
+                                <td className="py-3 text-right text-on-surface/70">{m.branded_mrp ? formatINR(m.branded_mrp) : '—'}</td>
                                 <td className="py-3 text-right font-semibold">{formatINR(m.mrp)}</td>
                                 <td className="py-3 text-right px-5 md:px-0 font-semibold text-success">
                                   {saving > 0 ? `${formatINR(saving)} (${Math.round((saving / m.branded_mrp) * 100)}%)` : '—'}
@@ -331,7 +337,7 @@ export default function Account() {
                       ['Email', user?.email || 'Not linked'],
                     ].map(([k, v]) => (
                       <div key={k} className="flex justify-between gap-4 py-3">
-                        <dt className="text-on-surface/60">{k}</dt>
+                        <dt className="text-on-surface/70">{k}</dt>
                         <dd className="font-medium text-on-surface text-right">{v}</dd>
                       </div>
                     ))}
@@ -342,7 +348,7 @@ export default function Account() {
                     {[['About this service', '/info/about'], ['Privacy', '/info/privacy'], ['Terms of use', '/info/terms']].map(([label, to]) => (
                       <li key={to}>
                         <Link to={to} className="flex items-center justify-between py-3 font-medium text-on-surface hover:text-primary">
-                          {label} <ChevronRight className="w-4 h-4 text-on-surface/40" />
+                          {label} <ChevronRight className="w-4 h-4 text-on-surface/70" />
                         </Link>
                       </li>
                     ))}

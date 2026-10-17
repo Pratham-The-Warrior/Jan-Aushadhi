@@ -3,7 +3,6 @@
 // ============================================================
 
 import React from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { CheckCircle2, XCircle, AlertTriangle, Info, X } from 'lucide-react';
 import useToastStore from '../../store/toastStore';
 
@@ -44,13 +43,8 @@ function Toast({ toast }) {
   const Icon = config.icon;
 
   return (
-    <motion.div
-      layout
-      initial={{ opacity: 0, y: -20, scale: 0.95 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, y: -16, scale: 0.95, transition: { duration: 0.2 } }}
-      transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-      className={`relative flex items-start gap-3 rounded-xl border px-4 py-3.5 clinical-shadow-lg max-w-sm w-full overflow-hidden ${config.bg} ${config.border}`}
+    <div
+      className={`animate-slideDown relative flex items-start gap-3 rounded-xl border px-4 py-3.5 clinical-shadow-lg max-w-sm w-full overflow-hidden ${config.bg} ${config.border}`}
       role="alert"
       aria-live="assertive"
     >
@@ -72,7 +66,7 @@ function Toast({ toast }) {
       >
         <X className="w-4 h-4" />
       </button>
-    </motion.div>
+    </div>
   );
 }
 
@@ -81,16 +75,16 @@ export default function ToastContainer() {
 
   return (
     <div
+      role="region"
       aria-label="Notifications"
+      aria-live="polite"
       className="fixed top-4 right-4 z-[9999] flex flex-col gap-2 pointer-events-none"
     >
-      <AnimatePresence mode="popLayout">
-        {toasts.map((t) => (
-          <div key={t.id} className="pointer-events-auto">
-            <Toast toast={t} />
-          </div>
-        ))}
-      </AnimatePresence>
+      {toasts.map((t) => (
+        <div key={t.id} className="pointer-events-auto">
+          <Toast toast={t} />
+        </div>
+      ))}
     </div>
   );
 }

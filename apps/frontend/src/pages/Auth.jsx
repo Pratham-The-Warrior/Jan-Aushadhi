@@ -1,11 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { ShieldCheck, Database, ArrowRight, Smartphone, Key, AlertCircle } from 'lucide-react';
-import { auth, isAuthConfigured } from '../firebase';
+import { getFirebaseAuth, isAuthConfigured } from '../firebase';
+import Logo from '../components/common/Logo';
 import { RecaptchaVerifier, signInWithPhoneNumber, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 import useCartStore from '../store/cartStore';
+import usePageMeta from '../hooks/usePageMeta';
 
 export default function Auth() {
+  usePageMeta({ title: 'Sign in' });
   const navigate = useNavigate();
   const location = useLocation();
   
@@ -40,7 +43,7 @@ export default function Auth() {
 
   // Lazy-initialization of the reCAPTCHA verification container.
   // Using an 'invisible' captcha provides a frictionless flow without making the user click tiles.
-  const setupRecaptcha = () => {
+  const setupRecaptcha = (auth) => {
     if (!recaptchaRef.current) {
       recaptchaRef.current = new RecaptchaVerifier(auth, 'recaptcha-container', {
         size: 'invisible',
@@ -54,12 +57,14 @@ export default function Auth() {
 
   const handleSendOTP = async (e) => {
     e.preventDefault();
-    if (!auth) return setError('Sign-in is not available on this deployment yet.');
+    if (!isAuthConfigured) return setError('Sign-in is not available on this deployment yet.');
     setError('');
     setLoading(true);
 
     try {
-      const appVerifier = setupRecaptcha();
+      const auth = await getFirebaseAuth();
+      if (!auth) throw new Error('Sign-in service could not be loaded');
+      const appVerifier = setupRecaptcha(auth);
       
       // UX Choice: Indian numbers (+91) are the primary target. If the user omits the '+' prefix,
       // we auto-apply '+91' so standard local entries work out-of-the-box. Firebase Auth requires
@@ -110,10 +115,12 @@ export default function Auth() {
   };
 
   const handleGoogleSignIn = async () => {
-    if (!auth) return setError('Sign-in is not available on this deployment yet.');
+    if (!isAuthConfigured) return setError('Sign-in is not available on this deployment yet.');
     setError('');
     setLoading(true);
     try {
+      const auth = await getFirebaseAuth();
+      if (!auth) throw new Error('Sign-in service could not be loaded');
       const provider = new GoogleAuthProvider();
       await signInWithPopup(auth, provider);
       await syncWithServer();
@@ -133,14 +140,14 @@ export default function Auth() {
       {/* Left Panel */}
       <div className="w-full md:w-[45%] bg-primary p-12 lg:p-20 text-white flex flex-col justify-between">
         <div>
-          <div className="font-display font-bold text-3xl tracking-tight mb-2">JanAushadhi</div>
-          <div className="text-sm text-white/60 mb-16 md:mb-24">Generic medicines, honestly compared</div>
+          <Link to="/home" aria-label="JanAushadhi home" className="inline-flex mb-2"><Logo size={40} tone="white" /></Link>
+          <div className="text-sm text-white/90 mb-16 md:mb-24">Generic medicines, honestly compared</div>
 
           <h1 className="font-display text-4xl lg:text-5xl font-bold leading-[1.1] mb-8">
             Save on every refill.
           </h1>
 
-          <p className="text-lg text-white/80 mb-16 max-w-md leading-[1.6]">
+          <p className="text-lg text-white/90 mb-16 max-w-md leading-[1.6]">
             Sign in to order from a Jan Aushadhi Kendra, track your orders and see how much you've saved. Searching and comparing prices works without an account.
           </p>
 
@@ -148,21 +155,21 @@ export default function Auth() {
             <div className="flex gap-5">
               <ShieldCheck className="w-6 h-6 text-white shrink-0 mt-1" />
               <div>
-                <h3 className="font-display font-bold text-xl mb-1.5">Secure Sign-in</h3>
-                <p className="text-white/70 text-sm leading-[1.6]">One-time-password login. We only use your number to manage your orders.</p>
+                <h2 className="font-display font-bold text-xl mb-1.5">Secure Sign-in</h2>
+                <p className="text-white/90 text-sm leading-[1.6]">One-time-password login. We only use your number to manage your orders.</p>
               </div>
             </div>
             <div className="flex gap-5">
               <Database className="w-6 h-6 text-white shrink-0 mt-1" />
               <div>
-                <h3 className="font-display font-bold text-xl mb-1.5">Your Medicine List</h3>
-                <p className="text-white/70 text-sm leading-[1.6]">Save your regular medicines and track what you save on every order.</p>
+                <h2 className="font-display font-bold text-xl mb-1.5">Your Medicine List</h2>
+                <p className="text-white/90 text-sm leading-[1.6]">Save your regular medicines and track what you save on every order.</p>
               </div>
             </div>
           </div>
         </div>
 
-        <div className="text-xs text-white/40 font-bold mt-20">
+        <div className="text-xs text-white/90 font-bold mt-20">
           © {new Date().getFullYear()} JanAushadhi
         </div>
       </div>
@@ -174,7 +181,7 @@ export default function Auth() {
             <h2 className="font-display text-3xl md:text-4xl font-bold text-on-surface mb-3 tracking-tight">
               {step === 'phone' ? 'Verify Identity' : 'Secure OTP Login'}
             </h2>
-            <p className="text-on-surface/60 text-base leading-[1.6]">
+            <p className="text-on-surface/70 text-base leading-[1.6]">
               {step === 'phone'
                 ? 'Enter your phone number to receive a secure verification code.'
                 : `We've sent a 6-digit code to your device ending in ${phoneNumber.slice(-4)}.`}
@@ -200,15 +207,15 @@ export default function Auth() {
           {step === 'phone' ? (
             <form onSubmit={handleSendOTP} className="space-y-6">
               <div>
-                <label className="block text-xs font-bold text-on-surface/50 mb-2.5">Mobile Number</label>
+                <label className="block text-xs font-bold text-on-surface/70 mb-2.5">Mobile Number</label>
                 <div className="relative">
-                  <Smartphone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-on-surface/40" />
+                  <Smartphone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-on-surface/70" />
                   <input
                     type="tel"
                     required
                     value={phoneNumber}
                     onChange={(e) => setPhoneNumber(e.target.value)}
-                    className="w-full pl-12 pr-5 py-4 bg-surface-low border border-transparent rounded-md focus:bg-surface-lowest focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all placeholder-on-surface/40 font-medium text-on-surface ghost-border"
+                    className="w-full pl-12 pr-5 py-4 bg-surface-low border border-transparent rounded-md focus:bg-surface-lowest focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all placeholder-on-surface/60 font-medium text-on-surface ghost-border"
                     placeholder="+91 99999 00000"
                   />
                 </div>
@@ -226,16 +233,16 @@ export default function Auth() {
           ) : (
             <form onSubmit={handleVerifyOTP} className="space-y-6">
               <div>
-                <label className="block text-xs font-bold text-on-surface/50 mb-2.5">6-Digit Code</label>
+                <label className="block text-xs font-bold text-on-surface/70 mb-2.5">6-Digit Code</label>
                 <div className="relative">
-                  <Key className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-on-surface/40" />
+                  <Key className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-on-surface/70" />
                   <input
                     type="text"
                     required
                     maxLength={6}
                     value={otp}
                     onChange={(e) => setOtp(e.target.value)}
-                    className="w-full pl-12 pr-5 py-4 bg-surface-low border border-transparent rounded-md focus:bg-surface-lowest focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all placeholder-on-surface/40 font-medium text-on-surface tracking-[0.5em] text-center ghost-border"
+                    className="w-full pl-12 pr-5 py-4 bg-surface-low border border-transparent rounded-md focus:bg-surface-lowest focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all placeholder-on-surface/60 font-medium text-on-surface tracking-[0.5em] text-center ghost-border"
                     placeholder="000000"
                   />
                 </div>
@@ -262,7 +269,7 @@ export default function Auth() {
 
           <div className="mt-8 flex items-center justify-center">
             <div className="w-full h-px bg-outline-variant"></div>
-            <span className="px-4 text-xs font-bold text-on-surface/40 bg-surface-lowest">OR</span>
+            <span className="px-4 text-xs font-bold text-on-surface/70 bg-surface-lowest">OR</span>
             <div className="w-full h-px bg-outline-variant"></div>
           </div>
 
@@ -282,7 +289,7 @@ export default function Auth() {
             Continue with Google
           </button>
 
-          <p className="mt-10 border-t border-outline-variant pt-6 text-center text-sm text-on-surface/50">
+          <p className="mt-10 border-t border-outline-variant pt-6 text-center text-sm text-on-surface/70">
             By continuing you agree to our <Link to="/info/terms" className="text-primary font-semibold hover:underline">Terms</Link> and{' '}
             <Link to="/info/privacy" className="text-primary font-semibold hover:underline">Privacy</Link> policy.
           </p>

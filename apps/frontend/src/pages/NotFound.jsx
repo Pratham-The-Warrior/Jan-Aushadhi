@@ -5,8 +5,10 @@
 
 import { useNavigate } from 'react-router-dom';
 import { FileQuestion, ArrowLeft } from 'lucide-react';
+import usePageMeta from '../hooks/usePageMeta';
 
 export default function NotFound() {
+  usePageMeta({ title: 'Page not found' });
   const navigate = useNavigate();
 
   return (
@@ -17,7 +19,7 @@ export default function NotFound() {
       <h1 className="font-display text-4xl font-bold text-on-surface mb-3 tracking-tight">
         Page Not Found
       </h1>
-      <p className="text-on-surface/60 max-w-md mx-auto mb-10 text-lg">
+      <p className="text-on-surface/70 max-w-md mx-auto mb-10 text-lg">
         The page you are looking for doesn't exist or has been moved.
       </p>
       <div className="flex flex-col sm:flex-row gap-3">

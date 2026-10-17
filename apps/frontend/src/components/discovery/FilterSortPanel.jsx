@@ -3,8 +3,7 @@
 // Operates purely on the client-side results array
 // ============================================================
 
-import React from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useEffect, useRef } from 'react';
 import { X, SlidersHorizontal, ArrowUpDown, RotateCcw } from 'lucide-react';
 
 const SORT_OPTIONS = [
@@ -32,34 +31,45 @@ export default function FilterSortPanel({ isOpen, onClose, filters, setFilters }
   const resetFilters = () =>
     setFilters({ sortKey: 'relevance', savingsRange: 'all', matchFilter: 'matched' });
 
+  // Dialog behaviour: Escape closes, focus moves into the drawer and returns afterwards.
+  const drawerRef = useRef(null);
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    const previous = document.activeElement;
+    drawerRef.current?.focus();
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      previous?.focus?.();
+    };
+  }, [isOpen, onClose]);
+
+  if (!isOpen) return null;
+
   return (
-    <AnimatePresence>
-      {isOpen && (
         <>
           {/* Backdrop */}
-          <motion.div
-            key="backdrop"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+          <div
             onClick={onClose}
-            className="fixed inset-0 bg-on-surface/30 backdrop-blur-sm z-40"
+            className="fixed inset-0 bg-on-surface/30 backdrop-blur-sm z-40 animate-fadeIn"
+            aria-hidden="true"
           />
 
           {/* Drawer */}
-          <motion.div
-            key="drawer"
-            initial={{ x: '100%' }}
-            animate={{ x: 0 }}
-            exit={{ x: '100%' }}
-            transition={{ type: 'spring', stiffness: 350, damping: 35 }}
-            className="fixed top-0 right-0 bottom-0 w-full max-w-sm bg-surface-lowest z-50 flex flex-col clinical-shadow-lg"
+          <div
+            ref={drawerRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="filter-panel-title"
+            tabIndex={-1}
+            className="fixed top-0 right-0 bottom-0 w-full max-w-sm bg-surface-lowest z-50 flex flex-col clinical-shadow-lg animate-drawerIn outline-none"
           >
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-5 border-b border-outline-variant">
               <div className="flex items-center gap-3">
                 <SlidersHorizontal className="w-5 h-5 text-primary" />
-                <h2 className="font-display font-bold text-lg text-on-surface">Filter & Sort</h2>
+                <h2 id="filter-panel-title" className="font-display font-bold text-lg text-on-surface">Filter & Sort</h2>
               </div>
               <div className="flex items-center gap-2">
                 {hasActiveFilters && (
@@ -72,7 +82,7 @@ export default function FilterSortPanel({ isOpen, onClose, filters, setFilters }
                 )}
                 <button
                   onClick={onClose}
-                  className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-surface-low transition-colors text-on-surface/50 hover:text-on-surface"
+                  className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-surface-low transition-colors text-on-surface/70 hover:text-on-surface"
                   aria-label="Close filter panel"
                 >
                   <X className="w-4 h-4" />
@@ -83,7 +93,7 @@ export default function FilterSortPanel({ isOpen, onClose, filters, setFilters }
             <div className="flex-1 overflow-y-auto px-6 py-6 space-y-8">
               {/* Sort Section */}
               <div>
-                <div className="flex items-center gap-2 text-xs font-bold text-on-surface/40 mb-4">
+                <div className="flex items-center gap-2 text-xs font-bold text-on-surface/70 mb-4">
                   <ArrowUpDown className="w-3.5 h-3.5" /> Sort By
                 </div>
                 <div className="space-y-2">
@@ -110,7 +120,7 @@ export default function FilterSortPanel({ isOpen, onClose, filters, setFilters }
 
               {/* Savings Range Filter */}
               <div>
-                <div className="text-xs font-bold text-on-surface/40 mb-4">
+                <div className="text-xs font-bold text-on-surface/70 mb-4">
                   Savings Range
                 </div>
                 <div className="grid grid-cols-2 gap-2">
@@ -121,7 +131,7 @@ export default function FilterSortPanel({ isOpen, onClose, filters, setFilters }
                       className={`px-3 py-2.5 rounded-xl text-xs font-bold transition-all border ${
                         filters.savingsRange === r.key
                           ? 'bg-primary text-white border-primary'
-                          : 'bg-surface-low border-transparent text-on-surface/60 hover:border-outline-variant hover:text-on-surface'
+                          : 'bg-surface-low border-transparent text-on-surface/70 hover:border-outline-variant hover:text-on-surface'
                       }`}
                     >
                       {r.label}
@@ -140,9 +150,7 @@ export default function FilterSortPanel({ isOpen, onClose, filters, setFilters }
                 Apply Filters
               </button>
             </div>
-          </motion.div>
+          </div>
         </>
-      )}
-    </AnimatePresence>
   );
 }

@@ -1,0 +1,22 @@
+{
+  "name": "JanAushadhi — Generic medicine finder",
+  "short_name": "JanAushadhi",
+  "description": "Find the Jan Aushadhi generic for your branded medicine and the nearest Kendra.",
+  "start_url": "/home?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f6f8f9",
+  "theme_color": "#006A6A",
+  "lang": "en-IN",
+  "categories": ["health", "medical", "shopping"],
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ],
+  "shortcuts": [
+    { "name": "Search a medicine", "url": "/discovery?source=pwa", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Find a Kendra", "url": "/fulfillment?source=pwa", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] }
+  ]
+}

@@ -50,7 +50,7 @@ export default function OrderSuccess({ order, store }) {
         </div>
 
         <h2 className="font-display text-3xl md:text-4xl font-extrabold text-on-surface mb-4 tracking-tight">Requirement Routed!</h2>
-        <p className="text-on-surface/60 mb-10 leading-relaxed text-lg">
+        <p className="text-on-surface/70 mb-10 leading-relaxed text-lg">
           Your ticket has been generated and routed to <strong className="text-on-surface">{store?.name || 'the selected Kendra'}</strong>. Please check
           your WhatsApp to finalize fulfillment and delivery details.
         </p>
@@ -61,11 +61,11 @@ export default function OrderSuccess({ order, store }) {
           
           <div className="flex flex-wrap justify-between items-center gap-4 relative z-10">
             <div>
-              <div className="text-xs font-bold text-on-surface/40 mb-1">Secure Ticket ID</div>
+              <div className="text-xs font-bold text-on-surface/70 mb-1">Secure Ticket ID</div>
               <div className="font-display text-xl font-bold text-on-surface">{order.ticketId}</div>
             </div>
             <div className="text-right">
-              <div className="text-xs font-bold text-on-surface/40 mb-1">Status</div>
+              <div className="text-xs font-bold text-on-surface/70 mb-1">Status</div>
               <div className="inline-flex items-center gap-1.5 bg-success-soft text-success text-xs font-bold px-2.5 py-1 rounded-md">
                 <div className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
                 {order.status}
@@ -75,7 +75,7 @@ export default function OrderSuccess({ order, store }) {
           
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-6 pt-6 border-t border-outline-variant/50 relative z-10">
             <div>
-              <div className="text-xs font-bold text-on-surface/40 mb-1">Fulfillment Channel</div>
+              <div className="text-xs font-bold text-on-surface/70 mb-1">Fulfillment Channel</div>
               <div className="font-semibold text-sm text-on-surface">Direct Pharmacist WhatsApp</div>
             </div>
             <button
@@ -105,7 +105,7 @@ export default function OrderSuccess({ order, store }) {
                   className="w-40 h-40"
                 />
               ) : (
-                <div className="text-xs text-on-surface/40 animate-pulse">Generating Secure QR...</div>
+                <div className="text-xs text-on-surface/70 animate-pulse">Generating Secure QR...</div>
               )}
             </div>
             <span className="text-xs font-bold text-primary">₹{Number(order.totalGenericValue).toFixed(2)} direct P2P transfer</span>

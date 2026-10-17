@@ -23,7 +23,7 @@ export default function EmptyState({ icon, title, description, action, className
       )}
       <h3 className="font-display text-2xl font-bold text-on-surface mb-2">{title}</h3>
       {description && (
-        <p className="text-sm text-on-surface/60 max-w-md mx-auto leading-relaxed">{description}</p>
+        <p className="text-sm text-on-surface/70 max-w-md mx-auto leading-relaxed">{description}</p>
       )}
       {action && <div className="mt-8">{action}</div>}
     </div>

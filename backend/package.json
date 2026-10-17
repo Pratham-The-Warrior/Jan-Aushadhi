@@ -14,7 +14,7 @@
     "etl:stores": "tsx scripts/store_geocoding.ts",
     "meili:seed": "tsx scripts/seed_meilisearch.ts",
     "match:build": "tsx scripts/build_matches.ts",
-    "test": "tsx --test 'src/**/*.test.ts'"
+    "test": "tsx --test $(find src -name \"*.test.ts\")"
   },
   "keywords": [
     "janaushadhi",

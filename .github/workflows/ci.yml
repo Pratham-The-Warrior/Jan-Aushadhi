@@ -135,10 +135,19 @@ jobs:
   deploy:
     name: Deploy to Production
     needs: docker-build
-    if: github.ref == 'refs/heads/master' && github.event_name == 'push' && secrets.DEPLOY_HOST != ''
+    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
     runs-on: ubuntu-latest
+    # `secrets` is not allowed in a job-level `if` (it invalidates the whole
+    # workflow), so expose it as env and skip the step when no server is set up.
+    env:
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
     steps:
+      - name: Skip notice (no deploy server configured)
+        if: env.DEPLOY_HOST == ''
+        run: echo "DEPLOY_HOST secret is not set; skipping deployment."
+
       - name: Deploy via SSH
+        if: env.DEPLOY_HOST != ''
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.DEPLOY_HOST }}

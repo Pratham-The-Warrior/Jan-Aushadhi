@@ -1,6 +1,6 @@
 import { NavLink } from 'react-router-dom';
 import {
-  LayoutDashboard, ShoppingCart, Package, Store, BarChart3, LogOut, X,
+  LayoutDashboard, Store, ShoppingCart, Package, BarChart3, LogOut, X,
 } from 'lucide-react';
 import useAuthStore from '../../store/authStore';
 
@@ -31,14 +31,7 @@ export default function Sidebar({ mobileOpen, onClose }) {
         <div style={{ padding: '1.5rem 1.25rem', borderBottom: '1px solid var(--color-border)' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-              <div style={{
-                width: 36, height: 36, borderRadius: 10,
-                background: 'linear-gradient(135deg, var(--color-brand-500), var(--color-brand-700))',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                boxShadow: '0 4px 12px rgba(17, 135, 138, 0.25)',
-              }}>
-                <Store size={18} color="white" />
-              </div>
+              <img src="/favicon.svg" width={36} height={36} alt="" style={{ display: 'block', borderRadius: 10 }} />
               <div>
                 <h1 style={{ fontSize: '1rem', fontWeight: 800 }} className="text-gradient">
                   Seller Central

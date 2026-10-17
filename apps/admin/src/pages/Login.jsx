@@ -80,14 +80,7 @@ export default function Login() {
         
         {/* Header Branding */}
         <div style={{ textAlign: 'center', marginBottom: '2.25rem' }}>
-          <div style={{
-            width: 72, height: 72, borderRadius: 20, margin: '0 auto 1.25rem',
-            background: 'linear-gradient(135deg, var(--color-brand-500), var(--color-brand-700))',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 8px 32px rgba(17, 135, 138, 0.3), 0 0 0 1px rgba(17, 135, 138, 0.1)',
-          }}>
-            <Lock size={32} color="white" />
-          </div>
+          <img src="/favicon.svg" width={72} height={72} alt="" style={{ display: 'block', borderRadius: 20, margin: '0 auto 1.25rem' }} />
           <h1 style={{ fontSize: '1.75rem', fontWeight: 800 }} className="text-gradient">
             Admin Console
           </h1>

@@ -7,6 +7,7 @@
 
 import { Link, useParams } from 'react-router-dom';
 import NotFound from './NotFound';
+import usePageMeta from '../hooks/usePageMeta';
 
 const PAGES = {
   about: {
@@ -41,6 +42,7 @@ const PAGES = {
 export default function InfoPage() {
   const { page } = useParams();
   const content = PAGES[page];
+  usePageMeta({ title: content?.title });
   if (!content) return <NotFound />;
 
   return (
@@ -55,7 +57,7 @@ export default function InfoPage() {
             </section>
           ))}
         </div>
-        <nav className="mt-14 pt-6 border-t border-outline-variant flex flex-wrap gap-6 text-sm font-semibold text-primary">
+        <nav aria-label="More information" className="mt-14 pt-6 border-t border-outline-variant flex flex-wrap gap-6 text-sm font-semibold text-primary">
           {Object.entries(PAGES).filter(([key]) => key !== page).map(([key, p]) => (
             <Link key={key} to={`/info/${key}`} className="hover:underline">{p.title}</Link>
           ))}

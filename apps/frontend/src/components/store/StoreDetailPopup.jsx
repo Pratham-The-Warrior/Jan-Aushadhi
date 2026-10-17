@@ -32,7 +32,7 @@ export default function StoreDetailPopup({ store }) {
                 {store.pmbjk_code}
               </span>
               {formatDistance(store) && (
-                <span className="text-[10px] text-on-surface/60 font-bold">{formatDistance(store)} away</span>
+                <span className="text-[10px] text-on-surface/70 font-bold">{formatDistance(store)} away</span>
               )}
             </div>
           </div>
@@ -41,20 +41,20 @@ export default function StoreDetailPopup({ store }) {
         {/* Details Grid */}
         <div className="grid grid-cols-2 gap-3 mb-5">
           <div className="bg-surface-low rounded-lg p-3 ghost-border">
-            <div className="text-xs font-bold text-on-surface/40 mb-1">Location</div>
+            <div className="text-xs font-bold text-on-surface/70 mb-1">Location</div>
             <div className="text-xs text-on-surface/80 font-medium leading-relaxed">{store.district}, {store.state}</div>
           </div>
           <div className="bg-surface-low rounded-lg p-3 ghost-border">
-            <div className="text-xs font-bold text-on-surface/40 mb-1">Contact</div>
+            <div className="text-xs font-bold text-on-surface/70 mb-1">Contact</div>
             <div className="text-xs text-on-surface/80 font-medium">{store.phone || 'Phone not listed'}</div>
           </div>
         </div>
 
         {/* Address */}
-        <p className="text-xs text-on-surface/50 leading-relaxed mb-5 bg-surface-low/50 rounded-lg p-3 ghost-border">
-          <MapPin className="w-3 h-3 text-primary/50 inline mr-1.5 -mt-0.5" />
+        <p className="text-xs text-on-surface/70 leading-relaxed mb-5 bg-surface-low/50 rounded-lg p-3 ghost-border">
+          <MapPin className="w-3 h-3 text-primary inline mr-1.5 -mt-0.5" />
           {store.address}
-          {locationNote(store) && <span className="block mt-1 text-on-surface/40">{locationNote(store)}</span>}
+          {locationNote(store) && <span className="block mt-1 text-on-surface/70">{locationNote(store)}</span>}
         </p>
 
         {/* Certification */}

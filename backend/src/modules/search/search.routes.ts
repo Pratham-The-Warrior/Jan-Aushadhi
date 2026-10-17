@@ -73,12 +73,17 @@ export default async function searchRoutes(server: FastifyInstance): Promise<voi
       // "telma" should show Telma 40 before Telma-AM H), then match quality, then the
       // shorter (simpler) product name, then savings.
       const q = query.trim().toLowerCase();
+      const firstWord = q.split(/\s+/)[0] || q;
+      const startsWithWord = (n: string, w: string) => n.startsWith(w) && !/[a-z0-9]/.test(n.charAt(w.length));
       const nameRank = (name: string) => {
         const n = name.toLowerCase();
         // "telma" → "Telma 40" (whole word, 0) before "Telmac 40" (prefix, 1)
-        if (n.startsWith(q)) return /[a-z0-9]/.test(n.charAt(q.length)) ? 1 : 0;
+        if (n.startsWith(q)) return startsWithWord(n, q) ? 0 : 1;
         if (n.includes(` ${q}`)) return 2;
-        return 3;
+        // multi-word queries: "atorva 10" → brand "Atorva …" before brands that only share the salt
+        if (startsWithWord(n, firstWord)) return 3;
+        if (n.startsWith(firstWord)) return 4;
+        return 5;
       };
       const TIER_RANK: Record<string, number> = { EXACT_MATCH: 0, CLOSE_MATCH: 1, SALT_EQUIVALENT: 2 };
       const tierRank = (r: typeof fullResults[number]) => (r.generic ? TIER_RANK[r.generic.match_tier] ?? 3 : 3);

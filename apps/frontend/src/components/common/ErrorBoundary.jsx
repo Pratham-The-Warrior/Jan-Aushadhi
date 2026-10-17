@@ -40,7 +40,7 @@ export default class ErrorBoundary extends React.Component {
             <h2 className="font-display text-2xl font-bold text-on-surface mb-3">
               Something went wrong
             </h2>
-            <p className="text-sm text-on-surface/60 mb-8 leading-relaxed">
+            <p className="text-sm text-on-surface/70 mb-8 leading-relaxed">
               An unexpected error occurred. Please try refreshing the page or navigating back.
             </p>
             <div className="flex gap-4 justify-center">

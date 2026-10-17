@@ -3,7 +3,10 @@
 // Thin page: all UI components extracted to components/store/
 // ============================================================
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Suspense, lazy } from 'react';
+
+// Leaflet + map tiles are only needed once there are stores to show.
+const StoreMapArea = lazy(() => import('../components/store/StoreMapArea'));
 import {
   MapPin, Search, AlertCircle, Locate, Building2, Globe, Map, Compass, List,
 } from 'lucide-react';
@@ -11,10 +14,14 @@ import { getStoresByPincode, getStoreStates, getStoresByDistrict, getNearbyStore
 import useCartStore from '../store/cartStore';
 import StatBadge from '../components/common/StatBadge';
 import StoreCard from '../components/store/StoreCard';
-import StoreMapArea from '../components/store/StoreMapArea';
 import usePlatformStats from '../hooks/usePlatformStats';
+import usePageMeta from '../hooks/usePageMeta';
 
 export default function Fulfillment() {
+  usePageMeta({
+    title: 'Find a Jan Aushadhi Kendra near you',
+    description: 'Locate Jan Aushadhi Kendras by pincode, district or your current location.',
+  });
   // --- STATE MANAGEMENT ---
   // We keep track of discovered stores, loading states, and search selections.
   const [stores, setStores] = useState([]);
@@ -168,7 +175,7 @@ export default function Fulfillment() {
               <h1 className="font-display text-3xl md:text-4xl font-bold text-on-surface tracking-tight mb-2">
                 Find a <span className="text-primary">Jan Aushadhi Kendra</span>
               </h1>
-              <p className="text-on-surface/60 text-base max-w-lg leading-relaxed">
+              <p className="text-on-surface/70 text-base max-w-lg leading-relaxed">
                 Search by pincode or district, or use your location to see the nearest Kendras.
               </p>
             </div>
@@ -194,7 +201,7 @@ export default function Fulfillment() {
               <div className="flex gap-1 mb-5 bg-surface-low p-1 rounded-lg">
                 {[{ key: 'pincode', label: 'Pincode', icon: MapPin }, { key: 'district', label: 'State & District', icon: Globe }].map((m) => (
                   <button key={m.key} onClick={() => setSearchMode(m.key)}
-                    className={`flex-1 py-2.5 text-sm font-semibold rounded-md transition-all flex items-center justify-center gap-2 ${searchMode === m.key ? 'bg-surface-lowest shadow-sm text-primary border border-outline-variant/50' : 'text-on-surface/50 hover:text-on-surface'}`}>
+                    className={`flex-1 py-2.5 text-sm font-semibold rounded-md transition-all flex items-center justify-center gap-2 ${searchMode === m.key ? 'bg-surface-lowest shadow-sm text-primary border border-outline-variant/50' : 'text-on-surface/70 hover:text-on-surface'}`}>
                     <m.icon className="w-3.5 h-3.5" /> {m.label}
                   </button>
                 ))}
@@ -203,11 +210,11 @@ export default function Fulfillment() {
               <form onSubmit={handleSearch} className="space-y-3">
                 {searchMode === 'pincode' ? (
                   <div className="relative">
-                    <MapPin className="w-4 h-4 text-on-surface/40 absolute left-4 top-1/2 -translate-y-1/2" />
+                    <MapPin className="w-4 h-4 text-on-surface/70 absolute left-4 top-1/2 -translate-y-1/2" />
                     <input ref={inputRef} type="text" inputMode="numeric" value={pincode}
                       onChange={(e) => setPincode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                       placeholder="Enter 6-digit pincode" aria-label="Pincode"
-                      className="w-full py-4 pl-11 pr-12 bg-surface-low border border-outline-variant rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-on-surface placeholder-on-surface/40 font-semibold" />
+                      className="w-full py-4 pl-11 pr-12 bg-surface-low border border-outline-variant rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-on-surface placeholder-on-surface/60 font-semibold" />
                     <button type="submit" disabled={loading} aria-label="Search"
                       className="absolute right-2 top-1/2 -translate-y-1/2 bg-primary text-white p-2 rounded-md hover:bg-primary-dim transition-colors disabled:opacity-50">
                       <Search className="w-4 h-4" />
@@ -223,7 +230,7 @@ export default function Fulfillment() {
                     <div className="relative">
                       <input type="text" value={districtText} onChange={(e) => setDistrictText(e.target.value)}
                         placeholder="Enter District Name" aria-label="District"
-                        className="w-full py-4 pl-4 pr-12 bg-surface-low border border-outline-variant rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-on-surface placeholder-on-surface/40 font-semibold" />
+                        className="w-full py-4 pl-4 pr-12 bg-surface-low border border-outline-variant rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-on-surface placeholder-on-surface/60 font-semibold" />
                       <button type="submit" disabled={loading} aria-label="Search"
                         className="absolute right-2 top-1/2 -translate-y-1/2 bg-primary text-white p-2 rounded-md hover:bg-primary-dim transition-colors disabled:opacity-50">
                         <Search className="w-4 h-4" />
@@ -253,7 +260,7 @@ export default function Fulfillment() {
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="font-display font-bold text-on-surface text-lg">{stores.length} Kendra{stores.length !== 1 ? 's' : ''} found</h2>
-                  <p className="text-sm text-on-surface/55 mt-0.5">{searchedLabel}</p>
+                  <p className="text-sm text-on-surface/70 mt-0.5">{searchedLabel}</p>
                 </div>
                 {/* Mobile: switch between list and map instead of stacking them */}
                 <div className="lg:hidden flex bg-surface-low p-1 rounded-lg border border-outline-variant/50" role="tablist" aria-label="Results view">
@@ -263,7 +270,7 @@ export default function Fulfillment() {
                       role="tab"
                       aria-selected={view === v.key}
                       onClick={() => setView(v.key)}
-                      className={`px-3 py-1.5 rounded-md text-sm font-semibold inline-flex items-center gap-1.5 ${view === v.key ? 'bg-surface-lowest text-primary shadow-sm' : 'text-on-surface/60'}`}
+                      className={`px-3 py-1.5 rounded-md text-sm font-semibold inline-flex items-center gap-1.5 ${view === v.key ? 'bg-surface-lowest text-primary shadow-sm' : 'text-on-surface/70'}`}
                     >
                       <v.icon className="w-4 h-4" /> {v.label}
                     </button>
@@ -277,23 +284,23 @@ export default function Fulfillment() {
               {loading && (
                 <div className="text-center py-16">
                   <div className="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin mx-auto mb-5" />
-                  <div className="text-on-surface/60 text-sm font-semibold">Locating Kendras...</div>
+                  <div className="text-on-surface/70 text-sm font-semibold">Locating Kendras...</div>
                 </div>
               )}
 
               {!loading && stores.length === 0 && !error && (
                 <div className="text-center py-16 px-6">
                   <div className="w-20 h-20 bg-linear-to-br from-primary/10 to-primary/5 rounded-2xl flex items-center justify-center mx-auto mb-6 border border-primary/10">
-                    <Compass className="w-10 h-10 text-primary/40" />
+                    <Compass className="w-10 h-10 text-primary" />
                   </div>
-                  <h3 className="font-display font-bold text-on-surface text-xl mb-2">Find Your Nearest Kendra</h3>
-                  <p className="text-sm text-on-surface/50 leading-relaxed max-w-xs mx-auto mb-8">
+                  <h2 className="font-display font-bold text-on-surface text-xl mb-2">Find your nearest Kendra</h2>
+                  <p className="text-sm text-on-surface/70 leading-relaxed max-w-xs mx-auto mb-8">
                     Enter your pincode or use your location to see Jan Aushadhi Kendras near you.
                   </p>
                   <div className="flex flex-col gap-3 text-left max-w-xs mx-auto">
                     {[{ icon: MapPin, text: 'Search by 6-digit PIN code' }, { icon: Globe, text: 'Browse by state and district' }, { icon: Locate, text: 'Auto-detect your location' }].map((h, i) => (
-                      <div key={i} className="flex items-center gap-3 text-xs text-on-surface/50 font-medium bg-surface-low/50 rounded-lg px-4 py-3 ghost-border">
-                        <h.icon className="w-4 h-4 text-primary/50 shrink-0" /> {h.text}
+                      <div key={i} className="flex items-center gap-3 text-xs text-on-surface/70 font-medium bg-surface-low/50 rounded-lg px-4 py-3 ghost-border">
+                        <h.icon className="w-4 h-4 text-primary shrink-0" /> {h.text}
                       </div>
                     ))}
                   </div>
@@ -308,7 +315,9 @@ export default function Fulfillment() {
 
           {/* Right: Map */}
           <div className={`flex-1 relative ${view === 'list' || stores.length === 0 ? 'hidden lg:block' : ''}`}>
-            <StoreMapArea stores={stores} selectedStore={selectedStore} onSelectStore={handleSelectStore} />
+            <Suspense fallback={<div className="h-[70vh] lg:h-[calc(100vh-200px)] min-h-[420px] rounded-xl bg-surface-low animate-pulse" />}>
+              <StoreMapArea stores={stores} selectedStore={selectedStore} onSelectStore={handleSelectStore} />
+            </Suspense>
           </div>
         </div>
       </div>

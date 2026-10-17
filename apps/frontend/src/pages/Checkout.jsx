@@ -18,6 +18,7 @@ import { createRequirement, getWhatsAppLink } from '../services/api';
 import OrderSuccess from '../components/checkout/OrderSuccess';
 import { toast } from '../store/toastStore';
 import { formatINR } from '../utils/format';
+import usePageMeta from '../hooks/usePageMeta';
 
 function Step({ number, title, done, children }) {
   return (
@@ -34,6 +35,7 @@ function Step({ number, title, done, children }) {
 }
 
 export default function Checkout() {
+  usePageMeta({ title: 'Checkout' });
   const navigate = useNavigate();
 
   const items = useCartStore((s) => s.items);
@@ -162,7 +164,7 @@ export default function Checkout() {
     <div className="flex-1 w-full bg-surface pb-24 md:pb-32">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 md:pt-14 pb-6">
         <h1 className="font-display text-3xl md:text-4xl font-bold text-on-surface tracking-tight">Checkout</h1>
-        <p className="text-on-surface/60 mt-2">Pick up from a Jan Aushadhi Kendra or get it delivered. You pay the Kendra directly.</p>
+        <p className="text-on-surface/70 mt-2">Pick up from a Jan Aushadhi Kendra or get it delivered. You pay the Kendra directly.</p>
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -184,9 +186,9 @@ export default function Checkout() {
                       fulfillmentType === opt.key ? 'border-primary bg-primary/5' : 'border-outline-variant bg-surface-lowest hover:border-primary/40'
                     }`}
                   >
-                    <opt.icon className={`w-5 h-5 mb-2 ${fulfillmentType === opt.key ? 'text-primary' : 'text-on-surface/50'}`} />
+                    <opt.icon className={`w-5 h-5 mb-2 ${fulfillmentType === opt.key ? 'text-primary' : 'text-on-surface/70'}`} />
                     <div className="font-display font-bold text-on-surface">{opt.label}</div>
-                    <div className="text-sm text-on-surface/60">{opt.hint}</div>
+                    <div className="text-sm text-on-surface/70">{opt.hint}</div>
                   </button>
                 ))}
               </div>
@@ -199,8 +201,8 @@ export default function Checkout() {
                   {selectedStore ? (
                     <div className="flex-1 min-w-0">
                       <div className="font-display font-bold text-on-surface">{selectedStore.name}</div>
-                      <div className="text-sm text-on-surface/60 mt-0.5">{selectedStore.address}</div>
-                      <div className="text-sm text-on-surface/50 mt-0.5">{selectedStore.pmbjk_code} · PIN {selectedStore.pincode}</div>
+                      <div className="text-sm text-on-surface/70 mt-0.5">{selectedStore.address}</div>
+                      <div className="text-sm text-on-surface/70 mt-0.5">{selectedStore.pmbjk_code} · PIN {selectedStore.pincode}</div>
                       <button onClick={() => navigate('/fulfillment')} className="mt-3 text-primary font-semibold text-sm hover:underline inline-flex items-center gap-1">
                         Change Kendra <ArrowRight className="w-3.5 h-3.5" />
                       </button>
@@ -208,7 +210,7 @@ export default function Checkout() {
                   ) : (
                     <div className="flex-1">
                       <div className="font-semibold text-on-surface">No Kendra chosen yet</div>
-                      <div className="text-sm text-on-surface/60 mt-0.5">Find one near you by pincode or location.</div>
+                      <div className="text-sm text-on-surface/70 mt-0.5">Find one near you by pincode or location.</div>
                       <button onClick={() => navigate('/fulfillment')} className="btn-secondary mt-3 py-2.5 px-5 text-sm">Choose a Kendra</button>
                     </div>
                   )}
@@ -223,11 +225,11 @@ export default function Checkout() {
                       value={deliveryAddress}
                       onChange={(e) => setDeliveryAddress(e.target.value)}
                       placeholder="House / flat number, building, street, landmark, pincode"
-                      className="w-full px-4 py-3 rounded-lg border border-outline-variant bg-surface-low text-on-surface placeholder-on-surface/40 focus:outline-none focus:border-primary text-sm resize-none"
+                      className="w-full px-4 py-3 rounded-lg border border-outline-variant bg-surface-low text-on-surface placeholder-on-surface/60 focus:outline-none focus:border-primary text-sm resize-none"
                     />
                   </div>
                   <div className="flex items-center justify-between gap-3 text-sm">
-                    <span className={deliveryCoords ? 'text-success font-medium' : 'text-on-surface/60'}>
+                    <span className={deliveryCoords ? 'text-success font-medium' : 'text-on-surface/70'}>
                       {deliveryCoords ? '✓ Location shared — we will route to the nearest Kendra' : 'We need your location to find the nearest Kendra.'}
                     </span>
                     {!deliveryCoords && (
@@ -236,7 +238,7 @@ export default function Checkout() {
                       </button>
                     )}
                   </div>
-                  <p className="text-sm text-on-surface/50">Delivery charges, if any, are confirmed by the Kendra on WhatsApp before dispatch.</p>
+                  <p className="text-sm text-on-surface/70">Delivery charges, if any, are confirmed by the Kendra on WhatsApp before dispatch.</p>
                 </div>
               )}
             </Step>
@@ -253,7 +255,7 @@ export default function Checkout() {
                 />
                 <span>
                   <span className="flex items-center gap-2 font-semibold text-on-surface"><FileCheck2 className="w-4 h-4 text-primary" /> I have a valid prescription</span>
-                  <span className="block text-sm text-on-surface/60 mt-1">
+                  <span className="block text-sm text-on-surface/70 mt-1">
                     Prescription medicines are only dispensed against a doctor's prescription. Please show it to the pharmacist at pickup or delivery.
                   </span>
                 </span>
@@ -265,7 +267,7 @@ export default function Checkout() {
                 <div className="w-10 h-10 bg-primary/10 text-primary rounded-lg flex items-center justify-center font-display font-bold shrink-0">₹</div>
                 <div>
                   <div className="font-semibold text-on-surface">Pay the Kendra directly</div>
-                  <p className="text-sm text-on-surface/60 mt-1">
+                  <p className="text-sm text-on-surface/70 mt-1">
                     Pay by UPI or cash when you collect your medicines. Nothing is charged online. The pharmacist confirms your order on WhatsApp.
                   </p>
                 </div>
@@ -278,7 +280,7 @@ export default function Checkout() {
             <div className="bg-surface-lowest rounded-2xl ghost-border clinical-shadow p-6 lg:sticky lg:top-28">
               <div className="flex justify-between items-center mb-5 pb-4 border-b border-outline-variant">
                 <h2 className="font-display text-xl font-bold text-on-surface">Your order</h2>
-                <span className="text-sm text-on-surface/60">{itemCount} {itemCount === 1 ? 'item' : 'items'}</span>
+                <span className="text-sm text-on-surface/70">{itemCount} {itemCount === 1 ? 'item' : 'items'}</span>
               </div>
 
               {items.length === 0 ? (
@@ -287,7 +289,7 @@ export default function Checkout() {
                     <Package className="w-7 h-7" />
                   </div>
                   <h3 className="font-display font-bold text-lg mb-1">Your cart is empty</h3>
-                  <p className="text-sm text-on-surface/60">Search for your medicine to see its Jan Aushadhi price.</p>
+                  <p className="text-sm text-on-surface/70">Search for your medicine to see its Jan Aushadhi price.</p>
                 </div>
               ) : (
                 <>
@@ -297,7 +299,7 @@ export default function Checkout() {
                         <div className="flex gap-3">
                           <div className="flex-1 min-w-0">
                             <div className="font-semibold text-on-surface text-sm leading-snug">{item.name}</div>
-                            <div className="text-xs text-on-surface/50 mt-1">
+                            <div className="text-xs text-on-surface/70 mt-1">
                               {formatINR(item.mrp)} per {item.unit_size || 'pack'}
                               {item.branded_name ? ` · instead of ${item.branded_name}` : ''}
                             </div>
@@ -306,11 +308,11 @@ export default function Checkout() {
                         </div>
                         <div className="flex items-center gap-3 mt-2">
                           <div className="flex items-center bg-surface-low rounded-lg">
-                            <button onClick={() => updateQuantity(item.drug_code, item.quantity - 1)} className="w-8 h-8 flex items-center justify-center text-on-surface/60 hover:text-primary font-bold" aria-label="Decrease quantity">−</button>
+                            <button onClick={() => updateQuantity(item.drug_code, item.quantity - 1)} className="w-8 h-8 flex items-center justify-center text-on-surface/70 hover:text-primary font-bold" aria-label="Decrease quantity">−</button>
                             <span className="w-6 text-center text-sm font-semibold">{item.quantity}</span>
-                            <button onClick={() => updateQuantity(item.drug_code, item.quantity + 1)} className="w-8 h-8 flex items-center justify-center text-on-surface/60 hover:text-primary font-bold" aria-label="Increase quantity">+</button>
+                            <button onClick={() => updateQuantity(item.drug_code, item.quantity + 1)} className="w-8 h-8 flex items-center justify-center text-on-surface/70 hover:text-primary font-bold" aria-label="Increase quantity">+</button>
                           </div>
-                          <button onClick={() => removeItem(item.drug_code)} className="ml-auto text-on-surface/40 hover:text-red-600 p-1" aria-label={`Remove ${item.name}`}>
+                          <button onClick={() => removeItem(item.drug_code)} className="ml-auto text-on-surface/70 hover:text-red-600 p-1" aria-label={`Remove ${item.name}`}>
                             <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
@@ -345,7 +347,7 @@ export default function Checkout() {
                 {cta.label} {cta.icon}
               </button>
               {user && items.length > 0 && destinationReady && !legalAttestation && (
-                <p className="text-xs text-center text-on-surface/50 mt-3">Confirm your prescription (step 2) to place the order.</p>
+                <p className="text-xs text-center text-on-surface/70 mt-3">Confirm your prescription (step 2) to place the order.</p>
               )}
             </div>
           </aside>
