@@ -1,7 +1,7 @@
 // ============================================================
 // Product Clinical Detail Page
 // Deep-dive specs: Indications, Administration, Warnings,
-// Pharmacokinetics, Trust Badges (WHO-GMP, NABL, ISO 9001)
+// Pharmacokinetics, PMBJP quality assurances (WHO-GMP, NABL)
 // ============================================================
 
 import { useState, useEffect } from 'react';
@@ -54,12 +54,17 @@ export default function ProductDetail() {
     </div>
   );
 
-  const { branded, generic, savings } = data;
+  const { branded, savings } = data;
+  // The discovery API returns `generic_name` and a top-level `match_tier`;
+  // normalise so the page and cart work with one shape.
+  const generic = data.generic
+    ? { ...data.generic, name: data.generic.generic_name ?? data.generic.name, match_tier: data.match_tier }
+    : null;
+  const isExact = generic?.match_tier === 'EXACT_MATCH';
   const tabs = [
     { key: 'overview', label: 'Overview' },
     { key: 'clinical', label: 'Clinical Details' },
-    { key: 'pharmacokinetics', label: 'Pharmacokinetics' },
-    { key: 'warnings', label: 'Warnings' },
+    { key: 'warnings', label: 'Safety' },
   ];
 
   const handleAddToCart = () => {
@@ -105,31 +110,52 @@ export default function ProductDetail() {
             </div>
 
             {/* Right - Generic (The Solution) */}
+            {!generic ? (
+            <div className="w-full md:w-7/12 p-8 md:p-10 flex flex-col justify-center">
+              <div className="text-[10px] font-bold tracking-widest text-on-surface/50 uppercase mb-3">JanAushadhi Equivalent</div>
+              <h2 className="font-display text-2xl md:text-3xl font-bold text-on-surface mb-4 leading-tight">No Jan Aushadhi equivalent listed yet</h2>
+              <p className="text-on-surface/70 leading-relaxed mb-8 max-w-lg">
+                We couldn't find a PMBJP generic with the same active ingredients and dosage form. Ask the pharmacist at your
+                nearest Kendra — the product basket is updated regularly.
+              </p>
+              <button onClick={() => navigate('/fulfillment')} className="btn-secondary w-fit px-8 py-3 uppercase tracking-widest text-xs font-bold">Find a Kendra</button>
+            </div>
+            ) : (
             <div className="w-full md:w-7/12 p-8 md:p-10 relative">
               <div className="flex flex-col sm:flex-row justify-between items-start gap-6 mb-8">
                 <div>
                   <div className="flex items-center gap-3 mb-3">
                     <div className="text-[10px] font-bold tracking-widest text-primary uppercase">JanAushadhi Equivalent</div>
-                    {generic?.match_tier === 'EXACT_MATCH' ? (
+                    {isExact ? (
                       <div className="bg-[#e6f4ea] border border-[#a8dab5] text-[#137333] text-[10px] font-bold px-2 py-0.5 rounded-sm uppercase tracking-wider">✓ Exact Strength Match</div>
                     ) : (
-                      <div className="bg-[#fef7e0] border border-[#f9ab00] text-[#b06000] text-[10px] font-bold px-2 py-0.5 rounded-sm uppercase tracking-wider">⚡ Salt Equivalent</div>
+                      <div className="bg-[#fef7e0] border border-[#f9ab00] text-[#b06000] text-[10px] font-bold px-2 py-0.5 rounded-sm uppercase tracking-wider">⚠ Different Strength</div>
                     )}
                   </div>
-                  <h2 className="font-display text-2xl md:text-4xl font-bold text-primary mb-2 leading-tight">{generic?.name || 'Pharmacological Match'}</h2>
+                  <h2 className="font-display text-2xl md:text-4xl font-bold text-primary mb-2 leading-tight">{generic.name}</h2>
                   <div className="text-sm text-on-surface/60 font-bold uppercase tracking-widest flex items-center gap-2">
                     <span className="bg-surface-low px-2 py-0.5 rounded">PMBJP: {generic?.drug_code}</span>
                     <span className="opacity-30">•</span>
                     <span>{generic?.group_name}</span>
                   </div>
                 </div>
-                {savings && (
+                {savings?.percentage > 0 && (
                   <div className="bg-primary text-white px-6 py-4 rounded-md text-center shrink-0 shadow-lg shadow-primary/20">
                     <div className="font-display text-3xl font-bold tracking-tight">{savings.percentage}%</div>
                     <div className="text-[10px] font-bold tracking-widest uppercase mt-1 text-white/90">COST SAVING</div>
                   </div>
                 )}
               </div>
+
+              {!isExact && (
+                <div className="flex gap-3 items-start bg-[#fef7e0] border border-[#f9ab00]/60 text-[#7a4300] p-4 rounded-md mb-6 text-sm leading-relaxed">
+                  <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" />
+                  <span>
+                    This generic has the same active ingredients as {branded.name} but at a <strong>different strength</strong>.
+                    It is not a direct substitute — confirm the dose with your doctor or pharmacist before switching.
+                  </span>
+                </div>
+              )}
 
               <div className="bg-primary/5 border-l-4 border-primary p-8 rounded-r-md mb-10">
                 <div className="flex flex-col sm:flex-row justify-between items-center sm:items-end gap-6">
@@ -138,15 +164,20 @@ export default function ProductDetail() {
                     <div className="font-display text-6xl font-bold text-primary tracking-tight">₹{(generic?.mrp || 0).toFixed(2)}</div>
                   </div>
                   <div className="text-right">
-                    <div className="text-xs font-bold text-primary/60 uppercase tracking-widest mb-1">Direct Savings</div>
+                    <div className="text-xs font-bold text-primary/60 uppercase tracking-widest mb-1">You Save</div>
                     <div className="font-display text-3xl font-bold text-primary">₹{(savings?.absolute || 0).toFixed(2)}</div>
+                    <div className="text-[10px] text-primary/60 font-semibold mt-1 max-w-[12rem]">
+                      {savings?.basis === 'per_unit'
+                        ? `for the same quantity as one ${branded.pack_size || 'branded pack'}`
+                        : 'comparing pack prices (pack sizes may differ)'}
+                    </div>
                   </div>
                 </div>
               </div>
 
               {/* Trust Badges */}
               <div className="flex flex-wrap gap-4 mb-10">
-                {['WHO-GMP', 'NABL Tested', 'ISO 9001', 'Bureau of Pharma PSUs'].map(badge => (
+                {['WHO-GMP Suppliers', 'NABL Batch Tested'].map(badge => (
                   <div key={badge} className="flex items-center gap-2 bg-surface-low border border-outline-variant/50 px-4 py-2 rounded text-[10px] font-bold text-on-surface/60 tracking-widest uppercase">
                     <ShieldCheck className="w-3.5 h-3.5 text-primary" /> {badge}
                   </div>
@@ -165,6 +196,7 @@ export default function ProductDetail() {
                 </button>
               </div>
             </div>
+            )}
           </div>
         </div>
 
@@ -186,54 +218,31 @@ export default function ProductDetail() {
           ))}
         </div>
 
-        {/* Tab Content */}
+        {/* Tab Content — only data we actually hold; no generic filler presented as clinical fact */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
           {activeTab === 'overview' && (
             <>
               <div className="bg-surface-lowest rounded-lg ghost-border p-8 clinical-shadow">
-                <h3 className="font-display font-bold text-on-surface text-lg mb-8 flex items-center gap-3"><ClipboardList className="w-5 h-5 text-primary" /> Composition Matrix</h3>
-                <div className="space-y-6">
-                  <div className="flex justify-between items-center pb-4 border-b border-outline-variant/30">
-                    <div>
-                      <div className="text-sm font-bold text-on-surface">{branded.composition1 || 'Active Agent'}</div>
-                      <div className="text-[10px] text-on-surface/50 font-bold uppercase tracking-widest mt-1">Chemical Salt</div>
+                <h3 className="font-display font-bold text-on-surface text-lg mb-8 flex items-center gap-3"><ClipboardList className="w-5 h-5 text-primary" /> Active Ingredients</h3>
+                <div className="space-y-4">
+                  {[branded.composition1, branded.composition2].filter(Boolean).map((c) => (
+                    <div key={c} className="pb-4 border-b border-outline-variant/30 last:border-0">
+                      <div className="text-sm font-bold text-on-surface">{c}</div>
+                      <div className="text-[10px] text-on-surface/50 font-bold uppercase tracking-widest mt-1">Salt (strength)</div>
                     </div>
-                    <div className="text-right">
-                      <div className="text-sm font-bold text-primary">Concentrated</div>
-                    </div>
-                  </div>
-                  {branded.composition2 && (
-                    <div className="flex justify-between items-center pb-4 border-b border-outline-variant/30">
-                      <div>
-                        <div className="text-sm font-bold text-on-surface">{branded.composition2}</div>
-                        <div className="text-[10px] text-on-surface/50 font-bold uppercase tracking-widest mt-1">Compound Agent</div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-sm font-bold text-primary">Balanced</div>
-                      </div>
-                    </div>
+                  ))}
+                  {!branded.composition1 && !branded.composition2 && (
+                    <p className="text-sm text-on-surface/60">Composition not listed for this product.</p>
                   )}
                 </div>
               </div>
               <div className="bg-surface-lowest rounded-lg ghost-border p-8 clinical-shadow">
-                <h3 className="font-display font-bold text-on-surface text-lg mb-8 flex items-center gap-3"><ThermometerSun className="w-5 h-5 text-primary" /> Pharmaceutical Specs</h3>
+                <h3 className="font-display font-bold text-on-surface text-lg mb-8 flex items-center gap-3"><ThermometerSun className="w-5 h-5 text-primary" /> Pack Details</h3>
                 <div className="grid grid-cols-2 gap-6 text-sm">
-                  <div className="p-4 bg-surface-low rounded flex flex-col gap-1">
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-on-surface/40">Dosage Form</span>
-                    <span className="font-bold text-on-surface">Standard Unit</span>
-                  </div>
-                  <div className="p-4 bg-surface-low rounded flex flex-col gap-1">
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-on-surface/40">Shelf Life</span>
-                    <span className="font-bold text-on-surface">24 Months</span>
-                  </div>
-                  <div className="p-4 bg-surface-low rounded flex flex-col gap-1">
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-on-surface/40">Unit Size</span>
-                    <span className="font-bold text-on-surface">{generic?.unit_size || 'N/A'}</span>
-                  </div>
-                  <div className="p-4 bg-surface-low rounded flex flex-col gap-1">
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-on-surface/40">Storage</span>
-                    <span className="font-bold text-on-surface">{generic?.storage_info || 'Below 25°C'}</span>
-                  </div>
+                  <Spec label="Dosage Form" value={branded.form && branded.form !== 'Other' ? branded.form : 'See pack'} />
+                  <Spec label="Branded Pack" value={branded.pack_size || 'N/A'} />
+                  <Spec label="Generic Pack" value={generic?.unit_size || 'N/A'} />
+                  <Spec label="Storage" value={generic?.storage_info || 'As printed on pack'} />
                 </div>
               </div>
             </>
@@ -244,76 +253,65 @@ export default function ProductDetail() {
               <div className="bg-surface-lowest rounded-lg ghost-border p-8 clinical-shadow">
                 <h3 className="font-display font-bold text-on-surface text-lg mb-6">Medical Indications</h3>
                 <div className="p-6 bg-primary/5 rounded border border-primary/10">
-                   <p className="text-sm text-on-surface/80 leading-relaxed font-medium italic">
-                     {generic?.indications || "Clinical indications for this generic medication are consistent with standard pharmaceutical protocols for the active salts listed in the composition. Consult your healthcare professional for specific therapeutic use."}
-                   </p>
+                  <p className="text-sm text-on-surface/80 leading-relaxed font-medium">
+                    {generic?.indications || 'Indications for this product are not yet in our catalogue. Use only as directed by your doctor.'}
+                  </p>
                 </div>
               </div>
               <div className="bg-surface-lowest rounded-lg ghost-border p-8 clinical-shadow">
                 <h3 className="font-display font-bold text-on-surface text-lg mb-6">Categorization</h3>
                 <div className="space-y-4">
                   <div className="p-4 bg-surface-low rounded ghost-border">
-                    <div className="text-[10px] font-bold tracking-widest text-on-surface/40 uppercase mb-1">Therapeutic Group</div>
-                    <div className="font-bold text-primary">{generic?.group_name || 'Pharmacological Agent'}</div>
+                    <div className="text-[10px] font-bold tracking-widest text-on-surface/40 uppercase mb-1">Therapeutic Group (PMBJP)</div>
+                    <div className="font-bold text-primary">{generic?.group_name || 'Not classified'}</div>
                   </div>
                   <div className="p-4 bg-surface-low rounded ghost-border">
-                    <div className="text-[10px] font-bold tracking-widest text-on-surface/40 uppercase mb-1">Regulatory Class</div>
-                    <div className="font-bold text-on-surface">Schedule H / Prescription Only</div>
+                    <div className="text-[10px] font-bold tracking-widest text-on-surface/40 uppercase mb-1">Manufacturer (Branded)</div>
+                    <div className="font-bold text-on-surface">{branded.manufacturer || 'N/A'}</div>
                   </div>
                 </div>
               </div>
             </>
           )}
 
-          {activeTab === 'pharmacokinetics' && (
-            <div className="col-span-full bg-surface-lowest rounded-lg ghost-border p-10 clinical-shadow">
-               <div className="max-w-3xl mx-auto text-center">
-                  <h3 className="font-display font-bold text-on-surface text-xl mb-4">Mechanism of Action</h3>
-                  <p className="text-on-surface/70 leading-relaxed mb-12">The generic formulation ensures bioequivalence with the branded reference through optimized drug release and absorption kinetic profiles.</p>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-                    {['Absorption', 'Distribution', 'Metabolism', 'Excretion'].map(m => (
-                      <div key={m} className="p-6 bg-surface-low rounded-lg border border-outline-variant/30 flex flex-col items-center">
-                         <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center mb-4">
-                            <Info className="w-5 h-5 text-primary" />
-                         </div>
-                         <div className="text-[10px] font-bold tracking-widest text-on-surface/40 uppercase mb-1">{m}</div>
-                         <div className="font-bold text-on-surface text-xs italic">Clinical Match</div>
-                      </div>
-                    ))}
-                  </div>
-               </div>
-            </div>
-          )}
-
           {activeTab === 'warnings' && (
             <div className="col-span-full">
               <div className="bg-red-50 border border-red-200 rounded-lg p-10 clinical-shadow mb-8">
-                <h3 className="font-display font-bold text-red-900 text-lg mb-6 flex items-center gap-3"><AlertTriangle className="w-6 h-6" /> Safe Usage Guidelines</h3>
+                <h3 className="font-display font-bold text-red-900 text-lg mb-6 flex items-center gap-3"><AlertTriangle className="w-6 h-6" /> Safe Usage</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                   <div>
-                      <div className="text-[10px] font-bold tracking-widest text-red-700/60 uppercase mb-4">Contraindications</div>
-                      <p className="text-sm text-red-900/80 leading-relaxed font-medium">
-                        {generic?.side_effects || "Standard pharmacological precautions apply. Hypersensitivity to active salts or excipients is a primary contraindication. Usage during pregnancy or lactation must be under strict medical supervision."}
-                      </p>
-                   </div>
-                   <div>
-                      <div className="text-[10px] font-bold tracking-widest text-red-700/60 uppercase mb-4">Administration Note</div>
-                      <div className="bg-white/50 p-4 rounded border border-red-100 flex items-start gap-4">
-                         <Clock className="w-5 h-5 text-red-600 mt-0.5" />
-                         <span className="text-xs font-semibold text-red-900/70 leading-relaxed uppercase tracking-wide">
-                           Always follow the dosage schedule strictly as prescribed by your RMP. Complete the full course of medication even if symptoms resolve earlier.
-                         </span>
-                      </div>
-                   </div>
+                  <div>
+                    <div className="text-[10px] font-bold tracking-widest text-red-700/60 uppercase mb-4">Side Effects &amp; Precautions</div>
+                    <p className="text-sm text-red-900/80 leading-relaxed font-medium">
+                      {generic?.side_effects || 'Product-specific side effects are not yet in our catalogue. Read the leaflet in the pack and ask your pharmacist.'}
+                    </p>
+                  </div>
+                  <div>
+                    <div className="text-[10px] font-bold tracking-widest text-red-700/60 uppercase mb-4">Before Switching</div>
+                    <div className="bg-white/50 p-4 rounded border border-red-100 flex items-start gap-4">
+                      <Clock className="w-5 h-5 text-red-600 mt-0.5 shrink-0" />
+                      <span className="text-sm font-medium text-red-900/80 leading-relaxed">
+                        Check that the strength and dosage form match your prescription, and keep taking your medicine exactly as prescribed.
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </div>
               <div className="p-6 bg-blue-50 border border-blue-100 rounded-md flex items-center gap-4 text-blue-900/60 text-[10px] font-bold uppercase tracking-widest justify-center">
-                 <ShieldCheck className="w-4 h-4" /> This data is for educational purposes only. Always consult a licensed medical professional.
+                <ShieldCheck className="w-4 h-4" /> This information is for reference only. Always consult a licensed medical professional.
               </div>
             </div>
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function Spec({ label, value }) {
+  return (
+    <div className="p-4 bg-surface-low rounded flex flex-col gap-1">
+      <span className="text-[10px] font-bold uppercase tracking-widest text-on-surface/40">{label}</span>
+      <span className="font-bold text-on-surface">{value}</span>
     </div>
   );
 }

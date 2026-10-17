@@ -7,6 +7,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ShieldCheck, Search, MapPin, TrendingUp, Beaker, BookOpen, ChevronRight, FlaskConical } from 'lucide-react';
 import { motion } from 'framer-motion';
+import usePlatformStats from '../hooks/usePlatformStats';
 
 // Animated counter
 function AnimatedNumber({ target, prefix = '', suffix = '' }) {
@@ -36,12 +37,13 @@ function AnimatedNumber({ target, prefix = '', suffix = '' }) {
 
 const BLOG_POSTS = [
   { title: 'Generic vs Branded: The Science of Bio-Equivalence', excerpt: 'Understanding how generic medicines undergo rigorous testing to prove therapeutic equivalence with their branded counterparts.', category: 'Science', readTime: '5 min' },
-  { title: 'How PMBJP is Transforming Healthcare Access in India', excerpt: 'The government initiative that has opened 10,000+ affordable medicine outlets across the nation.', category: 'Policy', readTime: '4 min' },
+  { title: 'How PMBJP is Transforming Healthcare Access in India', excerpt: 'How a government network of affordable medicine outlets is changing what patients pay across the country.', category: 'Policy', readTime: '4 min' },
   { title: 'Understanding Your Prescription: A Patient\'s Guide', excerpt: 'Decode the abbreviations, dosages, and instructions on your prescription slip.', category: 'Education', readTime: '6 min' },
 ];
 
 export default function Home() {
   const navigate = useNavigate();
+  const stats = usePlatformStats();
 
   const staggerContainer = {
     hidden: { opacity: 0 },
@@ -86,7 +88,7 @@ export default function Home() {
             className="flex-1 relative z-10 w-full"
           >
             <div className="bg-primary rounded-lg overflow-hidden shadow-none">
-              <div className="p-12 text-white">
+              <div className="p-10 pb-20 md:p-12 md:pb-24 text-white">
                 <div className="text-xs font-bold tracking-widest text-white/70 uppercase mb-8">How It Works</div>
                 <div className="space-y-8">
                   {[
@@ -114,36 +116,33 @@ export default function Home() {
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: 1, type: 'spring', stiffness: 400, damping: 25 }}
-              className="absolute -bottom-8 -left-8 bg-surface-lowest p-6 rounded-lg ghost-border max-w-xs z-20 clinical-shadow"
+              className="absolute -bottom-10 left-4 md:-left-8 bg-surface-lowest p-6 rounded-lg ghost-border max-w-xs z-20 clinical-shadow"
             >
-              <div className="font-display text-3xl font-bold text-primary mb-1">90%</div>
-              <div className="text-sm font-medium text-on-surface/70">Potential cost reduction compared to branded alternatives.</div>
+              <div className="font-display text-3xl font-bold text-primary mb-1">50–90%</div>
+              <div className="text-sm font-medium text-on-surface/70">Typical saving versus branded medicines with the same salts and strength.</div>
             </motion.div>
           </motion.div>
         </div>
       </div>
 
-      {/* Structured Stats */}
+      {/* Structured Stats — live counts from the API; hidden if unavailable */}
+      {stats && (
       <div className="w-full bg-surface-low border-y border-outline-variant py-16 mt-8">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-2 md:grid-cols-4 gap-8 text-center divide-x divide-outline-variant">
-          <div>
-            <div className="font-display text-4xl font-bold text-on-surface mb-2"><AnimatedNumber target={10000} suffix="+" /></div>
-            <div className="text-xs tracking-widest font-semibold text-on-surface/60 uppercase">Kendra Outlets</div>
-          </div>
-          <div>
-            <div className="font-display text-4xl font-bold text-on-surface mb-2"><AnimatedNumber target={1800} suffix="+" /></div>
-            <div className="text-xs tracking-widest font-semibold text-on-surface/60 uppercase">Product Basket</div>
-          </div>
-          <div>
-            <div className="font-display text-4xl font-bold text-on-surface mb-2"><AnimatedNumber target={700} suffix="+" /></div>
-            <div className="text-xs tracking-widest font-semibold text-on-surface/60 uppercase">Districts Covered</div>
-          </div>
-          <div className="border-none md:border-solid">
-            <div className="font-display text-4xl font-bold text-on-surface mb-2"><AnimatedNumber target={20} prefix="₹" suffix="Cr" /></div>
-            <div className="text-xs tracking-widest font-semibold text-on-surface/60 uppercase">Public Savings</div>
-          </div>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-2 md:grid-cols-4 gap-8 text-center md:divide-x divide-outline-variant">
+          {[
+            { value: stats.kendras, label: 'Kendras Listed' },
+            { value: stats.districts, label: 'Districts Covered' },
+            { value: stats.generics, label: 'Generic Medicines' },
+            { value: stats.exact_matches, label: 'Brands With Exact Generic' },
+          ].map((s) => (
+            <div key={s.label}>
+              <div className="font-display text-4xl font-bold text-on-surface mb-2"><AnimatedNumber target={s.value} /></div>
+              <div className="text-xs tracking-widest font-semibold text-on-surface/60 uppercase">{s.label}</div>
+            </div>
+          ))}
         </div>
       </div>
+      )}
 
       {/* Feature Section - Clinical Tonal Shift */}
       <div className="w-full bg-surface max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
@@ -205,8 +204,7 @@ export default function Home() {
               <motion.div 
                 variants={fadeUpItem}
                 key={i} 
-                whileHover={{ y: -8 }}
-                className="bg-surface-lowest rounded-lg p-8 ghost-border transition-colors hover:border-primary/30 cursor-pointer group shadow-sm hover:shadow-md"
+                className="bg-surface-lowest rounded-lg p-8 ghost-border transition-colors hover:border-primary/30 group shadow-sm hover:shadow-md"
               >
                 <div className="flex items-center gap-3 mb-5">
                   <span className="bg-surface-low text-primary text-[10px] font-bold px-2.5 py-1 rounded-sm uppercase tracking-wider">{post.category}</span>
@@ -214,7 +212,7 @@ export default function Home() {
                 </div>
                 <h3 className="font-display text-lg font-semibold text-on-surface mb-3 group-hover:text-primary transition-colors leading-[1.4]">{post.title}</h3>
                 <p className="text-sm text-on-surface/70 leading-[1.6] mb-6">{post.excerpt}</p>
-                <div className="text-primary text-sm font-semibold flex items-center gap-1 group-hover:gap-2 transition-all">Read More <ChevronRight className="w-4 h-4" /></div>
+                <div className="text-on-surface/40 text-xs font-semibold uppercase tracking-widest">Article coming soon</div>
               </motion.div>
             ))}
           </motion.div>

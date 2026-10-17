@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ShieldCheck, Database, Lock, ArrowRight, Smartphone, Key, AlertCircle } from 'lucide-react';
-import { auth } from '../firebase';
+import { auth, isAuthConfigured } from '../firebase';
 import { RecaptchaVerifier, signInWithPhoneNumber, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 import useCartStore from '../store/cartStore';
 
@@ -54,6 +54,7 @@ export default function Auth() {
 
   const handleSendOTP = async (e) => {
     e.preventDefault();
+    if (!auth) return setError('Sign-in is not available on this deployment yet.');
     setError('');
     setLoading(true);
 
@@ -109,6 +110,7 @@ export default function Auth() {
   };
 
   const handleGoogleSignIn = async () => {
+    if (!auth) return setError('Sign-in is not available on this deployment yet.');
     setError('');
     setLoading(true);
     try {
@@ -146,22 +148,22 @@ export default function Auth() {
             <div className="flex gap-5">
               <ShieldCheck className="w-6 h-6 text-white shrink-0 mt-1" />
               <div>
-                <h3 className="font-display font-bold text-xl mb-1.5">Secure Architecture</h3>
-                <p className="text-white/70 text-sm leading-[1.6]">Military-grade encryption for all patient and provider data.</p>
+                <h3 className="font-display font-bold text-xl mb-1.5">Secure Sign-in</h3>
+                <p className="text-white/70 text-sm leading-[1.6]">One-time-password login. We only use your number to manage your orders.</p>
               </div>
             </div>
             <div className="flex gap-5">
               <Database className="w-6 h-6 text-white shrink-0 mt-1" />
               <div>
-                <h3 className="font-display font-bold text-xl mb-1.5">Real-time Inventory</h3>
-                <p className="text-white/70 text-sm leading-[1.6]">Direct integration with national medicine repositories.</p>
+                <h3 className="font-display font-bold text-xl mb-1.5">Your Medicine List</h3>
+                <p className="text-white/70 text-sm leading-[1.6]">Save your regular medicines and track what you save on every order.</p>
               </div>
             </div>
           </div>
         </div>
 
         <div className="text-[10px] text-white/40 font-bold uppercase tracking-widest mt-20">
-          © 2024 JanAushadhi Medical Systems. Precision in Care.
+          © {new Date().getFullYear()} JanAushadhi
         </div>
       </div>
 
@@ -178,6 +180,15 @@ export default function Auth() {
                 : `We've sent a 6-digit code to your device ending in ${phoneNumber.slice(-4)}.`}
             </p>
           </div>
+
+          {!isAuthConfigured && (
+            <div className="mb-6 bg-[#fef7e0] border border-[#f9ab00]/60 text-[#7a4300] p-4 rounded-md flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
+              <p className="text-sm font-medium">
+                Sign-in is not available on this deployment yet. You can still search medicines, compare prices and find Kendras without an account.
+              </p>
+            </div>
+          )}
 
           {error && (
             <div className="mb-6 bg-red-50 border border-red-100 text-red-700 p-4 rounded-md flex items-start gap-3 animate-slideUp">

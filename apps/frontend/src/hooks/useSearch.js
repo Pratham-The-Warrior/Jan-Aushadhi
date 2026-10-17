@@ -21,6 +21,7 @@ export default function useSearch() {
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
+  const [error, setError] = useState(null);
 
   // Suggestions state
   const [suggestions, setSuggestions] = useState([]);
@@ -92,6 +93,7 @@ export default function useSearch() {
       setSearched(true);
       setShowDropdown(false);
       setSuggestions([]);
+      setError(null);
       addRecentSearch(q.trim());
 
       try {
@@ -100,6 +102,7 @@ export default function useSearch() {
       } catch (err) {
         console.error('Search failed:', err);
         setResults([]);
+        setError(err);
       }
 
       setLoading(false);
@@ -181,6 +184,7 @@ export default function useSearch() {
     results,
     loading,
     searched,
+    error,
     suggestions,
     suggestLoading,
     showDropdown,

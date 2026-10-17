@@ -39,7 +39,7 @@ export default function Discovery() {
   const inputRef = useRef(null);
 
   const {
-    query, setQuery, results, loading, searched,
+    query, setQuery, results, loading, searched, error,
     suggestions, suggestLoading, showDropdown, setShowDropdown,
     activeIndex, setActiveIndex, recentSearches,
     doSearch, handleKeyDown, clearSearch, selectSuggestion,
@@ -322,7 +322,18 @@ export default function Discovery() {
           {loading && <SkeletonCard count={3} />}
 
           <AnimatePresence>
-            {!loading && searched && results.length === 0 && (
+            {!loading && searched && error && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                <EmptyState
+                  icon={<Search className="w-10 h-10 text-on-surface/10" />}
+                  title="Search is temporarily unavailable"
+                  description="We couldn't reach the medicine database. Please check your connection and try again in a moment."
+                  action={<button onClick={() => doSearch(query)} className="text-primary font-bold text-sm uppercase tracking-widest hover:underline">Try Again</button>}
+                />
+              </motion.div>
+            )}
+
+            {!loading && searched && !error && results.length === 0 && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                 <EmptyState
                   icon={<Search className="w-10 h-10 text-on-surface/10" />}
@@ -431,9 +442,11 @@ export default function Discovery() {
                           </div>
 
                           {/* Savings Badge - Mobile */}
-                          <div className="md:hidden flex items-center justify-center py-6 bg-primary/5 my-4 rounded-md border border-primary/10">
-                            <div className="text-primary font-bold text-sm">SAVE {res.savings.percentage}% WITH JAN AUSHADHI</div>
-                          </div>
+                          {res.savings?.percentage > 0 && (
+                            <div className="md:hidden flex items-center justify-center py-6 bg-primary/5 my-4 rounded-md border border-primary/10">
+                              <div className="text-primary font-bold text-sm">SAVE {res.savings.percentage}% WITH JAN AUSHADHI</div>
+                            </div>
+                          )}
 
                           {/* Connector + Savings Badge - Desktop */}
                           <div className="absolute top-1/2 left-[35%] -translate-x-1/2 -translate-y-1/2 hidden md:flex flex-col items-center z-20">
@@ -461,8 +474,11 @@ export default function Discovery() {
                                         ✓ Exact Strength Match
                                       </div>
                                     ) : (
-                                      <div className="bg-[#fef7e0] border border-[#f9ab00] text-[#b06000] text-[10px] font-bold tracking-wider px-2 py-0.5 rounded-sm uppercase">
-                                        ⚡ Salt Equivalent
+                                      <div
+                                        title="Same active ingredients, but a different strength. Ask your doctor before switching."
+                                        className="bg-[#fef7e0] border border-[#f9ab00] text-[#b06000] text-[10px] font-bold tracking-wider px-2 py-0.5 rounded-sm uppercase"
+                                      >
+                                        ⚠ Different Strength
                                       </div>
                                     )}
                                   </div>
@@ -474,6 +490,11 @@ export default function Discovery() {
                                     <span className="opacity-30">•</span>
                                     <span>{res.generic.group_name}</span>
                                   </div>
+                                  {res.generic.match_tier !== 'EXACT_MATCH' && (
+                                    <p className="mt-3 text-xs font-medium text-[#b06000] leading-relaxed max-w-md">
+                                      Same active ingredients at a different strength. Not a direct substitute — check the dose with your doctor before switching.
+                                    </p>
+                                  )}
                                 </div>
                                 <div className="text-right shrink-0">
                                   <div className="text-[10px] font-bold tracking-widest text-on-surface/50 uppercase mb-2">JanAushadhi Price</div>

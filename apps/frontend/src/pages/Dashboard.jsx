@@ -186,7 +186,7 @@ export default function Dashboard() {
           <div className="w-full md:w-7/12 p-12 lg:p-20 flex flex-col justify-center">
             <h2 className="font-display text-4xl font-bold text-on-surface leading-[1.1] mb-8">Clinical Integrity. <span className="text-primary block mt-1">Direct Savings.</span></h2>
             <p className="text-on-surface/70 mb-12 max-w-lg leading-[1.8] text-lg">
-              Generic medicines are chemically identical to brands but priced for public welfare. PMBJP ensures standardized quality across all 10,000+ Kendras.
+              Generic medicines contain the same active ingredients as brands but are priced for public welfare. PMBJP supplies every registered Kendra through one quality-tested supply chain.
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 mb-12">
               <div className="flex gap-4 items-start">

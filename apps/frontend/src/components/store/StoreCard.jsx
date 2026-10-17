@@ -4,7 +4,8 @@
 // ============================================================
 
 import React from 'react';
-import { Store, MapPin, Phone, Clock, Navigation, CheckCircle2 } from 'lucide-react';
+import { Store, MapPin, Phone, Navigation, CheckCircle2 } from 'lucide-react';
+import { formatDistance, locationNote, directionsUrl } from '../../utils/storeUtils';
 
 /**
  * @param {object}   props
@@ -42,10 +43,11 @@ export default function StoreCard({ store, isSelected, onSelect }) {
             </div>
           </div>
         </div>
-        <span className="bg-[#e6f4ea] text-[#137333] text-[9px] font-bold px-2.5 py-1 rounded-md uppercase tracking-wider border border-[#a8dab5] flex items-center gap-1 shrink-0">
-          <span className="w-1.5 h-1.5 bg-[#137333] rounded-full animate-pulse" />
-          Open
-        </span>
+        {formatDistance(store) && (
+          <span className="bg-primary/8 text-primary text-[11px] font-bold px-2.5 py-1 rounded-md tracking-wide shrink-0">
+            {formatDistance(store)}
+          </span>
+        )}
       </div>
 
       {/* Address */}
@@ -65,10 +67,13 @@ export default function StoreCard({ store, isSelected, onSelect }) {
             <Phone className="w-3.5 h-3.5 text-primary/60" /> {store.phone}
           </span>
         )}
-        <span className="flex items-center gap-1.5 text-xs text-on-surface/50 font-medium">
-          <Clock className="w-3.5 h-3.5 text-on-surface/30" /> 9 AM – 9 PM
-        </span>
+        {store.pincode && (
+          <span className="text-xs text-on-surface/40 font-medium">PIN {store.pincode}</span>
+        )}
       </div>
+      {locationNote(store) && (
+        <p className="pl-[52px] -mt-2 mb-4 text-[11px] text-on-surface/40 font-medium">{locationNote(store)}</p>
+      )}
 
       {/* Actions */}
       <div className="flex gap-2 pl-[52px]">
@@ -82,23 +87,23 @@ export default function StoreCard({ store, isSelected, onSelect }) {
           <CheckCircle2 className="w-3.5 h-3.5" />
           {isSelected ? 'Selected' : 'Select'}
         </button>
+        {store.phone && (
+          <a
+            href={`tel:${store.phone}`}
+            onClick={(e) => e.stopPropagation()}
+            className="py-2.5 px-4 rounded-lg text-[10px] font-bold uppercase tracking-widest bg-surface-low text-on-surface/60 hover:text-on-surface transition-all flex items-center gap-1.5 border border-outline-variant/50"
+          >
+            <Phone className="w-3.5 h-3.5" /> Call
+          </a>
+        )}
         <button
           onClick={(e) => {
             e.stopPropagation();
-            if (store.phone) window.open(`tel:${store.phone}`);
+            window.open(directionsUrl(store), '_blank', 'noopener');
           }}
           className="py-2.5 px-4 rounded-lg text-[10px] font-bold uppercase tracking-widest bg-surface-low text-on-surface/60 hover:text-on-surface transition-all flex items-center gap-1.5 border border-outline-variant/50"
         >
-          <Phone className="w-3.5 h-3.5" /> Call
-        </button>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            window.open(`https://www.google.com/maps/search/${encodeURIComponent(store.name + ' ' + store.address)}`);
-          }}
-          className="py-2.5 px-4 rounded-lg text-[10px] font-bold uppercase tracking-widest bg-surface-low text-on-surface/60 hover:text-on-surface transition-all flex items-center gap-1.5 border border-outline-variant/50"
-        >
-          <Navigation className="w-3.5 h-3.5" /> Map
+          <Navigation className="w-3.5 h-3.5" /> Directions
         </button>
       </div>
     </div>

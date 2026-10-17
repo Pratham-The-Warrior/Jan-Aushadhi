@@ -7,11 +7,12 @@ import { useState, useEffect, useRef } from 'react';
 import {
   MapPin, Search, AlertCircle, Locate, Building2, Globe, Map, Compass,
 } from 'lucide-react';
-import { getStoresByPincode, getStoreStates, getStoresByDistrict } from '../services/api';
+import { getStoresByPincode, getStoreStates, getStoresByDistrict, getNearbyStores } from '../services/api';
 import useCartStore from '../store/cartStore';
 import StatBadge from '../components/common/StatBadge';
 import StoreCard from '../components/store/StoreCard';
 import StoreMapArea from '../components/store/StoreMapArea';
+import usePlatformStats from '../hooks/usePlatformStats';
 
 export default function Fulfillment() {
   // --- STATE MANAGEMENT ---
@@ -39,6 +40,8 @@ export default function Fulfillment() {
 
   // Ref to the pincode input, used to programmatically submit the form after auto-detecting location.
   const inputRef = useRef(null);
+
+  const stats = usePlatformStats();
 
   // Load the list of available Indian States/UTs from the database when the page first mounts.
   // This populates the state selection dropdown.
@@ -110,8 +113,8 @@ export default function Fulfillment() {
   };
 
   // ---- GPS: Use My Location ----
-  // Leveraging HTML5 Geolocation to grab coordinates, then reverse-geocoding via OpenStreetMap's Nominatim
-  // API to determine the user's pincode. Once found, we automatically trigger a pincode search.
+  // Ask the backend for Kendras within 10 km of the device (PostGIS, sorted by distance).
+  // If none are mapped that close, widen to 25 km before giving up.
   const handleUseLocation = () => {
     if (!navigator.geolocation) {
       setError('Geolocation is not supported by your browser.');
@@ -122,25 +125,26 @@ export default function Fulfillment() {
 
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
+        const { latitude, longitude } = pos.coords;
         try {
-          // OpenStreetMap Nominatim is free and keyless, making it perfect for lightweight client-side reverse lookups.
-          const res = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&format=json`
-          );
-          const data = await res.json();
-          const pc = data?.address?.postcode;
+          let data = await getNearbyStores(latitude, longitude, 10000);
+          let label = 'Within 10 km of you';
+          if (!data.stores?.length) {
+            data = await getNearbyStores(latitude, longitude, 25000);
+            label = 'Within 25 km of you';
+          }
 
-          if (pc) {
-            setPincode(pc);
-            setSearchMode('pincode');
-            // Clever UX step: We trigger form submission automatically once the pincode is resolved.
-            // Using requestSubmit() instead of form.submit() triggers standard HTML validation and submit hooks.
-            setTimeout(() => inputRef.current?.form?.requestSubmit(), 100);
+          if (data.stores?.length > 0) {
+            setSearchedLabel(label);
+            setStores(data.stores);
+            setSelectedStore(data.stores[0]);
+            setCartStore(data.stores[0]);
           } else {
-            setError('Could not determine your pincode. Please enter it manually.');
+            setStores([]);
+            setError('No mapped Kendras within 25 km. Try searching by pincode or district.');
           }
         } catch {
-          setError('Location lookup failed. Please enter your pincode manually.');
+          setError('Nearby search failed. Please enter your pincode instead.');
         }
         setGpsLoading(false);
       },
@@ -172,11 +176,13 @@ export default function Fulfillment() {
                 Search by pincode or district to locate the nearest government-certified medicine outlet.
               </p>
             </div>
-            <div className="flex flex-wrap gap-3">
-              <StatBadge value="10,000+" label="Kendras" icon={Building2} />
-              <StatBadge value="700+" label="Districts" icon={Globe} />
-              <StatBadge value="36" label="States / UTs" icon={Map} />
-            </div>
+            {stats && (
+              <div className="flex flex-wrap gap-3">
+                <StatBadge value={stats.kendras.toLocaleString('en-IN')} label="Kendras" icon={Building2} />
+                <StatBadge value={stats.districts.toLocaleString('en-IN')} label="Districts" icon={Globe} />
+                <StatBadge value={stats.states} label="States / UTs" icon={Map} />
+              </div>
+            )}
           </div>
         </div>
       </div>

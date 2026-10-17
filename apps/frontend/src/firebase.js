@@ -1,24 +1,36 @@
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 
-// Firebase configuration using Vite environment variables with safe defaults
+// Firebase web config comes from Vite env vars. If they are missing we do NOT
+// fall back to dummy values (that only fails later with confusing errors);
+// instead `auth` is null and the UI tells the user sign-in is unavailable.
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyDummyApiKey1234567890123456789012",
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "jan-aushadhi.firebaseapp.com",
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "jan-aushadhi",
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "jan-aushadhi.appspot.com",
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "123456789012",
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:123456789012:web:1234567890123456789012"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-let app;
-let auth;
+export const isAuthConfigured = Boolean(
+  firebaseConfig.apiKey &&
+  firebaseConfig.projectId &&
+  !String(firebaseConfig.apiKey).startsWith('your_'),
+);
 
-try {
-  app = initializeApp(firebaseConfig);
-  auth = getAuth(app);
-} catch (err) {
-  console.warn("⚠️ Firebase Initialization Warning:", err);
+let app = null;
+let auth = null;
+
+if (isAuthConfigured) {
+  try {
+    app = initializeApp(firebaseConfig);
+    auth = getAuth(app);
+  } catch (err) {
+    console.warn("⚠️ Firebase Initialization Warning:", err);
+  }
+} else {
+  console.warn("⚠️ Firebase is not configured (VITE_FIREBASE_* env vars missing). Sign-in is disabled.");
 }
 
 export { auth };
