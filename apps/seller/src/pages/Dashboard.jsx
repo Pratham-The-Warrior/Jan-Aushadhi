@@ -146,8 +146,8 @@ export default function Dashboard() {
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         padding: '1.25rem 1.5rem', borderRadius: 16,
-        background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.06), rgba(16, 185, 129, 0.02))',
-        border: '1px solid rgba(16, 185, 129, 0.1)',
+        background: 'linear-gradient(135deg, rgba(17, 135, 138, 0.06), rgba(17, 135, 138, 0.02))',
+        border: '1px solid rgba(17, 135, 138, 0.1)',
       }}>
         <div>
           <h1 style={{ fontSize: '1.375rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -176,7 +176,7 @@ export default function Dashboard() {
         ) : (
           <>
             <StatCard icon={ShoppingCart} label="Today's Orders" value={stats?.orders_today || 0} accent="#f59e0b" subtitle={`${stats?.pending_orders || 0} pending`} />
-            <StatCard icon={IndianRupee} label="Today's Revenue" value={formatCurrency(stats?.revenue_today)} accent="#10b981" />
+            <StatCard icon={IndianRupee} label="Today's Revenue" value={formatCurrency(stats?.revenue_today)} accent="#11878a" />
             <StatCard icon={TrendingUp} label="Total Revenue" value={formatCurrency(stats?.total_revenue)} accent="#3b82f6" subtitle={`${stats?.total_orders || 0} total orders`} />
             <StatCard icon={Package} label="Avg Order Value" value={formatCurrency(stats?.avg_order_value)} accent="#8b5cf6" />
           </>
@@ -197,14 +197,14 @@ export default function Dashboard() {
               <AreaChart data={chartData}>
                 <defs>
                   <linearGradient id="revenueGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#10b981" stopOpacity={0.25} />
-                    <stop offset="100%" stopColor="#10b981" stopOpacity={0} />
+                    <stop offset="0%" stopColor="#11878a" stopOpacity={0.25} />
+                    <stop offset="100%" stopColor="#11878a" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <XAxis dataKey="date" tick={{ fill: '#64748b', fontSize: 11 }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fill: '#64748b', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={v => `₹${v}`} />
                 <Tooltip content={<CustomTooltip />} />
-                <Area type="monotone" dataKey="revenue" stroke="#10b981" strokeWidth={2.5} fill="url(#revenueGrad)" />
+                <Area type="monotone" dataKey="revenue" stroke="#11878a" strokeWidth={2.5} fill="url(#revenueGrad)" />
               </AreaChart>
             </ResponsiveContainer>
           ) : (
@@ -241,7 +241,7 @@ export default function Dashboard() {
                   cursor: 'pointer', transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
                   borderRadius: 8,
                 }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(16,185,129,0.03)'; e.currentTarget.style.paddingLeft = '0.5rem'; }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(17, 135, 138,0.03)'; e.currentTarget.style.paddingLeft = '0.5rem'; }}
                 onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.paddingLeft = '0'; }}
               >
                 <div>

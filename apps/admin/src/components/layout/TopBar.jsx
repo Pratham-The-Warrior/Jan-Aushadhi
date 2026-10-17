@@ -41,12 +41,12 @@ export default function TopBar({ onMenuClick }) {
         <div style={{
           display: 'flex', alignItems: 'center', gap: '0.5rem',
           padding: '0.375rem 0.875rem', borderRadius: 999,
-          background: 'rgba(16, 185, 129, 0.06)', border: '1px solid rgba(16, 185, 129, 0.15)',
-          fontSize: '0.6875rem', fontWeight: 600, color: '#10b981',
+          background: 'rgba(17, 135, 138, 0.06)', border: '1px solid rgba(17, 135, 138, 0.15)',
+          fontSize: '0.6875rem', fontWeight: 600, color: '#11878a',
         }}>
           <span style={{
-            width: 6, height: 6, borderRadius: '50%', background: '#10b981',
-            boxShadow: '0 0 6px rgba(16, 185, 129, 0.5)',
+            width: 6, height: 6, borderRadius: '50%', background: '#11878a',
+            boxShadow: '0 0 6px rgba(17, 135, 138, 0.5)',
             animation: 'pulse-dot 3s ease infinite',
           }} />
           <span className="max-md:hidden">Systems OK</span>
@@ -58,7 +58,7 @@ export default function TopBar({ onMenuClick }) {
             background: 'linear-gradient(135deg, var(--color-brand-500), var(--color-brand-700))',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontSize: '0.8125rem', fontWeight: 700, color: 'white',
-            boxShadow: '0 2px 8px rgba(99, 102, 241, 0.2)',
+            boxShadow: '0 2px 8px rgba(17, 135, 138, 0.2)',
           }}>
             {user.email?.charAt(0)?.toUpperCase() || 'A'}
           </div>
