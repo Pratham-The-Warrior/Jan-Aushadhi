@@ -6,7 +6,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Search, Loader2, Sparkles, Clock, X, Pill, SlidersHorizontal, AlertCircle } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
 import useCartStore from '../store/cartStore';
 import useSearch from '../hooks/useSearch';
 import useClickOutside from '../hooks/useClickOutside';
@@ -16,6 +15,7 @@ import { MatchedResultRow, UnmatchedResultRow } from '../components/discovery/Re
 import FilterSortPanel from '../components/discovery/FilterSortPanel';
 import { applyFiltersAndSort } from '../utils/filterUtils';
 import { toast } from '../store/toastStore';
+import usePageMeta from '../hooks/usePageMeta';
 
 // ---- Inline Helpers ----
 
@@ -44,6 +44,10 @@ export default function Discovery() {
     activeIndex, setActiveIndex, recentSearches,
     doSearch, handleKeyDown, clearSearch, selectSuggestion,
   } = useSearch();
+  usePageMeta({
+    title: query && searched ? `Generic alternatives for “${query}”` : 'Find the generic for your medicine',
+    description: 'Search any branded medicine to see its Jan Aushadhi generic with the same salt and strength, and how much you save.',
+  });
 
   // Deep links: /discovery?q=telma (used by the home page search box and shared links)
   const [searchParams] = useSearchParams();
@@ -101,6 +105,7 @@ export default function Discovery() {
       {/* Search Header */}
       <div className={`bg-surface-low w-full px-4 border-b border-outline-variant ${searched ? 'py-8' : 'py-12 md:py-16'}`}>
         <div className="max-w-4xl mx-auto text-center">
+          {searched && <h1 className="sr-only">Generic alternatives for {query}</h1>}
           {!searched && (
             <>
               <h1 className="font-display text-3xl md:text-5xl font-bold tracking-tight text-on-surface mb-3">
@@ -116,7 +121,7 @@ export default function Discovery() {
           <div className="relative max-w-3xl mx-auto" ref={searchRef}>
             <div className="bg-surface-lowest ghost-border rounded-md clinical-shadow">
               <div className="flex items-center p-2">
-                <Search className="w-5 h-5 text-on-surface/50 ml-4" />
+                <Search className="w-5 h-5 text-on-surface/70 ml-4" />
                 <input
                   ref={inputRef}
                   type="text"
@@ -125,10 +130,13 @@ export default function Discovery() {
                   onFocus={() => setShowDropdown(true)}
                   onKeyDown={handleKeyDown}
                   placeholder="Type a brand name, e.g. Telma 40"
-                  className="w-full py-4 px-4 text-base outline-none text-on-surface placeholder-on-surface/50 font-medium bg-transparent"
+                  className="w-full py-4 px-4 text-base outline-none text-on-surface placeholder-on-surface/60 font-medium bg-transparent"
                   autoComplete="off"
                   aria-label="Search medicines"
                   aria-expanded={dropdownVisible}
+                  aria-controls="search-suggestions"
+                  aria-autocomplete="list"
+                  aria-activedescendant={dropdownVisible && activeIndex >= 0 ? `search-option-${activeIndex}` : undefined}
                   role="combobox"
                 />
                 {query.length > 0 && (
@@ -157,9 +165,12 @@ export default function Discovery() {
                 className="absolute top-[calc(100%+0.5rem)] left-0 right-0 bg-surface-lowest clinical-shadow ghost-border rounded-md z-50 text-left overflow-hidden animate-slideUp"
                 style={{ maxHeight: '380px', overflowY: 'auto' }}
                 role="listbox"
+                id="search-suggestions"
+                aria-label="Search suggestions"
+                tabIndex={-1}
               >
                 {suggestLoading && query.trim().length >= 2 && (
-                  <div className="px-6 py-5 flex items-center gap-3 text-on-surface/50">
+                  <div className="px-6 py-5 flex items-center gap-3 text-on-surface/70">
                     <Loader2 className="w-4 h-4 animate-spin text-primary" />
                     <span className="text-sm font-medium">Finding medicines…</span>
                   </div>
@@ -168,14 +179,15 @@ export default function Discovery() {
                 {hasSuggestions && (
                   <>
                     <div className="flex justify-between items-center px-6 py-3 bg-surface-low border-b border-outline-variant">
-                      <div className="text-xs font-bold text-on-surface/50 flex items-center gap-2">
+                      <div className="text-xs font-bold text-on-surface/70 flex items-center gap-2">
                         <Sparkles className="w-3 h-3 text-primary" /> Suggestions
                       </div>
-                      <div className="text-[10px] text-on-surface/40 font-medium">↑↓ navigate · Enter to search</div>
+                      <div className="text-[10px] text-on-surface/70 font-medium">↑↓ navigate · Enter to search</div>
                     </div>
                     {suggestions.map((s, i) => (
                       <div
                         key={s.id}
+                        id={`search-option-${i}`}
                         onClick={() => selectSuggestion(s.name)}
                         onMouseEnter={() => setActiveIndex(i)}
                         role="option"
@@ -189,14 +201,14 @@ export default function Discovery() {
                           <div className="font-semibold text-on-surface text-sm truncate">
                             <HighlightMatch text={s.name} query={query} />
                           </div>
-                          <div className="text-xs text-on-surface/55 mt-0.5 truncate">
+                          <div className="text-xs text-on-surface/70 mt-0.5 truncate">
                             {s.composition || s.manufacturer}
                           </div>
                         </div>
                         {s.mrp > 0 && (
                           <div className="text-right shrink-0">
                             <div className="text-xs font-bold text-on-surface/70">₹{s.mrp.toFixed(2)}</div>
-                            <div className="text-[10px] text-on-surface/40">MRP</div>
+                            <div className="text-[10px] text-on-surface/70">MRP</div>
                           </div>
                         )}
                       </div>
@@ -207,13 +219,14 @@ export default function Discovery() {
                 {showRecentInDropdown && !suggestLoading && (
                   <>
                     <div className="flex justify-between items-center px-6 py-3 bg-surface-low border-b border-outline-variant">
-                      <div className="text-xs font-bold text-on-surface/50 flex items-center gap-2">
+                      <div className="text-xs font-bold text-on-surface/70 flex items-center gap-2">
                         <Clock className="w-3 h-3" /> Recent Searches
                       </div>
-                      <button onClick={() => setShowDropdown(false)}><X className="w-4 h-4 text-on-surface/50 hover:text-on-surface" /></button>
+                      <button onClick={() => setShowDropdown(false)}><X className="w-4 h-4 text-on-surface/70 hover:text-on-surface" /></button>
                     </div>
                     {recentSearches.map((s, i) => (
                       <div key={i}
+                        id={`search-option-${i}`}
                         onClick={() => selectSuggestion(s)}
                         onMouseEnter={() => setActiveIndex(i)}
                         role="option"
@@ -228,8 +241,8 @@ export default function Discovery() {
 
                 {!suggestLoading && !hasSuggestions && query.trim().length >= 2 && (
                   <div className="px-6 py-5 text-center">
-                    <div className="text-sm text-on-surface/50 font-medium">No suggestions found</div>
-                    <div className="text-xs text-on-surface/40 mt-1">Press Enter to perform a full search</div>
+                    <div className="text-sm text-on-surface/70 font-medium">No suggestions found</div>
+                    <div className="text-xs text-on-surface/70 mt-1">Press Enter to perform a full search</div>
                   </div>
                 )}
               </div>
@@ -244,7 +257,7 @@ export default function Discovery() {
           {!searched && !loading && (
             <div className="animate-fadeIn">
               <h2 className="font-display text-xl font-bold text-on-surface mb-1">Popular searches</h2>
-              <p className="text-sm text-on-surface/60 mb-5">Common medicines people switch to Jan Aushadhi generics</p>
+              <p className="text-sm text-on-surface/70 mb-5">Common medicines people switch to Jan Aushadhi generics</p>
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 {[
                   { query: 'Dolo 650', name: 'Dolo 650', desc: 'Fever & pain' },
@@ -258,7 +271,7 @@ export default function Discovery() {
                     className="text-left p-4 rounded-xl bg-surface-lowest ghost-border hover:border-primary/40 hover:shadow-sm transition-all group"
                   >
                     <div className="font-display font-bold text-on-surface group-hover:text-primary transition-colors">{item.name}</div>
-                    <div className="text-sm text-on-surface/55">{item.desc}</div>
+                    <div className="text-sm text-on-surface/70">{item.desc}</div>
                   </button>
                 ))}
               </div>
@@ -267,27 +280,27 @@ export default function Discovery() {
 
           {loading && <SkeletonCard count={3} />}
 
-          <AnimatePresence>
+          <>
             {!loading && searched && error && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              <div className="animate-fadeIn">
                 <EmptyState
                   icon={<Search className="w-10 h-10 text-on-surface/20" />}
                   title="Search is temporarily unavailable"
                   description="We couldn't reach the medicine database. Please check your connection and try again in a moment."
                   action={<button onClick={() => doSearch(query)} className="btn-secondary py-2.5 px-5 text-sm">Try again</button>}
                 />
-              </motion.div>
+              </div>
             )}
 
             {!loading && searched && !error && results.length === 0 && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              <div className="animate-fadeIn">
                 <EmptyState
                   icon={<Search className="w-10 h-10 text-on-surface/20" />}
                   title={`No medicines found for "${query}"`}
                   description="Check the spelling, or search by the salt name printed on the strip (for example, Paracetamol)."
                   action={<button onClick={() => { clearSearch(); inputRef.current?.focus(); }} className="btn-secondary py-2.5 px-5 text-sm">Clear search</button>}
                 />
-              </motion.div>
+              </div>
             )}
 
             {!loading && results.length > 0 && (
@@ -296,7 +309,7 @@ export default function Discovery() {
                 <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-5">
                   <div>
                     <h2 className="font-display text-xl font-bold text-on-surface">Results for &quot;{query}&quot;</h2>
-                    <p className="text-sm text-on-surface/60">{matchedCount} of {results.length} brands have a Jan Aushadhi generic</p>
+                    <p className="text-sm text-on-surface/70">{matchedCount} of {results.length} brands have a Jan Aushadhi generic</p>
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="flex bg-surface-low p-1 rounded-lg border border-outline-variant/50" role="tablist">
@@ -310,10 +323,10 @@ export default function Discovery() {
                           aria-selected={filters.matchFilter === tab.key}
                           onClick={() => setFilters((f) => ({ ...f, matchFilter: tab.key }))}
                           className={`px-3 py-1.5 rounded-md text-sm font-semibold transition-all ${
-                            filters.matchFilter === tab.key ? 'bg-surface-lowest text-primary shadow-sm' : 'text-on-surface/60 hover:text-on-surface'
+                            filters.matchFilter === tab.key ? 'bg-surface-lowest text-primary shadow-sm' : 'text-on-surface/70 hover:text-on-surface'
                           }`}
                         >
-                          {tab.label} <span className="text-on-surface/40 font-medium">{tab.count}</span>
+                          {tab.label} <span className="text-on-surface/70 font-medium">{tab.count}</span>
                         </button>
                       ))}
                     </div>
@@ -338,7 +351,7 @@ export default function Discovery() {
                 <div className="space-y-3">
                   {displayResults.length === 0 ? (
                     <div className="py-10 text-center bg-surface-lowest rounded-xl ghost-border">
-                      <p className="text-on-surface/60">No results match these filters.</p>
+                      <p className="text-on-surface/70">No results match these filters.</p>
                       <button
                         onClick={() => setFilters({ sortKey: 'relevance', savingsRange: 'all', matchFilter: 'all' })}
                         className="text-primary font-semibold text-sm mt-2 hover:underline"
@@ -356,7 +369,7 @@ export default function Discovery() {
                 </div>
               </div>
             )}
-          </AnimatePresence>
+          </>
         </div>
       </div>
     </div>

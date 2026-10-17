@@ -5,7 +5,6 @@
 
 import React, { Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { AnimatePresence, motion } from 'framer-motion';
 import Navbar from './components/layout/Navbar';
 import Footer from './components/layout/Footer';
 import MobileBottomNav from './components/layout/MobileBottomNav';
@@ -24,6 +23,7 @@ const Account = lazy(() => import('./pages/Account'));
 const Checkout = lazy(() => import('./pages/Checkout'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 const InfoPage = lazy(() => import('./pages/InfoPage'));
+const Prescription = lazy(() => import('./pages/Prescription'));
 
 /** Suspense wrapper for lazy-loaded routes */
 function LazyPage({ children }) {
@@ -65,25 +65,9 @@ function GuestRoute({ children }) {
   return children;
 }
 
-// Global page animation config
-const pageVariants = {
-  initial: { opacity: 0, y: 15 },
-  animate: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] } },
-  exit: { opacity: 0, y: -15, transition: { duration: 0.25, ease: [0.16, 1, 0.3, 1] } }
-};
-
+/** Fade each page in on navigation (CSS only; no exit delay between pages). */
 function PageTransition({ children }) {
-  return (
-    <motion.div
-      initial="initial"
-      animate="animate"
-      exit="exit"
-      variants={pageVariants}
-      className="flex-1 flex flex-col min-h-full"
-    >
-      {children}
-    </motion.div>
-  );
+  return <div className="flex-1 flex flex-col min-h-full animate-pageIn">{children}</div>;
 }
 
 function RootLayout() {
@@ -93,10 +77,10 @@ function RootLayout() {
 
   return (
     <>
+      <a href="#main" className="skip-link">Skip to main content</a>
       {!isAuthPage && <Navbar />}
-      
-      <main className="flex-1 flex flex-col">
-        <AnimatePresence mode="wait">
+
+      <main id="main" tabIndex={-1} className="flex-1 flex flex-col outline-none">
           <Routes location={location} key={location.pathname}>
             <Route path="/" element={<Navigate to="/home" replace />} />
 
@@ -104,6 +88,7 @@ function RootLayout() {
             <Route path="/discovery" element={<ErrorBoundary><LazyPage><PageTransition><Discovery /></PageTransition></LazyPage></ErrorBoundary>} />
             <Route path="/product/:id" element={<ErrorBoundary><LazyPage><PageTransition><ProductDetail /></PageTransition></LazyPage></ErrorBoundary>} />
             <Route path="/fulfillment" element={<ErrorBoundary><LazyPage><PageTransition><Fulfillment /></PageTransition></LazyPage></ErrorBoundary>} />
+            <Route path="/prescription" element={<ErrorBoundary><LazyPage><PageTransition><Prescription /></PageTransition></LazyPage></ErrorBoundary>} />
             <Route path="/info/:page" element={<ErrorBoundary><LazyPage><PageTransition><InfoPage /></PageTransition></LazyPage></ErrorBoundary>} />
             <Route path="/checkout" element={<ErrorBoundary><LazyPage><PageTransition><Checkout /></PageTransition></LazyPage></ErrorBoundary>} />
             
@@ -125,7 +110,6 @@ function RootLayout() {
 
             <Route path="*" element={<ErrorBoundary><LazyPage><PageTransition><NotFound /></PageTransition></LazyPage></ErrorBoundary>} />
           </Routes>
-        </AnimatePresence>
       </main>
 
       {!isAuthPage && <Footer />}

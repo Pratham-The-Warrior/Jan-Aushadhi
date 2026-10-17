@@ -15,9 +15,9 @@
 
   --color-accent: #ff6b35;
   --color-accent-soft: #fff4ef;
-  --color-success: #059669;
+  --color-success: #047857; /* 5.2:1 on success-soft */
   --color-success-soft: #ecfdf5;
-  --color-warning: #d97706;
+  --color-warning: #b45309; /* 4.8:1 on warning-soft */
   --color-warning-soft: #fffbeb;
 
   --font-display: 'Manrope', system-ui, sans-serif;
@@ -130,6 +130,18 @@
 }
 .animate-slideDown { animation: slideDown 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
 
+@keyframes pageIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+.animate-pageIn { animation: pageIn 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+
+@keyframes drawerIn {
+  from { transform: translateX(100%); }
+  to { transform: none; }
+}
+.animate-drawerIn { animation: drawerIn 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
@@ -186,4 +198,38 @@
 /* Print-safe: hide nav and footer on print */
 @media print {
   nav, footer { display: none !important; }
+}
+
+/* ---- Accessibility ---- */
+
+/* Visible keyboard focus everywhere (mouse clicks don't show it) */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible:not(.outline-none) {
+  outline: 3px solid var(--color-primary);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* "Skip to main content" — hidden until focused with the keyboard */
+.skip-link {
+  position: absolute;
+  left: 12px;
+  top: -60px;
+  z-index: 10000;
+  padding: 10px 16px;
+  border-radius: 10px;
+  background: var(--color-primary);
+  color: #fff;
+  font-weight: 600;
+  transition: top 0.15s;
+}
+.skip-link:focus { top: 12px; }
+
+/* Honour the OS "reduce motion" setting for CSS animations too */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

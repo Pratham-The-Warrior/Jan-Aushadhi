@@ -1,5 +1,5 @@
 import useAuthStore from '../store/authStore';
-import { auth } from '../firebase';
+import { getFirebaseAuth } from '../firebase';
 
 function getSanitizedApiBase() {
   let url = (import.meta.env.VITE_API_URL || 'http://localhost:5000').trim();
@@ -36,6 +36,7 @@ export class ApiError extends Error {
  */
 async function getAuthToken() {
   try {
+    const auth = await getFirebaseAuth();
     if (auth?.currentUser) {
       const token = await auth.currentUser.getIdToken(false);
       if (token) {

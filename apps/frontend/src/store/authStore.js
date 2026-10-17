@@ -1,10 +1,11 @@
 import { create } from 'zustand';
-import { auth } from '../firebase';
-import { onAuthStateChanged } from 'firebase/auth';
+import { getFirebaseAuth, isAuthConfigured } from '../firebase';
 
 // --- AUTHENTICATION STATE STORE ---
-// Built with Zustand, this acts as the single source of truth for the user's login state.
-// We integrate Firebase Authentication here to keep client sessions perfectly reactive.
+// Single source of truth for the user's login state, backed by Firebase Auth.
+// Firebase is loaded lazily (see firebase.js) so it never delays the first paint.
+const TOKEN_KEY = 'janaushadhi_token';
+
 const useAuthStore = create((set) => ({
   user: null,
   token: null,
@@ -15,23 +16,23 @@ const useAuthStore = create((set) => ({
   setToken: (token) => set({ token }),
   setLoading: (loading) => set({ loading }),
 
-  // Initialize the Auth Listener
-  // We subscribe to Firebase's auth status changes. This is extremely robust because it automatically 
-  // fires on login, logout, token refresh, and page reloads.
-  init: () => {
+  // Subscribe to Firebase auth changes (login, logout, token refresh, reloads).
+  init: async () => {
+    const auth = await getFirebaseAuth();
     if (!auth) {
       set({ user: null, token: null, loading: false, initialized: true });
       return;
     }
     try {
+      const { onAuthStateChanged } = await import('firebase/auth');
       onAuthStateChanged(auth, async (user) => {
         if (user) {
           const token = await user.getIdToken();
           set({ user, token, loading: false, initialized: true });
-          localStorage.setItem('janaushadhi_token', token);
+          try { localStorage.setItem(TOKEN_KEY, token); } catch { /* storage unavailable */ }
         } else {
           set({ user: null, token: null, loading: false, initialized: true });
-          localStorage.removeItem('janaushadhi_token');
+          try { localStorage.removeItem(TOKEN_KEY); } catch { /* storage unavailable */ }
         }
       });
     } catch (err) {
@@ -41,6 +42,7 @@ const useAuthStore = create((set) => ({
   },
 
   logout: async () => {
+    const auth = await getFirebaseAuth();
     if (auth) {
       try {
         await auth.signOut();
@@ -53,9 +55,22 @@ const useAuthStore = create((set) => ({
 }));
 
 // --- AUTO-INITIALIZATION ---
-// Self-starting pattern: By invoking init() immediately when this module is imported, we guarantee the 
-// Firebase listener is active from the millisecond the application starts, removing the need for a manual 
-// hook trigger in main.jsx or App.jsx.
-useAuthStore.getState().init();
+// Returning signed-in users, and pages that need an account, restore the session
+// straight away. Everyone else gets Firebase once the browser is idle, so the
+// search experience is never blocked by sign-in code.
+function startAuth() {
+  useAuthStore.getState().init();
+}
+
+if (!isAuthConfigured) {
+  startAuth(); // resolves immediately to "signed out"
+} else {
+  let hadSession = false;
+  try { hadSession = Boolean(localStorage.getItem(TOKEN_KEY)); } catch { /* storage unavailable */ }
+  const needsAuthNow = hadSession || /^\/(account|checkout|auth|wellness|dashboard)/.test(window.location.pathname);
+  if (needsAuthNow) startAuth();
+  else if ('requestIdleCallback' in window) window.requestIdleCallback(startAuth, { timeout: 3000 });
+  else setTimeout(startAuth, 1500);
+}
 
 export default useAuthStore;
