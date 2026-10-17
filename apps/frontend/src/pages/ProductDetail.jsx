@@ -12,13 +12,16 @@ import { getDiscovery } from '../services/api';
 import useCartStore from '../store/cartStore';
 import { toast } from '../store/toastStore';
 import MatchBadge, { MatchNotes } from '../components/discovery/MatchBadge';
-import { formatINR } from '../utils/format';
+import { formatINR, formatRupees } from '../utils/format';
+import { monthlyCosts } from '../utils/pack';
+import PerDayStepper from '../components/common/PerDayStepper';
+import usePageMeta from '../hooks/usePageMeta';
 
 function Row({ label, brand, generic, emphasize = false }) {
   return (
     <tr className="border-t border-outline-variant/60 align-top">
-      <th scope="row" className="py-3 pr-3 text-left text-sm font-medium text-on-surface/55 w-24 md:w-40">{label}</th>
-      <td className={`py-3 pr-3 text-sm ${emphasize ? 'font-display text-lg md:text-xl font-bold text-on-surface/60' : 'text-on-surface/80'}`}>{brand || '—'}</td>
+      <th scope="row" className="py-3 pr-3 text-left text-sm font-medium text-on-surface/70 w-24 md:w-40">{label}</th>
+      <td className={`py-3 pr-3 text-sm ${emphasize ? 'font-display text-lg md:text-xl font-bold text-on-surface/70' : 'text-on-surface/80'}`}>{brand || '—'}</td>
       <td className={`py-3 text-sm ${emphasize ? 'font-display text-lg md:text-xl font-bold text-primary' : 'text-on-surface font-medium'}`}>{generic || '—'}</td>
     </tr>
   );
@@ -30,6 +33,32 @@ function InfoCard({ title, children }) {
       <h2 className="font-display text-lg font-bold text-on-surface mb-2">{title}</h2>
       <div className="text-on-surface/75 leading-relaxed">{children}</div>
     </section>
+  );
+}
+
+// What switching is worth over a month and a year at the patient's own dose.
+function MonthlyCost({ branded, generic }) {
+  const [perDay, setPerDay] = useState(1);
+  const costs = monthlyCosts({
+    brandPrice: branded.mrp, brandPack: branded.pack_size,
+    genericPrice: generic.mrp, genericPack: generic.unit_size, perDay,
+  });
+  if (!costs || costs.saving <= 0) return null;
+  return (
+    <div className="mt-5 rounded-xl bg-primary text-white p-4 md:p-5 flex flex-col md:flex-row md:items-center gap-4 md:justify-between">
+      <div>
+        <div className="text-sm text-white/90">If you take this every day</div>
+        <div className="font-display text-2xl md:text-3xl font-bold">
+          Save {formatRupees(costs.saving)}<span className="text-base font-semibold text-white/90"> /month</span>
+        </div>
+        <div className="text-sm text-white/90">
+          {formatRupees(costs.saving * 12)} a year · {formatRupees(costs.brand)} → {formatRupees(costs.generic)} a month
+        </div>
+      </div>
+      <div className="text-on-surface self-start md:self-auto">
+        <PerDayStepper value={perDay} onChange={setPerDay} />
+      </div>
+    </div>
   );
 }
 
@@ -51,6 +80,27 @@ export default function ProductDetail() {
   const loading = result.id !== id;
   const { data, error } = result;
 
+  const metaBranded = data?.branded;
+  const metaGeneric = data?.generic;
+  usePageMeta({
+    title: metaBranded
+      ? `${metaBranded.name}${metaGeneric ? ` vs Jan Aushadhi generic (${formatINR(metaGeneric.mrp)})` : ''}`
+      : 'Medicine',
+    description: metaBranded
+      ? `${metaBranded.name} (${[metaBranded.composition1, metaBranded.composition2].filter(Boolean).join(' + ')}) costs ${formatINR(metaBranded.mrp)}.${metaGeneric ? ` The Jan Aushadhi generic ${metaGeneric.generic_name} costs ${formatINR(metaGeneric.mrp)}.` : ''}`
+      : undefined,
+    jsonLd: metaBranded && {
+      '@context': 'https://schema.org',
+      '@type': 'Drug',
+      name: metaBranded.name,
+      manufacturer: metaBranded.manufacturer ? { '@type': 'Organization', name: metaBranded.manufacturer } : undefined,
+      activeIngredient: [metaBranded.composition1, metaBranded.composition2].filter(Boolean).join(', '),
+      ...(metaGeneric && data?.match_tier === 'EXACT_MATCH'
+        ? { isRelatedTo: { '@type': 'Drug', name: metaGeneric.generic_name, nonProprietaryName: metaGeneric.generic_name } }
+        : {}),
+    },
+  });
+
   if (loading) return (
     <div className="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 py-12 space-y-4">
       <div className="h-8 w-2/3 rounded-lg bg-surface-low animate-pulse" />
@@ -62,7 +112,7 @@ export default function ProductDetail() {
     <div className="flex-1 flex flex-col items-center justify-center py-32 bg-surface px-6 text-center">
       <AlertTriangle className="w-10 h-10 text-warning mb-4" />
       <h1 className="font-display text-xl font-bold text-on-surface mb-2">Medicine not available</h1>
-      <p className="text-on-surface/60 max-w-md mb-6">{error}</p>
+      <p className="text-on-surface/70 max-w-md mb-6">{error}</p>
       <button onClick={() => navigate('/discovery')} className="btn-secondary px-6 py-2.5 text-sm">Back to search</button>
     </div>
   );
@@ -94,13 +144,13 @@ export default function ProductDetail() {
   return (
     <div className="flex-1 w-full bg-surface pb-24">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12">
-        <button onClick={() => navigate(-1)} className="inline-flex items-center gap-1.5 text-sm font-semibold text-on-surface/60 hover:text-primary mb-6">
+        <button onClick={() => navigate(-1)} className="inline-flex items-center gap-1.5 text-sm font-semibold text-on-surface/70 hover:text-primary mb-6">
           <ArrowLeft className="w-4 h-4" /> Back
         </button>
 
         <header className="mb-6">
           <h1 className="font-display text-2xl md:text-4xl font-bold text-on-surface leading-tight">{branded.name}</h1>
-          <p className="text-on-surface/60 mt-1">{composition || 'Composition not listed'}</p>
+          <p className="text-on-surface/70 mt-1">{composition || 'Composition not listed'}</p>
         </header>
 
         {!generic ? (
@@ -116,7 +166,7 @@ export default function ProductDetail() {
           <section className="bg-surface-lowest rounded-2xl ghost-border clinical-shadow p-5 md:p-8">
             <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
               <MatchBadge tier={generic.match_tier} />
-              {!comparable && <div className="text-sm text-on-surface/55">Price not directly comparable</div>}
+              {!comparable && <div className="text-sm text-on-surface/70">Price not directly comparable</div>}
               {showSaving && (
                 <div className="bg-success-soft text-success font-bold px-3 py-1.5 rounded-lg">
                   Save {formatINR(savings.absolute)} ({Math.round(savings.percentage)}%)
@@ -129,7 +179,7 @@ export default function ProductDetail() {
                 <thead>
                   <tr>
                     <td />
-                    <th scope="col" className="pb-2 text-left text-sm font-semibold text-on-surface/60">Brand</th>
+                    <th scope="col" className="pb-2 text-left text-sm font-semibold text-on-surface/70">Brand</th>
                     <th scope="col" className="pb-2 text-left text-sm font-semibold text-primary">Jan Aushadhi generic</th>
                   </tr>
                 </thead>
@@ -143,7 +193,7 @@ export default function ProductDetail() {
             </div>
 
             {showSaving && (
-              <p className="text-sm text-on-surface/55 mt-3 flex items-start gap-1.5">
+              <p className="text-sm text-on-surface/70 mt-3 flex items-start gap-1.5">
                 <Info className="w-4 h-4 shrink-0 mt-0.5" />
                 {savings.basis === 'per_unit'
                   ? `Saving is worked out for the same quantity as one ${branded.pack_size || 'branded pack'}.`
@@ -151,9 +201,11 @@ export default function ProductDetail() {
               </p>
             )}
 
+            {comparable && <MonthlyCost branded={branded} generic={generic} />}
+
             {generic.match_tier !== 'EXACT_MATCH' && (
               <div className={`mt-5 flex gap-3 items-start p-4 rounded-xl border ${generic.match_tier === 'CLOSE_MATCH' ? 'bg-[#e8f0fe] border-[#aecbfa]/70' : 'bg-[#fef7e0] border-[#f9ab00]/60'}`}>
-                <AlertTriangle className={`w-5 h-5 shrink-0 mt-0.5 ${generic.match_tier === 'CLOSE_MATCH' ? 'text-[#1a56b0]' : 'text-[#b06000]'}`} />
+                <AlertTriangle className={`w-5 h-5 shrink-0 mt-0.5 ${generic.match_tier === 'CLOSE_MATCH' ? 'text-[#1a56b0]' : 'text-[#8a4b00]'}`} />
                 <MatchNotes tier={generic.match_tier} notes={generic.match_notes} className="text-sm" />
               </div>
             )}

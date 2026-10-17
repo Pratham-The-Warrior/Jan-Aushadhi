@@ -4,15 +4,16 @@
 // ============================================================
 
 import React from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
+import Logo from '../common/Logo';
 import { Search, ShoppingCart, User } from 'lucide-react';
 import useCartStore, { selectItemCount } from '../../store/cartStore';
 import useAuthStore from '../../store/authStore';
 
 const NAV_LINKS = [
   { href: '/discovery', label: 'Find Generics' },
+  { href: '/prescription', label: 'Prescription Check' },
   { href: '/fulfillment', label: 'Find a Kendra' },
-  { href: '/info/about', label: 'How it Works' },
 ];
 
 export default function Navbar() {
@@ -22,33 +23,23 @@ export default function Navbar() {
   const { user, initialized } = useAuthStore();
 
   return (
-    <nav className="bg-surface-lowest sticky top-0 z-50 border-b border-outline-variant">
+    <nav aria-label="Main" className="bg-surface-lowest/95 backdrop-blur sticky top-0 z-50 border-b border-outline-variant">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16 md:h-20 items-center">
           {/* Brand */}
-          <div
-            className="flex items-center cursor-pointer"
-            onClick={() => navigate('/home')}
-            role="button"
-            aria-label="Go to homepage"
-          >
-            <span className="font-display font-extrabold text-xl md:text-2xl tracking-tight text-primary">
-              JanAushadhi
-            </span>
-          </div>
+          <Link to="/home" className="flex items-center rounded-lg" aria-label="JanAushadhi home">
+            <Logo size={32} />
+          </Link>
 
           {/* Desktop Navigation Links */}
           <div className="hidden md:flex items-center gap-10 h-full text-[15px] font-semibold text-on-surface/70">
             {NAV_LINKS.map((link) => {
               const isActive = pathname === link.href;
               return (
-                <a
+                <Link
                   key={link.href}
-                  href={link.href}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    navigate(link.href);
-                  }}
+                  to={link.href}
+                  aria-current={isActive ? 'page' : undefined}
                   className={`relative h-full flex items-center transition-colors group ${
                     isActive ? 'text-primary' : 'hover:text-on-surface'
                   }`}
@@ -58,7 +49,7 @@ export default function Navbar() {
                   <div className={`absolute bottom-0 left-0 right-0 h-[3px] rounded-t-full transition-all duration-300 ${
                     isActive ? 'bg-primary scale-x-100 opacity-100' : 'bg-on-surface/20 scale-x-0 opacity-0 group-hover:scale-x-50 group-hover:opacity-100'
                   }`} />
-                </a>
+                </Link>
               );
             })}
           </div>
