@@ -41,6 +41,8 @@ export default async function searchRoutes(server: FastifyInstance): Promise<voi
           const savings = catalogService.calculateSavings(
             parseFloat(branded.mrp) || 0,
             generic?.mrp || 0,
+            branded.pack_size,
+            generic?.unit_size,
           );
 
           return {
@@ -74,10 +76,12 @@ export default async function searchRoutes(server: FastifyInstance): Promise<voi
         }),
       );
 
-      // Sort: Prioritize results with a verified Jan Aushadhi generic match, then highest savings
+      // Sort: exact (same-strength) matches first, then different-strength matches,
+      // then unmatched; within a tier, highest savings first.
+      const tierRank = (r: typeof fullResults[number]) =>
+        r.generic?.match_tier === 'EXACT_MATCH' ? 0 : r.generic ? 1 : 2;
       fullResults.sort((a, b) => {
-        if (a.generic && !b.generic) return -1;
-        if (!a.generic && b.generic) return 1;
+        if (tierRank(a) !== tierRank(b)) return tierRank(a) - tierRank(b);
         return (b.savings?.percentage || 0) - (a.savings?.percentage || 0);
       });
 

@@ -12,7 +12,8 @@ export class StoreRepository {
    */
   async findByPincode(pincode: string, limit: number = 50): Promise<Store[]> {
     const res = await queryDB(
-      `SELECT pmbjk_code, name, phone, address, pincode, state, district
+      `SELECT pmbjk_code, name, phone, address, pincode, state, district,
+              location_precision, ST_Y(location::geometry) AS latitude, ST_X(location::geometry) AS longitude
        FROM stores
        WHERE pincode = $1 AND status = 'ACTIVE'
        ORDER BY name ASC
@@ -33,9 +34,11 @@ export class StoreRepository {
   ): Promise<(Store & { distance_km: number })[]> {
     const res = await queryDB(
       `SELECT pmbjk_code, name, phone, address, pincode, state, district,
+              location_precision, ST_Y(location::geometry) AS latitude, ST_X(location::geometry) AS longitude,
               ROUND((ST_Distance(location, ST_MakePoint($1, $2)::geography) / 1000)::numeric, 1) AS distance_km
        FROM stores
        WHERE status = 'ACTIVE'
+         AND location IS NOT NULL
          AND ST_DWithin(location, ST_MakePoint($1, $2)::geography, $3)
        ORDER BY distance_km ASC
        LIMIT $4`,
@@ -53,7 +56,8 @@ export class StoreRepository {
    */
   async findByPmbjkCode(pmbjkCode: string): Promise<Store | null> {
     const res = await queryDB(
-      `SELECT pmbjk_code, name, phone, address, pincode, state, district, status, operating_hours
+      `SELECT pmbjk_code, name, phone, address, pincode, state, district,
+              location_precision, ST_Y(location::geometry) AS latitude, ST_X(location::geometry) AS longitude, status, operating_hours
        FROM stores
        WHERE pmbjk_code = $1`,
       [pmbjkCode],
@@ -83,7 +87,8 @@ export class StoreRepository {
    */
   async findByDistrict(district: string, state?: string, limit: number = 100): Promise<Store[]> {
     let query = `
-      SELECT pmbjk_code, name, phone, address, pincode, state, district
+      SELECT pmbjk_code, name, phone, address, pincode, state, district,
+             location_precision, ST_Y(location::geometry) AS latitude, ST_X(location::geometry) AS longitude
       FROM stores
       WHERE LOWER(district) = LOWER($1) AND status = 'ACTIVE'
     `;

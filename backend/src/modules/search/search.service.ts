@@ -45,13 +45,28 @@ export class SearchService {
    * Lightweight autocomplete suggestions with automatic PostgreSQL fallback.
    */
   async suggest(query: string, limit: number = 6): Promise<SearchSuggestion[]> {
+    // The catalogue lists many brands more than once (different packs/sellers);
+    // over-fetch and keep the first of each name so suggestions are distinct.
+    const fetchLimit = limit * 3;
+
     // 1. Try Meilisearch
-    const meiliSuggestions = await this.repository.suggestMeilisearch(query, limit);
+    const meiliSuggestions = await this.repository.suggestMeilisearch(query, fetchLimit);
     if (meiliSuggestions && meiliSuggestions.length > 0) {
-      return meiliSuggestions;
+      return this.dedupeByName(meiliSuggestions).slice(0, limit);
     }
 
     // 2. Fallback to PostgreSQL
-    return this.repository.suggestPostgresFallback(query, limit);
+    const fallback = await this.repository.suggestPostgresFallback(query, fetchLimit);
+    return this.dedupeByName(fallback).slice(0, limit);
+  }
+
+  private dedupeByName(items: SearchSuggestion[]): SearchSuggestion[] {
+    const seen = new Set<string>();
+    return items.filter((item) => {
+      const key = (item.name || '').toLowerCase().trim();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
   }
 }

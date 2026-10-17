@@ -7,7 +7,7 @@
 
 import { CatalogRepository, type GenericMedRow } from './catalog.repository';
 import { NotFoundError } from '../../shared/errors';
-import { extractForm } from '../../shared/utils';
+import { extractForm, parsePackQuantity } from '../../shared/utils';
 import { APP_CONSTANTS } from '../../shared/constants';
 import type { GenericMedicine, SavingsResult } from '../../shared/types';
 
@@ -18,8 +18,9 @@ export class CatalogService {
 
   /**
    * Lookup a generic medicine using 2-Tier matching:
-   * Tier 1: Exact chemical salt + exact dosage strength + form match
-   * Tier 2: Chemical molecule equivalent fallback (guarantees high match rate)
+   * Tier 1 (EXACT_MATCH): same salts, same strengths, same form — a true substitute.
+   * Tier 2 (SALT_EQUIVALENT): same salts and form but a DIFFERENT strength. This is not
+   *   a drop-in substitute; clients must tell the patient to confirm the dose with a doctor.
    *
    * @param saltHash          Deterministic hash of the chemical molecule + form
    * @param saltStrengthHash  Deterministic hash of molecule + strength + form
@@ -95,6 +96,8 @@ export class CatalogService {
     const savings = this.calculateSavings(
       typeof branded.mrp === 'string' ? parseFloat(branded.mrp) || 0 : branded.mrp || 0,
       generic?.mrp || 0,
+      branded.pack_size_label,
+      generic?.unit_size,
     );
 
     return {
@@ -131,18 +134,39 @@ export class CatalogService {
 
   /**
    * Calculate savings between branded and generic prices.
+   *
+   * Pack MRPs alone are misleading (a strip of 15 vs a pack of 10), so when both
+   * pack sizes parse to the same unit we compare price per tablet / ml / g and
+   * express the saving for the quantity in the branded pack. A generic that is
+   * not cheaper yields zero savings rather than a negative number.
    */
-  calculateSavings(brandedMrp: number, genericMrp: number): SavingsResult {
+  calculateSavings(
+    brandedMrp: number,
+    genericMrp: number,
+    brandedPack?: string | null,
+    genericPack?: string | null,
+  ): SavingsResult {
     if (!brandedMrp || !genericMrp || brandedMrp <= 0) {
-      return { absolute: 0, percentage: 0 };
+      return { absolute: 0, percentage: 0, basis: 'per_pack' };
     }
 
-    const absolute = brandedMrp - genericMrp;
+    let genericCostForBrandedQty = genericMrp;
+    let basis: SavingsResult['basis'] = 'per_pack';
+
+    const b = parsePackQuantity(brandedPack);
+    const g = parsePackQuantity(genericPack);
+    if (b && g && b.unit === g.unit && b.qty > 0 && g.qty > 0) {
+      genericCostForBrandedQty = (genericMrp / g.qty) * b.qty;
+      basis = 'per_unit';
+    }
+
+    const absolute = Math.max(0, brandedMrp - genericCostForBrandedQty);
     const percentage = (absolute / brandedMrp) * 100;
 
     return {
       absolute: Math.round(absolute * 100) / 100,
       percentage: Math.round(percentage * 10) / 10,
+      basis,
     };
   }
 

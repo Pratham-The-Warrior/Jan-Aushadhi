@@ -40,7 +40,7 @@ COPY --from=builder /app/backend/dist ./backend/dist
 COPY backend/migrations ./backend/migrations
 
 # Copy CSV datasets for cloud seeding ETL scripts
-COPY ["data/A_Z_medicines_dataset_of_India.csv", "data/Product List_3_4_2026 @ 16_33_44.csv", "data/kendra_stores.csv", "/app/data/"]
+COPY ["data/A_Z_medicines_dataset_of_India.csv", "data/Product List_3_4_2026 @ 16_33_44.csv", "data/kendra_stores.csv", "data/pincode_geo.csv", "/app/data/"]
 
 # Set production environment
 ENV NODE_ENV=production

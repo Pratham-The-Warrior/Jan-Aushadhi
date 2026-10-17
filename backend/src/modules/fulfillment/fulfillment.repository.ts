@@ -27,6 +27,7 @@ export class FulfillmentRepository {
               ST_Distance(location, ST_MakePoint($1, $2)::geography) AS distance
        FROM stores
        WHERE status = 'ACTIVE'
+         AND location IS NOT NULL
          AND ST_DWithin(location, ST_MakePoint($1, $2)::geography, $3)
        ORDER BY distance ASC
        LIMIT 20`,
