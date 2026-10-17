@@ -98,7 +98,20 @@ export async function buildApp(): Promise<FastifyInstance> {
       return reply.status(statusCode).send(body);
     }
 
-    // 3. Fallback for unhandled syntax or generic Node system errors
+    // 3. Client errors raised by Fastify and its plugins (429 rate limit, 413 payload
+    //    too large, 415 media type…) keep their status instead of becoming a 500.
+    const status = (error as FastifyError).statusCode;
+    if (status && status >= 400 && status < 500) {
+      return reply.status(status).send({
+        error: {
+          code: status === 429 ? 'RATE_LIMITED' : error.code || 'BAD_REQUEST',
+          message: error.message,
+          statusCode: status,
+        },
+      });
+    }
+
+    // 4. Fallback for unhandled syntax or generic Node system errors
     // We log the raw stack trace for internal debugging but mask the JSON response in production
     // to avoid leaking database schemas, module structures, or variable secrets to the public.
     request.log.error(error, 'Unhandled error');
