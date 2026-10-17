@@ -69,14 +69,25 @@ export default async function searchRoutes(server: FastifyInstance): Promise<voi
           };
         });
 
-      // Sort: exact (same-strength) matches first, then different-strength matches,
-      // then unmatched; within a tier, highest savings first.
+      // Sort: how well the brand name matches what was typed comes first (a search for
+      // "telma" should show Telma 40 before Telma-AM H), then match quality, then the
+      // shorter (simpler) product name, then savings.
+      const q = query.trim().toLowerCase();
+      const nameRank = (name: string) => {
+        const n = name.toLowerCase();
+        // "telma" → "Telma 40" (whole word, 0) before "Telmac 40" (prefix, 1)
+        if (n.startsWith(q)) return /[a-z0-9]/.test(n.charAt(q.length)) ? 1 : 0;
+        if (n.includes(` ${q}`)) return 2;
+        return 3;
+      };
       const TIER_RANK: Record<string, number> = { EXACT_MATCH: 0, CLOSE_MATCH: 1, SALT_EQUIVALENT: 2 };
       const tierRank = (r: typeof fullResults[number]) => (r.generic ? TIER_RANK[r.generic.match_tier] ?? 3 : 3);
-      fullResults.sort((a, b) => {
-        if (tierRank(a) !== tierRank(b)) return tierRank(a) - tierRank(b);
-        return (b.savings?.percentage || 0) - (a.savings?.percentage || 0);
-      });
+      fullResults.sort((a, b) =>
+        nameRank(a.branded.name || '') - nameRank(b.branded.name || '') ||
+        tierRank(a) - tierRank(b) ||
+        (a.branded.name || '').length - (b.branded.name || '').length ||
+        (b.savings?.percentage || 0) - (a.savings?.percentage || 0),
+      );
 
       // Deduplicate by name, prioritizing results with a generic match
       const nameMap = new Map<string, typeof fullResults[number]>();

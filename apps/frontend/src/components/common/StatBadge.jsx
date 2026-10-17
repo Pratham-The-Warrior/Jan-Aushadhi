@@ -20,7 +20,7 @@ export default function StatBadge({ value, label, icon }) {
       </div>
       <div>
         <div className="font-display font-bold text-on-surface text-sm">{value}</div>
-        <div className="text-[10px] text-on-surface/50 font-medium uppercase tracking-wider">{label}</div>
+        <div className="text-xs text-on-surface/50 font-medium">{label}</div>
       </div>
     </div>
   );

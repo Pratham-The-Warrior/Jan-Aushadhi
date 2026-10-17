@@ -117,9 +117,11 @@ export class FulfillmentService {
       const genericMrp = dbMed ? dbMed.mrp : (typeof item.mrp === 'number' ? item.mrp : 0);
       const genericName = dbMed ? dbMed.name : (item.name || item.code);
       const qty = Math.max(1, parseInt(item.quantity as any, 10) || 1);
+      // No comparable brand price (e.g. different strength) → record no saving
+      // rather than guessing one.
       const brandedMrp = Math.max(
         genericMrp,
-        typeof item.branded_mrp === 'number' ? item.branded_mrp : genericMrp * 4,
+        typeof item.branded_mrp === 'number' ? item.branded_mrp : genericMrp,
       );
 
       totalBrandedValue += brandedMrp * qty;

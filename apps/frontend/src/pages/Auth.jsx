@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { ShieldCheck, Database, Lock, ArrowRight, Smartphone, Key, AlertCircle } from 'lucide-react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { ShieldCheck, Database, ArrowRight, Smartphone, Key, AlertCircle } from 'lucide-react';
 import { auth, isAuthConfigured } from '../firebase';
 import { RecaptchaVerifier, signInWithPhoneNumber, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 import useCartStore from '../store/cartStore';
@@ -134,14 +134,14 @@ export default function Auth() {
       <div className="w-full md:w-[45%] bg-primary p-12 lg:p-20 text-white flex flex-col justify-between">
         <div>
           <div className="font-display font-bold text-3xl tracking-tight mb-2">JanAushadhi</div>
-          <div className="text-[10px] uppercase tracking-widest text-white/50 font-bold mb-24">Medical Systems Excellence</div>
+          <div className="text-sm text-white/60 mb-16 md:mb-24">Generic medicines, honestly compared</div>
 
           <h1 className="font-display text-4xl lg:text-5xl font-bold leading-[1.1] mb-8">
-            Precision in care, starts with access.
+            Save on every refill.
           </h1>
 
           <p className="text-lg text-white/80 mb-16 max-w-md leading-[1.6]">
-            Join our clinical network to access high-quality pharmaceutical records, store locations, and advanced healthcare support protocols.
+            Sign in to order from a Jan Aushadhi Kendra, track your orders and see how much you've saved. Searching and comparing prices works without an account.
           </p>
 
           <div className="space-y-10">
@@ -162,7 +162,7 @@ export default function Auth() {
           </div>
         </div>
 
-        <div className="text-[10px] text-white/40 font-bold uppercase tracking-widest mt-20">
+        <div className="text-xs text-white/40 font-bold mt-20">
           © {new Date().getFullYear()} JanAushadhi
         </div>
       </div>
@@ -200,7 +200,7 @@ export default function Auth() {
           {step === 'phone' ? (
             <form onSubmit={handleSendOTP} className="space-y-6">
               <div>
-                <label className="block text-[10px] font-bold text-on-surface/50 uppercase tracking-widest mb-2.5">Mobile Number</label>
+                <label className="block text-xs font-bold text-on-surface/50 mb-2.5">Mobile Number</label>
                 <div className="relative">
                   <Smartphone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-on-surface/40" />
                   <input
@@ -226,7 +226,7 @@ export default function Auth() {
           ) : (
             <form onSubmit={handleVerifyOTP} className="space-y-6">
               <div>
-                <label className="block text-[10px] font-bold text-on-surface/50 uppercase tracking-widest mb-2.5">6-Digit Code</label>
+                <label className="block text-xs font-bold text-on-surface/50 mb-2.5">6-Digit Code</label>
                 <div className="relative">
                   <Key className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-on-surface/40" />
                   <input
@@ -262,7 +262,7 @@ export default function Auth() {
 
           <div className="mt-8 flex items-center justify-center">
             <div className="w-full h-px bg-outline-variant"></div>
-            <span className="px-4 text-xs font-bold text-on-surface/40 uppercase tracking-widest bg-surface-lowest">OR</span>
+            <span className="px-4 text-xs font-bold text-on-surface/40 bg-surface-lowest">OR</span>
             <div className="w-full h-px bg-outline-variant"></div>
           </div>
 
@@ -282,15 +282,10 @@ export default function Auth() {
             Continue with Google
           </button>
 
-          <div className="mt-12 flex items-center justify-center gap-8 border-t border-outline-variant pt-8">
-            <div className="flex items-center gap-2 text-on-surface/40 text-[10px] font-bold tracking-widest uppercase">
-              <Lock className="w-4 h-4" /> 256-BIT SSL
-            </div>
-            <div className="w-px h-6 bg-outline-variant" />
-            <div className="flex items-center gap-2 text-on-surface/40 text-[10px] font-bold tracking-widest uppercase">
-              <ShieldCheck className="w-4 h-4" /> CLINICAL GRADE
-            </div>
-          </div>
+          <p className="mt-10 border-t border-outline-variant pt-6 text-center text-sm text-on-surface/50">
+            By continuing you agree to our <Link to="/info/terms" className="text-primary font-semibold hover:underline">Terms</Link> and{' '}
+            <Link to="/info/privacy" className="text-primary font-semibold hover:underline">Privacy</Link> policy.
+          </p>
         </div>
       </div>
     </div>

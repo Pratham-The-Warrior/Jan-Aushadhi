@@ -29,6 +29,8 @@ export function applyFiltersAndSort(results, { sortKey, savingsRange, matchFilte
     if (a.generic && !b.generic) return -1;
     if (!a.generic && b.generic) return 1;
 
+    // 'relevance' keeps the API order (best name match first)
+    if (sortKey === 'relevance') return 0;
     if (sortKey === 'savings_desc') return (b.savings?.percentage ?? 0) - (a.savings?.percentage ?? 0);
     if (sortKey === 'savings_asc') return (a.savings?.percentage ?? 0) - (b.savings?.percentage ?? 0);
     if (sortKey === 'price_asc') return (a.generic?.mrp ?? 0) - (b.generic?.mrp ?? 0);

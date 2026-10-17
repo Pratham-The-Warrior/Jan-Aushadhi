@@ -20,10 +20,10 @@ const Auth = lazy(() => import('./pages/Auth'));
 const Discovery = lazy(() => import('./pages/Discovery'));
 const ProductDetail = lazy(() => import('./pages/ProductDetail'));
 const Fulfillment = lazy(() => import('./pages/Fulfillment'));
-const Dashboard = lazy(() => import('./pages/Dashboard'));
-const Wellness = lazy(() => import('./pages/Wellness'));
+const Account = lazy(() => import('./pages/Account'));
 const Checkout = lazy(() => import('./pages/Checkout'));
 const NotFound = lazy(() => import('./pages/NotFound'));
+const InfoPage = lazy(() => import('./pages/InfoPage'));
 
 /** Suspense wrapper for lazy-loaded routes */
 function LazyPage({ children }) {
@@ -59,7 +59,7 @@ function GuestRoute({ children }) {
   }
 
   if (user) {
-    return <Navigate to="/wellness" replace />;
+    return <Navigate to="/account" replace />;
   }
 
   return children;
@@ -104,10 +104,13 @@ function RootLayout() {
             <Route path="/discovery" element={<ErrorBoundary><LazyPage><PageTransition><Discovery /></PageTransition></LazyPage></ErrorBoundary>} />
             <Route path="/product/:id" element={<ErrorBoundary><LazyPage><PageTransition><ProductDetail /></PageTransition></LazyPage></ErrorBoundary>} />
             <Route path="/fulfillment" element={<ErrorBoundary><LazyPage><PageTransition><Fulfillment /></PageTransition></LazyPage></ErrorBoundary>} />
+            <Route path="/info/:page" element={<ErrorBoundary><LazyPage><PageTransition><InfoPage /></PageTransition></LazyPage></ErrorBoundary>} />
             <Route path="/checkout" element={<ErrorBoundary><LazyPage><PageTransition><Checkout /></PageTransition></LazyPage></ErrorBoundary>} />
             
-            <Route path="/dashboard" element={<ProtectedRoute><ErrorBoundary><LazyPage><PageTransition><Dashboard /></PageTransition></LazyPage></ErrorBoundary></ProtectedRoute>} />
-            <Route path="/wellness" element={<ProtectedRoute><ErrorBoundary><LazyPage><PageTransition><Wellness /></PageTransition></LazyPage></ErrorBoundary></ProtectedRoute>} />
+            <Route path="/account" element={<ProtectedRoute><ErrorBoundary><LazyPage><PageTransition><Account /></PageTransition></LazyPage></ErrorBoundary></ProtectedRoute>} />
+            {/* Old profile URLs */}
+            <Route path="/wellness" element={<Navigate to="/account" replace />} />
+            <Route path="/dashboard" element={<Navigate to="/account?tab=savings" replace />} />
 
             <Route
               path="/auth"

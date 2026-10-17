@@ -5,26 +5,21 @@
 
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Search, ShoppingCart, LogOut, User } from 'lucide-react';
+import { Search, ShoppingCart, User } from 'lucide-react';
 import useCartStore, { selectItemCount } from '../../store/cartStore';
 import useAuthStore from '../../store/authStore';
 
 const NAV_LINKS = [
   { href: '/discovery', label: 'Find Generics' },
-  { href: '/dashboard', label: 'Compare Prices' },
-  { href: '/fulfillment', label: 'Store Locator' },
+  { href: '/fulfillment', label: 'Find a Kendra' },
+  { href: '/info/about', label: 'How it Works' },
 ];
 
 export default function Navbar() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const itemCount = useCartStore(selectItemCount);
-  const { user, initialized, logout } = useAuthStore();
-
-  const handleLogout = async () => {
-    await logout();
-    navigate('/home', { replace: true });
-  };
+  const { user, initialized } = useAuthStore();
 
   return (
     <nav className="bg-surface-lowest sticky top-0 z-50 border-b border-outline-variant">
@@ -85,7 +80,7 @@ export default function Navbar() {
             >
               <ShoppingCart className="w-5 h-5" />
               {itemCount > 0 && (
-                <span className="absolute -top-2 -right-2 bg-primary text-white text-[10px] font-bold w-5 h-5 rounded-sm flex items-center justify-center animate-pulse">
+                <span className="absolute -top-2 -right-2.5 bg-primary text-white text-[10px] font-bold min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center">
                   {itemCount}
                 </span>
               )}
@@ -95,20 +90,12 @@ export default function Navbar() {
             {initialized && user ? (
               <>
                 <button
-                  onClick={() => navigate('/wellness')}
-                  className="hidden md:flex items-center gap-2 btn-secondary py-2 px-4 text-sm"
-                  aria-label="Go to profile"
+                  onClick={() => navigate('/account')}
+                  className={`hidden md:flex items-center gap-2 btn-secondary py-2 px-4 text-sm ${pathname === '/account' ? 'border-primary' : ''}`}
+                  aria-label="Go to your account"
                 >
                   <User className="w-4 h-4" />
-                  Profile
-                </button>
-                <button
-                  onClick={handleLogout}
-                  className="hidden md:flex items-center gap-2 text-sm font-semibold text-on-surface/60 hover:text-red-600 transition-colors py-2 px-3"
-                  aria-label="Log out"
-                >
-                  <LogOut className="w-4 h-4" />
-                  Logout
+                  {user.displayName ? user.displayName.split(' ')[0] : 'Account'}
                 </button>
               </>
             ) : (

@@ -61,12 +61,12 @@ export default function OrderSuccess({ order, store }) {
           
           <div className="flex flex-wrap justify-between items-center gap-4 relative z-10">
             <div>
-              <div className="text-[10px] font-bold uppercase tracking-widest text-on-surface/40 mb-1">Secure Ticket ID</div>
+              <div className="text-xs font-bold text-on-surface/40 mb-1">Secure Ticket ID</div>
               <div className="font-display text-xl font-bold text-on-surface">{order.ticketId}</div>
             </div>
             <div className="text-right">
-              <div className="text-[10px] font-bold uppercase tracking-widest text-on-surface/40 mb-1">Status</div>
-              <div className="inline-flex items-center gap-1.5 bg-success-soft text-success text-[10px] font-bold px-2.5 py-1 rounded-md uppercase tracking-wider">
+              <div className="text-xs font-bold text-on-surface/40 mb-1">Status</div>
+              <div className="inline-flex items-center gap-1.5 bg-success-soft text-success text-xs font-bold px-2.5 py-1 rounded-md">
                 <div className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
                 {order.status}
               </div>
@@ -75,12 +75,12 @@ export default function OrderSuccess({ order, store }) {
           
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-6 pt-6 border-t border-outline-variant/50 relative z-10">
             <div>
-              <div className="text-[10px] font-bold uppercase tracking-widest text-on-surface/40 mb-1">Fulfillment Channel</div>
+              <div className="text-xs font-bold text-on-surface/40 mb-1">Fulfillment Channel</div>
               <div className="font-semibold text-sm text-on-surface">Direct Pharmacist WhatsApp</div>
             </div>
             <button
               onClick={handleResendWhatsApp}
-              className="bg-[#25D366]/10 hover:bg-[#25D366]/20 text-[#25D366] border border-[#25D366]/20 hover:border-[#25D366]/40 transition-all font-bold text-[11px] px-4 py-2.5 rounded-lg uppercase tracking-widest flex items-center justify-center gap-2"
+              className="bg-[#25D366]/10 hover:bg-[#25D366]/20 text-[#25D366] border border-[#25D366]/20 hover:border-[#25D366]/40 transition-all font-bold text-xs px-4 py-2.5 rounded-lg flex items-center justify-center gap-2"
             >
               <MessageCircle className="w-4 h-4" />
               Re-Send Ticket
@@ -108,21 +108,21 @@ export default function OrderSuccess({ order, store }) {
                 <div className="text-xs text-on-surface/40 animate-pulse">Generating Secure QR...</div>
               )}
             </div>
-            <span className="text-[11px] font-bold uppercase tracking-widest text-primary">₹{Number(order.totalGenericValue).toFixed(2)} direct P2P transfer</span>
+            <span className="text-xs font-bold text-primary">₹{Number(order.totalGenericValue).toFixed(2)} direct P2P transfer</span>
           </div>
         )}
 
         {/* Actions */}
         <div className="space-y-4">
           <button
-            onClick={() => navigate('/wellness')}
+            onClick={() => navigate('/account?tab=orders')}
             className="btn-primary py-4 px-8 w-full text-sm flex items-center justify-center gap-2 shadow-lg shadow-primary/20"
           >
             Track Order in My Health <ArrowRight className="w-4 h-4" />
           </button>
           <button
             onClick={() => navigate('/discovery')}
-            className="btn-ghost py-3 px-8 w-full text-[11px] uppercase tracking-widest font-bold"
+            className="btn-ghost py-3 px-8 w-full text-xs font-bold"
           >
             Back to Search
           </button>

@@ -41,11 +41,11 @@ export default function StoreDetailPopup({ store }) {
         {/* Details Grid */}
         <div className="grid grid-cols-2 gap-3 mb-5">
           <div className="bg-surface-low rounded-lg p-3 ghost-border">
-            <div className="text-[9px] font-bold tracking-widest text-on-surface/40 uppercase mb-1">Location</div>
+            <div className="text-xs font-bold text-on-surface/40 mb-1">Location</div>
             <div className="text-xs text-on-surface/80 font-medium leading-relaxed">{store.district}, {store.state}</div>
           </div>
           <div className="bg-surface-low rounded-lg p-3 ghost-border">
-            <div className="text-[9px] font-bold tracking-widest text-on-surface/40 uppercase mb-1">Contact</div>
+            <div className="text-xs font-bold text-on-surface/40 mb-1">Contact</div>
             <div className="text-xs text-on-surface/80 font-medium">{store.phone || 'Phone not listed'}</div>
           </div>
         </div>
@@ -60,7 +60,7 @@ export default function StoreDetailPopup({ store }) {
         {/* Certification */}
         <div className="flex items-center gap-2 mb-5 bg-primary/4 rounded-lg p-3 border border-primary/10">
           <ShieldCheck className="w-4 h-4 text-primary shrink-0" />
-          <span className="text-[10px] text-primary font-bold uppercase tracking-wider">
+          <span className="text-xs text-primary font-bold">
             Registered PMBJP Kendra
           </span>
         </div>

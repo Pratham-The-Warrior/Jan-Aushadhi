@@ -3,12 +3,13 @@
 // ============================================================
 
 import React from 'react';
+import { Link } from 'react-router-dom';
 
 const FOOTER_LINKS = [
-  { label: 'Privacy Policy', href: '#' },
-  { label: 'Terms of Service', href: '#' },
-  { label: 'Pharmacy Licensing', href: '#' },
-  { label: 'Contact Support', href: '#' },
+  { label: 'About', href: '/info/about' },
+  { label: 'Privacy', href: '/info/privacy' },
+  { label: 'Terms', href: '/info/terms' },
+  { label: 'Find a Kendra', href: '/fulfillment' },
 ];
 
 export default function Footer() {
@@ -18,15 +19,16 @@ export default function Footer() {
         <div>
           <div className="font-display font-bold text-lg text-on-surface mb-2">JanAushadhi</div>
           <p className="text-xs text-on-surface/60 max-w-md leading-relaxed">
-            © {new Date().getFullYear()} JanAushadhi. All pharmaceutical care provided by licensed
-            practitioners. Medicines dispensed are regulated by federal safety protocols.
+            © {new Date().getFullYear()} JanAushadhi. An independent service — not affiliated with the
+            Government of India or PMBI. Medicines are dispensed by registered pharmacists at Jan Aushadhi Kendras.
+            Always consult your doctor before switching medicines.
           </p>
         </div>
         <div className="flex gap-8 text-sm text-primary font-medium">
           {FOOTER_LINKS.map((link) => (
-            <a key={link.label} href={link.href} className="hover:underline">
+            <Link key={link.label} to={link.href} className="hover:underline">
               {link.label}
-            </a>
+            </Link>
           ))}
         </div>
       </div>

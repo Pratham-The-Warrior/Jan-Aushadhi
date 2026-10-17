@@ -26,6 +26,14 @@ function FitToStores({ points, selected }) {
     }
   }, [map, points]);
 
+  // Leaflet measures its container once; re-measure when it is shown or resized
+  // (e.g. switching from List to Map on mobile).
+  useEffect(() => {
+    const observer = new ResizeObserver(() => map.invalidateSize());
+    observer.observe(map.getContainer());
+    return () => observer.disconnect();
+  }, [map]);
+
   useEffect(() => {
     if (selected && hasCoords(selected)) {
       map.panTo([Number(selected.latitude), Number(selected.longitude)]);
@@ -50,7 +58,7 @@ export default function StoreMapArea({ stores, selectedStore, onSelectStore }) {
 
   return (
     // `isolate` keeps Leaflet's internal z-indexes from rising above the sticky navbar.
-    <div className="sticky top-24 h-[calc(100vh-200px)] min-h-[500px] rounded-xl overflow-hidden ghost-border clinical-shadow isolate">
+    <div className="lg:sticky lg:top-24 h-[70vh] lg:h-[calc(100vh-200px)] min-h-[420px] rounded-xl overflow-hidden ghost-border clinical-shadow isolate">
       <MapContainer
         center={INDIA_CENTER}
         zoom={5}

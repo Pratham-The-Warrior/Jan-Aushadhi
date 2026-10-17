@@ -38,7 +38,7 @@ export default function StoreCard({ store, isSelected, onSelect }) {
             <h3 className="font-display font-bold text-on-surface text-[15px] leading-tight group-hover:text-primary transition-colors">
               {store.name}
             </h3>
-            <div className="text-[10px] text-on-surface/40 font-bold tracking-wider uppercase mt-0.5">
+            <div className="text-xs text-on-surface/40 font-bold mt-0.5">
               {store.pmbjk_code}
             </div>
           </div>
@@ -79,7 +79,7 @@ export default function StoreCard({ store, isSelected, onSelect }) {
       <div className="flex gap-2 pl-[52px]">
         <button
           onClick={(e) => { e.stopPropagation(); onSelect(store); }}
-          className={`flex-1 py-2.5 rounded-lg text-[10px] font-bold uppercase tracking-widest flex items-center justify-center gap-1.5 transition-all ${isSelected
+          className={`flex-1 py-2.5 rounded-lg text-sm font-semibold flex items-center justify-center gap-1.5 transition-all ${isSelected
               ? 'bg-primary text-white shadow-sm'
               : 'bg-primary/8 text-primary hover:bg-primary/15'
             }`}
@@ -91,7 +91,7 @@ export default function StoreCard({ store, isSelected, onSelect }) {
           <a
             href={`tel:${store.phone}`}
             onClick={(e) => e.stopPropagation()}
-            className="py-2.5 px-4 rounded-lg text-[10px] font-bold uppercase tracking-widest bg-surface-low text-on-surface/60 hover:text-on-surface transition-all flex items-center gap-1.5 border border-outline-variant/50"
+            className="py-2.5 px-4 rounded-lg text-xs font-bold bg-surface-low text-on-surface/60 hover:text-on-surface transition-all flex items-center gap-1.5 border border-outline-variant/50"
           >
             <Phone className="w-3.5 h-3.5" /> Call
           </a>
@@ -101,7 +101,7 @@ export default function StoreCard({ store, isSelected, onSelect }) {
             e.stopPropagation();
             window.open(directionsUrl(store), '_blank', 'noopener');
           }}
-          className="py-2.5 px-4 rounded-lg text-[10px] font-bold uppercase tracking-widest bg-surface-low text-on-surface/60 hover:text-on-surface transition-all flex items-center gap-1.5 border border-outline-variant/50"
+          className="py-2.5 px-4 rounded-lg text-xs font-bold bg-surface-low text-on-surface/60 hover:text-on-surface transition-all flex items-center gap-1.5 border border-outline-variant/50"
         >
           <Navigation className="w-3.5 h-3.5" /> Directions
         </button>

@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, SlidersHorizontal, ArrowUpDown, RotateCcw } from 'lucide-react';
 
 const SORT_OPTIONS = [
+  { key: 'relevance', label: 'Best match' },
   { key: 'savings_desc', label: 'Savings: Highest First' },
   { key: 'savings_asc', label: 'Savings: Lowest First' },
   { key: 'price_asc', label: 'Generic Price: Low → High' },
@@ -25,11 +26,11 @@ const SAVINGS_RANGES = [
 
 export default function FilterSortPanel({ isOpen, onClose, filters, setFilters }) {
   const hasActiveFilters =
-    (filters.sortKey && filters.sortKey !== 'savings_desc') ||
+    (filters.sortKey && filters.sortKey !== 'relevance') ||
     (filters.savingsRange && filters.savingsRange !== 'all');
 
   const resetFilters = () =>
-    setFilters({ sortKey: 'savings_desc', savingsRange: 'all' });
+    setFilters({ sortKey: 'relevance', savingsRange: 'all', matchFilter: 'matched' });
 
   return (
     <AnimatePresence>
@@ -64,7 +65,7 @@ export default function FilterSortPanel({ isOpen, onClose, filters, setFilters }
                 {hasActiveFilters && (
                   <button
                     onClick={resetFilters}
-                    className="flex items-center gap-1.5 text-xs font-bold text-primary uppercase tracking-wider hover:underline"
+                    className="flex items-center gap-1.5 text-xs font-bold text-primary hover:underline"
                   >
                     <RotateCcw className="w-3 h-3" /> Reset
                   </button>
@@ -82,7 +83,7 @@ export default function FilterSortPanel({ isOpen, onClose, filters, setFilters }
             <div className="flex-1 overflow-y-auto px-6 py-6 space-y-8">
               {/* Sort Section */}
               <div>
-                <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-on-surface/40 mb-4">
+                <div className="flex items-center gap-2 text-xs font-bold text-on-surface/40 mb-4">
                   <ArrowUpDown className="w-3.5 h-3.5" /> Sort By
                 </div>
                 <div className="space-y-2">
@@ -109,7 +110,7 @@ export default function FilterSortPanel({ isOpen, onClose, filters, setFilters }
 
               {/* Savings Range Filter */}
               <div>
-                <div className="text-[10px] font-bold uppercase tracking-widest text-on-surface/40 mb-4">
+                <div className="text-xs font-bold text-on-surface/40 mb-4">
                   Savings Range
                 </div>
                 <div className="grid grid-cols-2 gap-2">
@@ -134,7 +135,7 @@ export default function FilterSortPanel({ isOpen, onClose, filters, setFilters }
             <div className="px-6 py-5 border-t border-outline-variant">
               <button
                 onClick={onClose}
-                className="w-full btn-primary py-3.5 text-sm uppercase tracking-widest font-bold"
+                className="w-full btn-primary py-3.5 text-sm font-bold"
               >
                 Apply Filters
               </button>

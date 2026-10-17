@@ -4,7 +4,7 @@
 
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Home as HomeIcon, Search, MapPin, BarChart3, User, LogIn, ShoppingCart } from 'lucide-react';
+import { Home as HomeIcon, Search, MapPin, User, LogIn, ShoppingCart } from 'lucide-react';
 import useCartStore, { selectItemCount } from '../../store/cartStore';
 import useAuthStore from '../../store/authStore';
 
@@ -12,16 +12,16 @@ const TABS_LOGGED_IN = [
   { href: '/home', icon: HomeIcon, label: 'Home' },
   { href: '/discovery', icon: Search, label: 'Search' },
   { href: '/fulfillment', icon: MapPin, label: 'Stores' },
-  { href: '/dashboard', icon: BarChart3, label: 'Savings' },
-  { href: '/wellness', icon: User, label: 'Profile' },
+  { href: '/checkout', icon: ShoppingCart, label: 'Cart', cart: true },
+  { href: '/account', icon: User, label: 'Account' },
 ];
 
 const TABS_LOGGED_OUT = [
   { href: '/home', icon: HomeIcon, label: 'Home' },
   { href: '/discovery', icon: Search, label: 'Search' },
   { href: '/fulfillment', icon: MapPin, label: 'Stores' },
-  { href: '/dashboard', icon: BarChart3, label: 'Savings' },
-  { href: '/auth', icon: LogIn, label: 'Sign In' },
+  { href: '/checkout', icon: ShoppingCart, label: 'Cart', cart: true },
+  { href: '/auth', icon: LogIn, label: 'Sign in' },
 ];
 
 export default function MobileBottomNav() {
@@ -36,7 +36,7 @@ export default function MobileBottomNav() {
     <div className="md:hidden fixed bottom-0 left-0 right-0 bg-surface-lowest border-t border-outline-variant z-50 safe-area-pb">
       <div className="flex justify-around items-center h-16">
         {tabs.map((tab) => {
-          const active = pathname === tab.href;
+          const active = pathname === tab.href || pathname.startsWith(`${tab.href}/`);
           const Icon = tab.icon;
           return (
             <button
@@ -51,25 +51,19 @@ export default function MobileBottomNav() {
               }`}
             >
               {active && <div className="absolute -top-0.5 w-8 h-0.5 bg-primary rounded-full" />}
-              <Icon className="w-5 h-5" />
-              <span className="text-[10px] font-semibold">{tab.label}</span>
+              <span className="relative">
+                <Icon className="w-5 h-5" />
+                {tab.cart && itemCount > 0 && (
+                  <span className="absolute -top-1.5 -right-2.5 bg-primary text-white text-[10px] font-bold min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center">
+                    {itemCount}
+                  </span>
+                )}
+              </span>
+              <span className="text-[11px] font-semibold">{tab.label}</span>
             </button>
           );
         })}
 
-        {/* Floating cart badge */}
-        {itemCount > 0 && (
-          <button
-            onClick={() => navigate('/checkout')}
-            aria-label={`Cart with ${itemCount} items`}
-            className="absolute -top-6 right-4 btn-primary w-12 h-12 flex items-center justify-center border-4 border-surface-lowest rounded-md clinical-shadow"
-          >
-            <ShoppingCart className="w-5 h-5" />
-            <span className="absolute -top-2 -right-2 bg-on-surface text-white text-[9px] font-bold w-5 h-5 rounded-sm flex items-center justify-center">
-              {itemCount}
-            </span>
-          </button>
-        )}
       </div>
     </div>
   );

@@ -29,7 +29,7 @@ export default function MatchBadge({ tier }) {
   const info = matchInfo(tier);
   if (!info) return null;
   return (
-    <div title={info.help} className={`border text-[10px] font-bold tracking-wider px-2 py-0.5 rounded-sm uppercase ${info.className}`}>
+    <div title={info.help} className={`border text-xs font-semibold px-2 py-0.5 rounded-md whitespace-nowrap ${info.className}`}>
       {info.label}
     </div>
   );
