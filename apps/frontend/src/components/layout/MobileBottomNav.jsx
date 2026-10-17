@@ -33,7 +33,7 @@ export default function MobileBottomNav() {
   const tabs = (initialized && user) ? TABS_LOGGED_IN : TABS_LOGGED_OUT;
 
   return (
-    <div className="md:hidden fixed bottom-0 left-0 right-0 bg-surface-lowest border-t border-outline-variant z-50 safe-area-pb">
+    <nav aria-label="Mobile" className="md:hidden fixed bottom-0 left-0 right-0 bg-surface-lowest border-t border-outline-variant z-50 safe-area-pb">
       <div className="flex justify-around items-center h-16">
         {tabs.map((tab) => {
           const active = pathname === tab.href || pathname.startsWith(`${tab.href}/`);
@@ -47,7 +47,7 @@ export default function MobileBottomNav() {
               className={`flex flex-col items-center gap-0.5 py-1 px-3 relative transition-colors ${
                 active
                   ? 'text-primary'
-                  : 'text-on-surface/50 hover:text-on-surface/80'
+                  : 'text-on-surface/70 hover:text-on-surface/80'
               }`}
             >
               {active && <div className="absolute -top-0.5 w-8 h-0.5 bg-primary rounded-full" />}
@@ -65,6 +65,6 @@ export default function MobileBottomNav() {
         })}
 
       </div>
-    </div>
+    </nav>
   );
 }

@@ -15,7 +15,7 @@ export default function LoadingSpinner({ size = 'w-5 h-5', label, fullPage = fal
   const spinner = (
     <div className={`flex items-center gap-3 ${className}`} role="status" aria-label={label || 'Loading'}>
       <div className={`${size} border-2 border-primary border-t-transparent rounded-full animate-spin`} />
-      {label && <span className="text-sm font-medium text-on-surface/60">{label}</span>}
+      {label && <span className="text-sm font-medium text-on-surface/70">{label}</span>}
     </div>
   );
 

@@ -101,10 +101,10 @@ export default function StoreMapArea({ stores, selectedStore, onSelectStore }) {
       {stores.length === 0 && (
         <div className="absolute inset-0 z-[1000] flex flex-col items-center justify-center bg-surface/70 backdrop-blur-[2px] pointer-events-none">
           <div className="w-24 h-24 bg-primary/6 rounded-2xl flex items-center justify-center mb-6 border border-primary/10">
-            <Map className="w-12 h-12 text-primary/40" />
+            <Map className="w-12 h-12 text-primary" />
           </div>
-          <div className="text-on-surface/60 font-display font-bold text-xl mb-2">Store Locations</div>
-          <div className="text-on-surface/50 text-sm font-medium">Search to discover nearby Kendras</div>
+          <div className="text-on-surface/70 font-display font-bold text-xl mb-2">Store Locations</div>
+          <div className="text-on-surface/70 text-sm font-medium">Search to discover nearby Kendras</div>
         </div>
       )}
     </div>

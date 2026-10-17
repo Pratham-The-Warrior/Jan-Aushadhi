@@ -30,7 +30,7 @@ export default function SavingsChart({ data }) {
     return (
       <div className="h-56 flex flex-col items-center justify-center text-center bg-surface-low rounded-xl border border-dashed border-outline-variant px-6">
         <p className="font-semibold text-on-surface/70">No savings history yet</p>
-        <p className="text-sm text-on-surface/50 mt-1">Your monthly savings will appear here after your first completed order.</p>
+        <p className="text-sm text-on-surface/70 mt-1">Your monthly savings will appear here after your first completed order.</p>
       </div>
     );
   }
