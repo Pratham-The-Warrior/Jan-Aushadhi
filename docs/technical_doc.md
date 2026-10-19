@@ -250,7 +250,7 @@ The backend strictly adheres to a symmetrical **4-layer architecture** across al
 
 ```
 backend/
-├── migrations/             # Transactional SQL migration scripts (001, 002, 003)
+├── migrations/             # Versioned SQL migrations (001–007), applied automatically at startup
 ├── scripts/                # CLI commands (migrate.ts, etl_pipeline.ts, store_geocoding.ts)
 └── src/
     ├── app.ts              # Fastify server creator & route registration
@@ -535,13 +535,13 @@ This runs:
 
 ### 🔑 Step 3: Environment Setup
 Create the environment files in the subdirectories:
-1. In [backend/.env](file:///c:/Users/Prathmesh%20Sarda/JAN-AUSHADHI/backend/.env), copy `backend/.env.example` and populate variables (credentials for database, firebase-admin service account keys, twilio API, etc.).
-2. For the client apps (`frontend`, `seller`, `admin`), configure the `VITE_API_URL` pointing to `http://localhost:5000/api/v1` and your client Firebase SDK keys.
+1. Copy `backend/.env.example` to `backend/.env` and populate variables (credentials for database, firebase-admin service account keys, twilio API, etc.).
+2. For the client apps (`frontend`, `seller`, `admin`), configure `VITE_API_URL=http://localhost:5000` (the API origin) and your client Firebase SDK keys. See `docs/ENVIRONMENT.md` for every variable.
 
 ### 🗃️ Step 4: Run Database Migrations & ETL Pipelines
 Use the backend command scripts to run versioned migrations, load drug datasets, and geocode stores:
 ```bash
-# 1. Run automated transactional migrations (001, 002, 003)
+# 1. Apply migrations (the server also does this automatically at startup)
 npm run db:migrate --workspace=janaushadhi-backend
 
 # 2. Populate medicine datasets from data/ CSVs to PostgreSQL & Meilisearch
@@ -552,7 +552,7 @@ npm run etl:stores --workspace=janaushadhi-backend
 ```
 
 ### 💻 Step 5: Start Local Development Servers
-You can run individual workspaces using monorepo shortcut commands defined in the root [package.json](file:///c:/Users/Prathmesh%20Sarda/JAN-AUSHADHI/package.json):
+You can run individual workspaces using monorepo shortcut commands defined in the root `package.json`:
 
 ```bash
 # Start Fastify backend server (reloads on changes)

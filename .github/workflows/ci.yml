@@ -26,8 +26,11 @@ jobs:
       - name: Typecheck Backend
         run: npm run typecheck:backend
 
-      - name: Test Backend (medicine matcher gold cases)
+      - name: Test Backend (matcher gold cases + search ranking)
         run: npm run test:backend
+
+      - name: Lint Web Apps
+        run: npm run lint:frontend && npm run lint:seller && npm run lint:admin
 
       - name: Build Backend
         run: npm run build:backend
@@ -88,13 +91,13 @@ jobs:
             ghcr.io/${{ env.REPO_LOWER }}/frontend:${{ github.sha }}
           build-args: |
             VITE_API_URL=${{ secrets.VITE_API_URL }}
+            VITE_SITE_URL=${{ secrets.VITE_SITE_URL }}
             VITE_FIREBASE_API_KEY=${{ secrets.VITE_FIREBASE_API_KEY }}
             VITE_FIREBASE_AUTH_DOMAIN=${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
             VITE_FIREBASE_PROJECT_ID=${{ secrets.VITE_FIREBASE_PROJECT_ID }}
             VITE_FIREBASE_STORAGE_BUCKET=${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
             VITE_FIREBASE_MESSAGING_SENDER_ID=${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
             VITE_FIREBASE_APP_ID=${{ secrets.VITE_FIREBASE_APP_ID }}
-            VITE_FIREBASE_MEASUREMENT_ID=${{ secrets.VITE_FIREBASE_MEASUREMENT_ID }}
 
       - name: Build and Push Seller Central Image
         uses: docker/build-push-action@v5

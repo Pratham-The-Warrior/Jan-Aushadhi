@@ -22,8 +22,13 @@
     "lint:seller": "npm run lint --workspace=seller",
     "lint:admin": "npm run lint --workspace=admin",
     "docker:dev": "docker compose -f docker-compose.dev.yml up",
-    "docker:prod": "docker compose -f docker-compose.prod.yml up --build -d",
+    "docker:prod": "docker compose --env-file deploy/.env.production -f docker-compose.prod.yml up --build -d",
     "test:backend": "npm run test --workspace=janaushadhi-backend",
-    "match:build": "npm run match:build --workspace=janaushadhi-backend"
+    "match:build": "npm run match:build --workspace=janaushadhi-backend",
+    "db:migrate": "npm run db:migrate --workspace=janaushadhi-backend",
+    "etl:run": "npm run etl:run --workspace=janaushadhi-backend",
+    "etl:stores": "npm run etl:stores --workspace=janaushadhi-backend",
+    "meili:seed": "npm run meili:seed --workspace=janaushadhi-backend",
+    "search:eval": "npm run search:eval --workspace=janaushadhi-backend"
   }
 }

@@ -5,6 +5,8 @@ This document provides a complete record of the deployment infrastructure, linke
 
 ---
 
+> Every environment variable, where it is set and why, is listed in **docs/ENVIRONMENT.md**.
+
 ## 2. Current Operational Status & Project State (Where Things Stand Right Now)
 
 * **Live Cloud Staging Deployment**: The complete application stack is 100% online, functional, and publicly accessible across free-tier cloud providers.
@@ -25,8 +27,8 @@ Below is the complete reference table of all cloud platforms, account links, rep
 | **Code Repository** | GitHub | `Pratham-The-Warrior/Jan-Aushadhi` (Branch: `master`) | `https://github.com/Pratham-The-Warrior/Jan-Aushadhi` | Git Version Control |
 | **Backend API** | Render | Account connected to `Pratham-The-Warrior` repo | `https://jan-aushadhi-090l.onrender.com` | Automated GitHub Webhook Build |
 | **Patient Frontend** | Vercel | Account connected to `Pratham-The-Warrior` repo | `https://jan-aushadhi-frontend.vercel.app` | Automated Vercel GitHub Integration |
-| **Seller Central** | Vercel / Staging Host | Connected to frontend workspace build | Accessible via subpaths / Vite build | Static Web Hosting |
-| **Admin Console** | Vercel / Staging Host | Connected to frontend workspace build | Accessible via subpaths / Vite build | Static Web Hosting |
+| **Seller Central** | Vercel | Separate Vercel project, root `apps/seller` | Its own domain (not a subpath) | Static Web Hosting + SPA rewrites (`vercel.json`) |
+| **Admin Console** | Vercel | Separate Vercel project, root `apps/admin` | Its own domain (not a subpath) | Static Web Hosting + SPA rewrites (`vercel.json`) |
 | **Database (PostGIS)**| Supabase | Tenant/Project Ref: `bhwhmcukranhguctwajh` (Region: `ap-northeast-1`) | `aws-1-ap-northeast-1.pooler.supabase.com:6543` | Managed Cloud PostgreSQL |
 | **Cache (Redis)** | Upstash | Managed Serverless Redis Instance | Upstash Redis Cloud Host | Managed Serverless Redis |
 
@@ -52,8 +54,8 @@ Below is the complete reference table of all cloud platforms, account links, rep
 ```
 
 ### Detailed Component Operations
-* **Database Schemas Active**: Managed by automated SQL migrations (`backend/migrations/001_initial_schema.sql`, `002_v2_features.sql`, `003_v3_routing_and_upi.sql`) with `schema_migrations` table tracking. Tables active: `users`, `branded_meds`, `generic_meds`, `stores`, `requirements`, `store_inventory`, `order_status_log`.
-* **Automated Cloud Seeding**: Built-in background engine checks database tables on container boot. If empty, the ETL pipeline ingests `data/A_Z_medicines_dataset_of_India.csv`, `data/Product List_3_4_2026 @ 16_33_44.csv`, and `data/kendra_stores.csv` directly into PostgreSQL and Meilisearch.
+* **Database Schemas Active**: Versioned SQL migrations `backend/migrations/001`–`007`, tracked in `schema_migrations`. The server applies pending migrations at startup (advisory-locked, safe through the Supabase pooler); set `RUN_MIGRATIONS_ON_START=false` to run `npm run db:migrate` yourself. Tables: `users`, `branded_meds`, `generic_meds`, `medicine_matches`, `stores`, `requirements`, `store_inventory`, `order_status_log`.
+* **Boot-time maintenance**: On boot the server (re)builds `medicine_matches` when the matcher version changed, re-imports store locations that lack verified coordinates, and rebuilds the Meilisearch index when it is missing or outdated. It does **not** load the medicine catalogue into an empty database: run `npm run etl:run` and `npm run etl:stores` once (the ETL upserts, so re-running it is safe).
 * **Search Engine**: Dual-mode — high-speed Meilisearch fuzzy indexing (Tier 1 exact match via `salt_strength_hash` and Tier 2 via `salt_hash`) with automatic SQL fallback.
 * **Auth Resilience**: Configured with fallback mechanisms (`firebase.js` and `authStore.js`) to support guest mode and local session states when production Firebase keys are unpopulated.
 
@@ -65,7 +67,7 @@ During initial deployment and production hardening, several technical barriers w
 
 1. **IPv6 vs IPv4 Routing (Supabase Connection)**:
    * **Issue**: Render containers run on IPv4 infrastructure and failed to resolve direct Supabase IPv6 endpoints (`db.xxx.supabase.co`), throwing `ENETUNREACH` network errors.
-   * **Resolution**: Reconfigured connection strings to utilize Supabase's IPv4 Pooler host (`aws-1-ap-northeast-1.pooler.supabase.com:6543`) with `ssl: { rejectUnauthorized: false }` enabled in `backend/src/shared/infra/database.ts`.
+   * **Resolution**: Reconfigured connection strings to utilize Supabase's IPv4 Pooler host (`aws-1-ap-northeast-1.pooler.supabase.com:6543`) and TLS configured from env: `DB_SSL_REJECT_UNAUTHORIZED=false` on Render (or `DB_SSL_CA` with Supabase's CA to verify the certificate). A `?sslmode=` in the URL no longer overrides these.
 2. **Docker Build Context & CSV Ingestion**:
    * **Issue**: Docker build processes failed when large CSV files were scattered across the root directory.
    * **Resolution**: Consolidated datasets into a dedicated `data/` directory, added path resolution via `resolveDataPath()`, and updated `backend/Dockerfile` to copy datasets cleanly into `/app/data/`.

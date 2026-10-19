@@ -1,0 +1,43 @@
+# Render Blueprint for the Jan Aushadhi API (https://render.com/docs/blueprint-spec)
+# The three web apps are deployed on Vercel (see docs/ENVIRONMENT.md).
+# Secret values are marked `sync: false`: Render asks for them when the
+# Blueprint is applied and never stores them in this file.
+services:
+  - type: web
+    name: jan-aushadhi-api
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/v1/health/live
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Supabase connection string (use the pooler host, port 6543)
+      - key: DATABASE_URL
+        sync: false
+      # Supabase's pooler certificate isn't in Node's trust store. Either keep
+      # this false, or add DB_SSL_CA with Supabase's CA certificate.
+      - key: DB_SSL_REJECT_UNAUTHORIZED
+        value: "false"
+      # Upstash: rediss://default:<password>@<host>:6379 (optional cache)
+      - key: REDIS_URL
+        sync: false
+      # Firebase Admin service-account JSON (one line or base64)
+      - key: FIREBASE_SERVICE_ACCOUNT_KEY
+        sync: false
+      # Your three Vercel sites, comma-separated
+      - key: CORS_ORIGIN
+        sync: false
+      # Optional: a hosted Meilisearch (search falls back to PostgreSQL without it)
+      - key: MEILI_HOST
+        sync: false
+      - key: MEILI_MASTER_KEY
+        sync: false
+      # Optional: Twilio WhatsApp confirmations
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_WHATSAPP_NUMBER
+        sync: false
