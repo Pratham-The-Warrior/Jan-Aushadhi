@@ -105,20 +105,20 @@ export default function Catalog() {
 
         <div className="stat-card">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span className="stat-label">Active Matches</span>
+            <span className="stat-label">Brands with a generic</span>
             <Activity size={18} style={{ color: '#3b82f6' }} />
           </div>
           <span className="stat-value">{(stats?.matched_salts || 0).toLocaleString('en-IN')}</span>
-          <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>Matched salt formulations</span>
+          <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>Exact, close or same-salt match</span>
         </div>
 
         <div className="stat-card">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span className="stat-label">Branded Salt Hashes</span>
+            <span className="stat-label">Brands in catalogue</span>
             <FileText size={18} style={{ color: '#f59e0b' }} />
           </div>
           <span className="stat-value">{(stats?.total_branded_salts || 0).toLocaleString('en-IN')}</span>
-          <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>Total unique chemical compounds</span>
+          <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>Active (not discontinued) brands</span>
         </div>
 
       </div>
@@ -156,11 +156,11 @@ export default function Catalog() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <div style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--color-brand-500)' }} />
-                <span style={{ fontSize: '0.8125rem', color: 'var(--color-text-secondary)' }}>Matched formulations: {stats?.matched_salts}</span>
+                <span style={{ fontSize: '0.8125rem', color: 'var(--color-text-secondary)' }}>Brands with a generic: {stats?.matched_salts}</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <div style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--color-surface-700)' }} />
-                <span style={{ fontSize: '0.8125rem', color: 'var(--color-text-secondary)' }}>Unmatched chemical salts: {(stats?.total_branded_salts - stats?.matched_salts) || 0}</span>
+                <span style={{ fontSize: '0.8125rem', color: 'var(--color-text-secondary)' }}>Brands without a generic: {(stats?.total_branded_salts - stats?.matched_salts) || 0}</span>
               </div>
             </div>
           </div>

@@ -84,8 +84,10 @@ export default function Checkout() {
     if (type === 'DELIVERY' && !deliveryCoords) requestLocation();
   };
 
+  // Kendras without an operator account can't receive online orders yet
+  const storeWalkInOnly = fulfillmentType === 'PICKUP' && selectedStore && selectedStore.accepts_orders === false;
   const destinationReady = fulfillmentType === 'PICKUP'
-    ? Boolean(selectedStore)
+    ? Boolean(selectedStore) && !storeWalkInOnly
     : Boolean(deliveryAddress.trim() && deliveryCoords);
 
   const handleCheckout = async () => {
@@ -97,7 +99,7 @@ export default function Checkout() {
       navigate('/discovery');
       return;
     }
-    if (fulfillmentType === 'PICKUP' && !selectedStore) {
+    if (fulfillmentType === 'PICKUP' && (!selectedStore || storeWalkInOnly)) {
       navigate('/fulfillment');
       return;
     }
@@ -118,10 +120,8 @@ export default function Checkout() {
     try {
       const result = await createRequirement({
         pmbjk_code: fulfillmentType === 'PICKUP' ? selectedStore.pmbjk_code : '',
-        drug_codes: items.map((i) => ({
-          code: i.drug_code, quantity: i.quantity, name: i.name,
-          mrp: i.mrp, branded_mrp: i.branded_mrp,
-        })),
+        // Prices are set by the server; branded_id tells it which brand each generic replaces
+        drug_codes: items.map((i) => ({ code: i.drug_code, quantity: i.quantity, branded_id: i.branded_id })),
         legal_attestation: true,
         delivery_address: fulfillmentType === 'PICKUP' ? 'Self-Pickup at Kendra' : deliveryAddress,
         payment_mode: 'COD',
@@ -138,7 +138,7 @@ export default function Checkout() {
 
       setOrderResult(result);
       clearCart();
-      toast.success('Order placed! The Kendra will confirm on WhatsApp.');
+      toast.success('Order placed! You can follow it under Account → Orders.');
     } catch (err) {
       console.error(err);
       toast.error(err.message || 'Could not place the order. Please try again.');
@@ -158,6 +158,7 @@ export default function Checkout() {
   if (!user) cta = { label: 'Sign in to place order', icon: <Lock className="w-4 h-4" /> };
   else if (items.length === 0) cta = { label: 'Search medicines', icon: <ArrowRight className="w-4 h-4" /> };
   else if (fulfillmentType === 'PICKUP' && !selectedStore) cta = { label: 'Choose a Kendra', icon: <ArrowRight className="w-4 h-4" /> };
+  else if (storeWalkInOnly) cta = { label: 'Choose a Kendra that takes orders', icon: <ArrowRight className="w-4 h-4" /> };
   else if (processing) cta = { label: 'Placing order…', icon: null, disabled: true };
 
   return (
@@ -203,6 +204,11 @@ export default function Checkout() {
                       <div className="font-display font-bold text-on-surface">{selectedStore.name}</div>
                       <div className="text-sm text-on-surface/70 mt-0.5">{selectedStore.address}</div>
                       <div className="text-sm text-on-surface/70 mt-0.5">{selectedStore.pmbjk_code} · PIN {selectedStore.pincode}</div>
+                      {storeWalkInOnly && (
+                        <p className="mt-2 text-sm font-medium text-warning">
+                          This Kendra isn&apos;t taking online orders yet. You can still buy these medicines there in person, or choose a Kendra marked &quot;Takes online orders&quot;.
+                        </p>
+                      )}
                       <button onClick={() => navigate('/fulfillment')} className="mt-3 text-primary font-semibold text-sm hover:underline inline-flex items-center gap-1">
                         Change Kendra <ArrowRight className="w-3.5 h-3.5" />
                       </button>

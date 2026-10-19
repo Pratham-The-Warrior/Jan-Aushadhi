@@ -103,7 +103,7 @@ export default function Account() {
     Promise.allSettled([getUserDashboard(), getRequirements(), getDashboardMonthly()]).then(([d, r, m]) => {
       if (cancelled) return;
       if (d.status === 'fulfilled') setDash(d.value);
-      if (r.status === 'fulfilled') setOrders(r.value?.requirements || []);
+      if (r.status === 'fulfilled') setOrders(Array.isArray(r.value) ? r.value : r.value?.requirements || []);
       if (m.status === 'fulfilled') setMonthly(m.value?.history || []);
       setLoadError([d, r, m].every((x) => x.status === 'rejected'));
       setLoading(false);
@@ -124,7 +124,7 @@ export default function Account() {
   const addMedicine = (med) => {
     addItem({
       drug_code: med.code || med.drug_code, name: med.name, mrp: med.mrp, branded_mrp: med.branded_mrp,
-      branded_name: med.branded_name, unit_size: med.unit_size, group_name: med.group_name,
+      branded_id: med.branded_id, branded_name: med.branded_name, unit_size: med.unit_size, group_name: med.group_name,
     });
     toast.success(`Added ${med.name} to cart`);
   };
@@ -132,7 +132,7 @@ export default function Account() {
   const reorder = (order) => {
     parseOrderItems(order).forEach((item) => addItem({
       drug_code: item.code || item.drug_code, name: item.name, mrp: item.mrp, branded_mrp: item.branded_mrp,
-      unit_size: item.unit_size, group_name: item.group_name,
+      branded_id: item.branded_id, unit_size: item.unit_size, group_name: item.group_name, quantity: item.quantity,
     }));
     navigate('/checkout');
   };

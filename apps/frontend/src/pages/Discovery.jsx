@@ -16,6 +16,7 @@ import FilterSortPanel from '../components/discovery/FilterSortPanel';
 import { applyFiltersAndSort } from '../utils/filterUtils';
 import { toast } from '../store/toastStore';
 import usePageMeta from '../hooks/usePageMeta';
+import { cartItemFor } from '../utils/pack';
 
 // ---- Inline Helpers ----
 
@@ -85,13 +86,7 @@ export default function Discovery() {
 
   const handleAddToCart = (res) => {
     if (!res.generic) return;
-    addItem({
-      drug_code: res.generic.drug_code, name: res.generic.name, mrp: res.generic.mrp,
-      branded_name: res.branded.name,
-      // Only like-for-like matches count towards "you save" in the cart
-      branded_mrp: res.generic.match_tier === 'SALT_EQUIVALENT' ? undefined : res.branded.mrp,
-      unit_size: res.generic.unit_size, group_name: res.generic.group_name,
-    });
+    addItem(cartItemFor(res.branded, res.generic));
     toast.success(`Added ${res.generic.name} to cart`);
   };
 

@@ -15,7 +15,7 @@ import { toast } from '../store/toastStore';
 import usePageMeta from '../hooks/usePageMeta';
 import MatchBadge from '../components/discovery/MatchBadge';
 import { formatINR, formatRupees } from '../utils/format';
-import { monthlyCosts } from '../utils/pack';
+import { cartItemFor, monthlyCosts } from '../utils/pack';
 import PerDayStepper from '../components/common/PerDayStepper';
 
 const STORAGE_KEY = 'janaushadhi-prescription';
@@ -197,11 +197,7 @@ export default function Prescription() {
     .filter((r) => r?.generic && r.generic.match_tier !== 'SALT_EQUIVALENT');
 
   const addAllToCart = () => {
-    substitutable.forEach((r) => addItem({
-      drug_code: r.generic.drug_code, name: r.generic.name, mrp: r.generic.mrp,
-      branded_name: r.branded.name, branded_mrp: r.branded.mrp,
-      unit_size: r.generic.unit_size, group_name: r.generic.group_name,
-    }));
+    substitutable.forEach((r) => addItem(cartItemFor(r.branded, r.generic)));
     toast.success(`Added ${substitutable.length} generic${substitutable.length === 1 ? '' : 's'} to cart`);
     navigate('/checkout');
   };

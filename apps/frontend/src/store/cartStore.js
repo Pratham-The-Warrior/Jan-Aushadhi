@@ -7,6 +7,13 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
 import { getUserProfile, updateMedicalBasket } from '../services/api';
+import useAuthStore from './authStore';
+
+// Save the basket to the account only when someone is signed in; guests keep it
+// in this browser (it is merged into their account when they sign in).
+const saveBasket = (items) => {
+  if (useAuthStore.getState().user) updateMedicalBasket(items).catch(() => {});
+};
 
 const useCartStore = create(
   persist(
@@ -17,31 +24,33 @@ const useCartStore = create(
       recentSearches: [],
 
       // Cart actions
+      // `item.quantity` (e.g. from a reorder) defaults to 1
       addItem: (item) => set((state) => {
+        const qty = Math.max(1, item.quantity || 1);
         const exists = state.items.find(i => i.drug_code === item.drug_code);
         const newItems = exists
-          ? state.items.map(i => i.drug_code === item.drug_code ? { ...i, quantity: i.quantity + 1 } : i)
-          : [...state.items, { ...item, quantity: 1 }];
-        updateMedicalBasket(newItems).catch(() => {});
+          ? state.items.map(i => i.drug_code === item.drug_code ? { ...i, quantity: i.quantity + qty } : i)
+          : [...state.items, { ...item, quantity: qty }];
+        saveBasket(newItems);
         return { items: newItems };
       }),
 
       removeItem: (drugCode) => set((state) => {
         const newItems = state.items.filter(i => i.drug_code !== drugCode);
-        updateMedicalBasket(newItems).catch(() => {});
+        saveBasket(newItems);
         return { items: newItems };
       }),
 
       updateQuantity: (drugCode, quantity) => set((state) => {
         const newItems = state.items.map(i => i.drug_code === drugCode ? { ...i, quantity: Math.max(1, quantity) } : i);
-        updateMedicalBasket(newItems).catch(() => {});
+        saveBasket(newItems);
         return { items: newItems };
       }),
 
       setStore: (store) => set({ selectedStore: store }),
       setAttestation: (val) => set({ legalAttestation: val }),
       clearCart: () => {
-        updateMedicalBasket([]).catch(() => {});
+        saveBasket([]);
         return set({ items: [], selectedStore: null, legalAttestation: false });
       },
 

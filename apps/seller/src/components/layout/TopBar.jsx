@@ -1,6 +1,24 @@
-import { useLocation } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import { Menu, Bell } from 'lucide-react';
 import useAuthStore from '../../store/authStore';
+import { getOrders } from '../../services/seller.api';
+
+/** New orders waiting for this Kendra to accept, refreshed every minute. */
+function usePendingCount(enabled) {
+  const [count, setCount] = useState(0);
+  useEffect(() => {
+    if (!enabled) return undefined;
+    let alive = true;
+    const load = () => getOrders({ status: 'PENDING_ACCEPTANCE', limit: 1 })
+      .then((d) => { if (alive) setCount(d?.count || 0); })
+      .catch(() => {});
+    load();
+    const timer = setInterval(load, 60_000);
+    return () => { alive = false; clearInterval(timer); };
+  }, [enabled]);
+  return count;
+}
 
 const PAGE_TITLES = {
   '/dashboard': 'Dashboard',
@@ -14,6 +32,7 @@ export default function TopBar({ onMenuClick }) {
   const { sellerProfile } = useAuthStore();
   const location = useLocation();
   const pageTitle = PAGE_TITLES[location.pathname] || '';
+  const pending = usePendingCount(Boolean(sellerProfile));
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -44,15 +63,25 @@ export default function TopBar({ onMenuClick }) {
         </div>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-        <button className="btn-icon" aria-label="Notifications" style={{ position: 'relative' }}>
+        <Link
+          to="/orders"
+          className="btn-icon"
+          aria-label={pending ? `${pending} new order${pending === 1 ? '' : 's'} waiting` : 'No new orders'}
+          title={pending ? `${pending} new order${pending === 1 ? '' : 's'} waiting` : 'No new orders'}
+          style={{ position: 'relative' }}
+        >
           <Bell size={18} />
-          <span style={{
-            position: 'absolute', top: -2, right: -2, width: 8, height: 8,
-            background: 'var(--color-brand-500)', borderRadius: '50%',
-            border: '2px solid var(--color-surface-800)',
-            animation: 'pulse-dot 2s ease infinite',
-          }} />
-        </button>
+          {pending > 0 && (
+            <span style={{
+              position: 'absolute', top: -6, right: -6, minWidth: 18, height: 18, padding: '0 4px',
+              background: 'var(--color-brand-500)', borderRadius: 999, color: 'white',
+              fontSize: '0.6875rem', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              border: '2px solid var(--color-surface-800)',
+            }}>
+              {pending > 99 ? '99+' : pending}
+            </span>
+          )}
+        </Link>
         {sellerProfile && (
           <div style={{
             width: 36, height: 36, borderRadius: 10,

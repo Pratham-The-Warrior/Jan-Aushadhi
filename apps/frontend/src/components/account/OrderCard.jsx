@@ -51,7 +51,7 @@ export default function OrderCard({ order, onReorder, onCancel }) {
             <RefreshCw className="w-4 h-4" /> Order again
           </button>
         )}
-        {order.status === 'PENDING_ACCEPTANCE' && onCancel && (
+        {['PENDING_ACCEPTANCE', 'ACCEPTED'].includes(order.status) && onCancel && (
           <button onClick={() => onCancel(order)} className="py-2 px-3.5 text-sm font-semibold text-red-700 hover:bg-red-50 rounded-lg inline-flex items-center gap-1.5">
             <X className="w-4 h-4" /> Cancel
           </button>

@@ -1,3 +1,4 @@
+import process from 'node:process'
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
@@ -6,7 +7,10 @@ import tailwindcss from '@tailwindcss/vite'
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   // Absolute site origin for social-preview URLs (og:image must be absolute).
-  const siteUrl = (env.VITE_SITE_URL || '').replace(/\/+$/, '')
+  // On Vercel the production domain is known at build time, so this works
+  // even before VITE_SITE_URL is configured.
+  const vercelUrl = env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${env.VERCEL_PROJECT_PRODUCTION_URL}` : ''
+  const siteUrl = (env.VITE_SITE_URL || vercelUrl).replace(/\/+$/, '')
 
   return {
     plugins: [

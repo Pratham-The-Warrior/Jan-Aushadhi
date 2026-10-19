@@ -10,7 +10,7 @@ import {
   Download, RefreshCw, ChevronLeft, ChevronRight,
   Search
 } from 'lucide-react';
-import { exportOrders, getAnalyticsSummary } from '../services/seller.api';
+import { exportOrders } from '../services/seller.api';
 
 const DATE_RANGE_OPTIONS = [
   { value: 'all', label: 'All Time' },
@@ -44,10 +44,8 @@ export default function Reports() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [, ordsData] = await Promise.all([
-        getAnalyticsSummary(),
-        exportOrders()
-      ]);
+      // All report figures are computed below from the full order export
+      const ordsData = await exportOrders();
       setOrders(ordsData.orders || []);
     } catch (err) {
       console.error('Load reports error:', err);

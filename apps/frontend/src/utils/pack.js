@@ -47,3 +47,32 @@ export function monthlyCosts({ brandPrice, brandPack, genericPrice, genericPack,
   const generic = g * units;
   return { brand, generic, saving: Math.max(0, brand - generic), units };
 }
+
+/**
+ * What the brand costs for the same quantity as one generic pack — the basis
+ * the server uses to record an order's saving. Falls back to the brand's pack
+ * price when the packs can't be compared unit for unit.
+ */
+export function brandPriceForGenericPack(brandPrice, brandPack, genericPrice, genericPack) {
+  if (!(brandPrice > 0)) return undefined;
+  const b = parsePackQuantity(brandPack);
+  const g = parsePackQuantity(genericPack);
+  const price = b && g && b.unit === g.unit && b.qty > 0 ? (brandPrice / b.qty) * g.qty : brandPrice;
+  return Math.max(genericPrice || 0, Math.round(price * 100) / 100);
+}
+
+/** Cart line for a search/product result: the generic, plus the brand it replaces. */
+export function cartItemFor(branded, generic) {
+  const comparable = generic.match_tier && generic.match_tier !== 'SALT_EQUIVALENT';
+  return {
+    drug_code: generic.drug_code,
+    name: generic.name,
+    mrp: generic.mrp,
+    unit_size: generic.unit_size,
+    group_name: generic.group_name,
+    branded_name: branded.name,
+    // Only like-for-like matches count towards "you save"
+    branded_id: comparable ? branded.id : undefined,
+    branded_mrp: comparable ? brandPriceForGenericPack(branded.mrp, branded.pack_size, generic.mrp, generic.unit_size) : undefined,
+  };
+}
