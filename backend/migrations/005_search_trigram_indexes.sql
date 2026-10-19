@@ -3,6 +3,10 @@
 -- Keeps ILIKE '%query%' fast when Meilisearch is unavailable.
 -- ============================================================
 
+-- Index builds over ~250k rows can outlast a pooler/role statement_timeout
+-- (e.g. Supabase); the migrator runs each file in a transaction, so this is scoped.
+SET LOCAL statement_timeout = 0;
+
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
 CREATE INDEX IF NOT EXISTS idx_branded_name_trgm ON branded_meds USING gin (name gin_trgm_ops);

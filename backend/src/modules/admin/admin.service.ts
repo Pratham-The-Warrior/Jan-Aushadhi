@@ -144,58 +144,47 @@ export class AdminService {
       throw new NotFoundError('Store');
     }
 
-    const virtualEmail = payload.email || `${pmbjkCode.toLowerCase()}@seller.janaushadhi.local`;
-    let userUid = '';
-
-    // 2. Provision or update account in Firebase
+    // The seller app signs in with the store code, so the Firebase login is
+    // always the store's virtual email; a real email is only kept on the profile.
+    const loginEmail = `${pmbjkCode.toLowerCase()}@seller.janaushadhi.local`;
+    let existingUser;
     try {
-      let existingUser;
-      try {
-        existingUser = await getAuth().getUserByEmail(virtualEmail);
-      } catch (err: any) {
-        if (err.code !== 'auth/user-not-found') {
-          throw err;
-        }
+      existingUser = await getAuth().getUserByEmail(loginEmail);
+    } catch (err: any) {
+      if (err.code !== 'auth/user-not-found') {
+        throw new ValidationError(`Firebase Auth lookup failed: ${err.message}`);
       }
+    }
 
+    // 2. Refuse before touching any credentials if someone else runs this store
+    if (store.seller_uid && store.seller_uid !== existingUser?.uid) {
+      throw new ConflictError(`Store ${pmbjkCode} already has an operator. Remove them first.`);
+    }
+    if (!existingUser && !payload.password) {
+      throw new ValidationError('Password is required for new operator creation');
+    }
+
+    // 3. Provision or update the login
+    let userUid: string;
+    try {
       if (existingUser) {
-        // Update details and password if provided
-        const updateParams: any = {
+        const updated = await getAuth().updateUser(existingUser.uid, {
           displayName: payload.name,
-        };
-        if (payload.password) {
-          updateParams.password = payload.password;
-        }
-        const updatedUser = await getAuth().updateUser(existingUser.uid, updateParams);
-        userUid = updatedUser.uid;
-      } else {
-        // Create new Firebase user
-        if (!payload.password) {
-          throw new ValidationError('Password is required for new operator creation');
-        }
-        const createdUser = await getAuth().createUser({
-          email: virtualEmail,
-          password: payload.password,
-          displayName: payload.name,
+          ...(payload.password ? { password: payload.password } : {}),
         });
-        userUid = createdUser.uid;
+        userUid = updated.uid;
+      } else {
+        const created = await getAuth().createUser({ email: loginEmail, password: payload.password, displayName: payload.name });
+        userUid = created.uid;
       }
     } catch (firebaseErr: any) {
       throw new ValidationError(`Firebase Auth Provisioning Failed: ${firebaseErr.message}`);
     }
 
-    // 3. Database assignment transaction
-    const currentSeller = store.seller_uid;
-    if (currentSeller && currentSeller !== userUid) {
-      throw new ConflictError(
-        `Store ${pmbjkCode} is already assigned to another seller (UID: ${currentSeller}).`,
-      );
-    }
-
     await this.repository.assignSellerTx(pmbjkCode, userUid, {
       name: payload.name,
       phone: payload.phone,
-      virtualEmail,
+      email: payload.email || loginEmail,
     });
 
     // 4. Invalidate role cache
@@ -275,11 +264,13 @@ export class AdminService {
     newRole: UserRole,
     linkedPmbjkCode?: string,
   ): Promise<{ success: boolean }> {
-    if (newRole === 'STORE_OWNER' && !linkedPmbjkCode) {
-      throw new ValidationError('linked_pmbjk_code is required when assigning STORE_OWNER role');
+    if (newRole === 'STORE_OWNER') {
+      // A Kendra operator needs a store-code login for the seller app, which
+      // only "Assign operator" creates.
+      throw new ValidationError('To make someone a Kendra operator, use Stores → Assign operator. It creates their store-code login.');
     }
 
-    const updated = await this.repository.updateUserRole(uid, newRole, linkedPmbjkCode);
+    const updated = await this.repository.updateUserRole(uid, newRole);
     if (!updated) {
       throw new NotFoundError('User');
     }
@@ -300,6 +291,10 @@ export class AdminService {
     }
 
     await invalidateRoleCache(uid);
+    if (suspend) {
+      // End existing sessions too: verifyAuth checks revocation on every request
+      await getAuth().revokeRefreshTokens(uid).catch(() => undefined);
+    }
     return { success: true };
   }
 
@@ -315,6 +310,7 @@ export class AdminService {
     pmbjk_code?: string;
     date_from?: string;
     date_to?: string;
+    search?: string;
     page?: number;
     limit?: number;
   }): Promise<{ count: number; page: number; totalPages: number; orders: unknown[] }> {
@@ -326,9 +322,17 @@ export class AdminService {
     const params: unknown[] = [];
     let paramIdx = 1;
 
-    if (options.status) {
+    if (options.status === 'CANCELLED') {
+      conditions.push(`r.status LIKE 'CANCELLED%'`);
+    } else if (options.status) {
       conditions.push(`r.status = $${paramIdx++}`);
       params.push(options.status);
+    }
+    if (options.search) {
+      // Ticket ID, customer name/phone or store name
+      conditions.push(`(r.id ILIKE $${paramIdx} OR u.name ILIKE $${paramIdx} OR u.phone ILIKE $${paramIdx} OR s.name ILIKE $${paramIdx})`);
+      params.push(`%${options.search.replace(/[\\%_]/g, (c) => `\\${c}`)}%`);
+      paramIdx++;
     }
     if (options.pmbjk_code) {
       conditions.push(`r.pmbjk_code = $${paramIdx++}`);

@@ -29,6 +29,8 @@ export interface Store {
   operating_hours?: Record<string, string>;
   seller_uid?: string;
   verified_at?: string;
+  /** True once the Kendra has an operator account that receives online orders */
+  accepts_orders?: boolean;
 }
 
 /** Store search result envelope */

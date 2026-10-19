@@ -15,7 +15,14 @@ let isConnected = false;
  * Non-fatal — the application continues without caching if Redis is unavailable.
  */
 export async function initRedis(): Promise<void> {
-  redis = createClient({ url: config.redisUrl }) as RedisClientType;
+  redis = createClient({
+    url: config.redisUrl,
+    socket: {
+      connectTimeout: 3000,
+      // Keep retrying in the background (Upstash/Redis restarts), at most every 10 s
+      reconnectStrategy: (retries: number) => Math.min(500 * 2 ** retries, 10_000),
+    },
+  }) as RedisClientType;
 
   redis.on('error', (err: Error) => {
     console.warn('⚠️  Redis Error:', err.message);
@@ -35,12 +42,21 @@ export async function initRedis(): Promise<void> {
     console.log('🔄 Redis reconnecting...');
   });
 
-  try {
-    await redis.connect();
+  // connect() keeps retrying and never settles while Redis is unreachable, so
+  // never let it hold up startup: wait briefly, then carry on without a cache
+  // and let the client connect in the background.
+  const connecting = redis.connect().then(
+    () => true,
+    () => false,
+  );
+  const connected = await Promise.race([
+    connecting,
+    new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 3000)),
+  ]);
+  if (connected) {
     console.log('✅ Redis Cache Connected');
-  } catch {
-    console.warn('⚠️  Redis not available — running without cache (slower salt_hash lookups)');
-    isConnected = false;
+  } else {
+    console.warn('⚠️  Redis not available yet — running without cache, will keep retrying in the background');
   }
 }
 

@@ -9,7 +9,7 @@ import { getPool, queryDB } from '../../shared/infra/database';
 import { bestMatch, parseBranded, parseGeneric, type ParsedProduct } from '../../shared/matching';
 
 /** Bump when matching rules change so stale rows are easy to find. */
-export const MATCHER_VERSION = '2.0.0';
+export const MATCHER_VERSION = '2.1.0';
 
 const BATCH_SIZE = 1000;
 
@@ -29,8 +29,11 @@ export async function buildMedicineMatches(log: (msg: string) => void = console.
   const started = Date.now();
 
   const generics = await queryDB(
+    // Products without a listed price can't be compared or ordered, so they
+    // are never offered as the alternative (they would show as ₹0).
     `SELECT id, generic_name FROM generic_meds
      WHERE group_name IS DISTINCT FROM 'Surgical & Medical Consumables'
+       AND mrp > 0
      ORDER BY id`,
   );
   const bySet = new Map<string, GenericCandidate[]>();

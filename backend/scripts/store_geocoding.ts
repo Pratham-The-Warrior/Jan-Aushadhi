@@ -6,24 +6,17 @@
 // API never presents a guessed location as an exact one.
 // ============================================================
 
-import { Pool } from 'pg';
+import { getPool, closeDatabasePool } from '../src/shared/infra/database';
 import * as fs from 'fs';
 import * as path from 'path';
-import * as dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
-
-dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const dbUrl = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/janaushadhi';
-const isCloudDB = dbUrl.includes('supabase') || dbUrl.includes('render') || process.env.NODE_ENV === 'production';
-
-const pool = new Pool({
-  connectionString: dbUrl,
-  ...(isCloudDB ? { ssl: { rejectUnauthorized: false } } : {}),
-});
+// Shared pool: the server runs importStores() in the background, and the
+// shared pool honours DB_SSL / DB_SSL_REJECT_UNAUTHORIZED / DB_SSL_CA.
+const pool = getPool();
 
 export type LocationPrecision = 'pincode' | 'area' | 'district' | 'none';
 
@@ -118,13 +111,14 @@ function parseCSV(filePath: string): Record<string, string>[] {
 }
 
 function resolveDataPath(filename: string): string {
-  const inDataDir = path.resolve(__dirname, '../../data', filename);
-  if (fs.existsSync(inDataDir)) return inDataDir;
-  const inRoot = path.resolve(__dirname, '../../', filename);
-  if (fs.existsSync(inRoot)) return inRoot;
-  const inApp = path.resolve('/app/data', filename);
-  if (fs.existsSync(inApp)) return inApp;
-  return inDataDir;
+  const candidates = [
+    path.resolve(__dirname, '../../data', filename), // tsx: backend/scripts; bundled server: backend/dist/src
+    path.resolve(__dirname, '../../../data', filename), // built script: backend/dist/scripts
+    path.resolve(process.cwd(), 'data', filename),
+    path.resolve(process.cwd(), '../data', filename),
+    path.resolve('/app/data', filename), // Docker image
+  ];
+  return candidates.find((c) => fs.existsSync(c)) ?? candidates[0];
 }
 
 export async function importStores() {
@@ -216,5 +210,5 @@ export async function importStores() {
 }
 
 if (process.argv[1]?.includes('store_geocoding')) {
-  importStores().finally(() => pool.end());
+  importStores().finally(() => closeDatabasePool());
 }

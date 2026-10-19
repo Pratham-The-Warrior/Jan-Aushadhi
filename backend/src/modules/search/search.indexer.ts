@@ -18,7 +18,7 @@ export const MEDICINES_INDEX = APP_CONSTANTS.MEILI_MEDICINES_INDEX;
  * Bump when the settings or document shape change; a running server
  * notices the mismatch at startup and rebuilds in the background.
  */
-export const INDEX_VERSION = 3;
+export const INDEX_VERSION = 4;
 
 export const INDEX_SETTINGS = {
   // Normalised copies are searched ("Omez 20mg" → "omez 20 mg") so typed and

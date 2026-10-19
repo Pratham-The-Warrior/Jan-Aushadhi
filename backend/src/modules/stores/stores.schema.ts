@@ -20,9 +20,10 @@ export const nearbyStoresSchema = {
     type: 'object' as const,
     required: ['lat', 'lng'],
     properties: {
-      lat: { type: 'string' as const },
-      lng: { type: 'string' as const },
-      radius: { type: 'string' as const },
+      lat: { type: 'number' as const, minimum: -90, maximum: 90 },
+      lng: { type: 'number' as const, minimum: -180, maximum: 180 },
+      // Metres; clamped to 500 m – 50 km in the handler
+      radius: { type: 'number' as const },
     },
   },
 };
@@ -34,17 +35,6 @@ export const storeByCodeSchema = {
     required: ['pmbjk_code'],
     properties: {
       pmbjk_code: { type: 'string' as const, minLength: 1 },
-    },
-  },
-};
-
-/** POST /api/v1/stores/confirm/:requirement_id */
-export const confirmRequirementSchema = {
-  params: {
-    type: 'object' as const,
-    required: ['requirement_id'],
-    properties: {
-      requirement_id: { type: 'string' as const, minLength: 1 },
     },
   },
 };

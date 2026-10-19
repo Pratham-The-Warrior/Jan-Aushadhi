@@ -179,6 +179,7 @@ export default async function adminRoutes(server: FastifyInstance): Promise<void
         pmbjk_code?: string;
         date_from?: string;
         date_to?: string;
+        search?: string;
         page?: number;
         limit?: number;
       };

@@ -1,7 +1,7 @@
 // ============================================================
 // Stores Module — Service Layer
 // PMBJK Kendra store discovery: pincode, GPS proximity,
-// state/district filtering, and requirement confirmation.
+// state/district filtering.
 // Pure business logic and domain orchestration; delegates data
 // access to StoreRepository.
 // ============================================================
@@ -82,21 +82,5 @@ export class StoreService {
       count: stores.length,
       stores,
     };
-  }
-
-  /**
-   * Store confirms a requirement ticket.
-   * Transitions status from PENDING_ACCEPTANCE → ACCEPTED.
-   * Scoped to the seller's linked PMBJK store or admin.
-   *
-   * @param requirementId  Unique ticket ID
-   * @param storeCode      Store PMBJK code to enforce ownership
-   */
-  async confirmRequirement(requirementId: string, storeCode?: string): Promise<Record<string, unknown>> {
-    const record = await this.repository.confirmRequirement(requirementId, storeCode);
-    if (!record) {
-      throw new NotFoundError('Requirement (not found, already accepted, or store unauthorized)');
-    }
-    return record;
   }
 }

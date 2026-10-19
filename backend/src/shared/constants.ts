@@ -8,7 +8,7 @@ export const APP_CONSTANTS = {
   // Search & Cache
   MEILI_MEDICINES_INDEX: 'medicines',
   REDIS_USER_ROLE_PREFIX: 'user_role:',
-  REDIS_USER_ROLE_TTL: 300, // 5 minutes — role cache
+  REDIS_USER_ROLE_TTL: 60, // 1 minute — bounds how long a stale role can survive a missed invalidation
 
   // Pagination & Limits
   SEARCH_RESULTS_LIMIT: 30,

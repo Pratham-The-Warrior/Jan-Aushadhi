@@ -9,7 +9,7 @@ export const discoveryDetailSchema = {
     type: 'object' as const,
     required: ['branded_id'],
     properties: {
-      branded_id: { type: 'string' as const },
+      branded_id: { type: 'string' as const, pattern: '^[0-9]{1,9}$' },
     },
   },
 };

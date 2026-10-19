@@ -309,6 +309,12 @@ export class SellerRepository {
     }));
   }
 
+  /** Which of these drug codes exist in the generic catalogue. */
+  async findKnownDrugCodes(codes: string[]): Promise<Set<string>> {
+    const result = await queryDB('SELECT drug_code FROM generic_meds WHERE drug_code = ANY($1)', [codes]);
+    return new Set(result.rows.map((r: { drug_code: string }) => r.drug_code));
+  }
+
   /**
    * Fetch complete order records for CSV export.
    */
@@ -320,7 +326,8 @@ export class SellerRepository {
        FROM requirements r
        LEFT JOIN users u ON r.user_id = u.firebase_uid
        WHERE r.pmbjk_code = $1
-       ORDER BY r.created_at DESC`,
+       ORDER BY r.created_at DESC
+       LIMIT 10000`,
       [pmbjkCode],
     );
     return result.rows;
