@@ -8,6 +8,10 @@ import useAuthStore from '../store/authStore';
 import { auth } from '../firebase';
 
 function getSanitizedApiBase() {
+  if (import.meta.env.PROD && !import.meta.env.VITE_API_URL) {
+    // Without it every request goes to localhost and fails; make that obvious.
+    console.error('VITE_API_URL is not set for this build: API calls will fail. Set it in the hosting settings and redeploy.');
+  }
   let url = (import.meta.env.VITE_API_URL || 'http://localhost:5000').trim();
   if (url.includes('http://') || url.includes('https://')) {
     const match = url.match(/(https?:\/\/[^/\s]+)/g);

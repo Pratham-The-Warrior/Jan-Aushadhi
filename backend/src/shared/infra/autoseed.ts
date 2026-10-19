@@ -5,8 +5,8 @@
 // ============================================================
 
 import { queryDB } from './database';
-import { getMeiliClient } from './meilisearch';
-import { seedBrandedMedicines, seedGenericMedicines } from '../../../scripts/seed_meilisearch';
+import { checkMeiliHealth } from './meilisearch';
+import { buildMedicinesIndex, medicinesIndexIsCurrent } from '../../modules/search/search.indexer';
 import { importStores } from '../../../scripts/store_geocoding';
 import { buildMedicineMatches, matchesAreCurrent } from '../../modules/catalog/match-builder';
 
@@ -27,11 +27,12 @@ export async function autoSeedDatabaseIfNeeded(): Promise<void> {
   }
 
   // 2. Branded → generic matches: build on first boot or after a matcher upgrade.
+  let matchesBuilt: Promise<unknown> = Promise.resolve();
   try {
     const brandedCount = await queryDB('SELECT COUNT(*) FROM branded_meds');
     if (Number(brandedCount.rows[0]?.count || 0) > 0 && !(await matchesAreCurrent())) {
       console.log('🧪 Medicine matches missing or outdated. Rebuilding in background...');
-      buildMedicineMatches().catch((e) => console.warn('Match build error:', e?.message || e));
+      matchesBuilt = buildMedicineMatches().catch((e) => console.warn('Match build error:', e?.message || e));
     }
   } catch (err: any) {
     console.warn('⚠️  Medicine match check warning:', err?.message || err);
@@ -51,24 +52,20 @@ export async function autoSeedDatabaseIfNeeded(): Promise<void> {
     console.warn('⚠️  Store location check warning:', err?.message || err);
   }
 
-  // 4. Meilisearch Index Check & Auto-Seeding
+  // 4. Meilisearch: (re)build the index when it is missing, out of date or
+  //    behind the database. Search uses PostgreSQL until the new index is swapped in.
   try {
-    const meili = getMeiliClient();
-    const index = meili.index('medicines');
-    const stats = await index.getStats();
-
-    if (stats.numberOfDocuments === 0) {
-      console.log('🌱 Meilisearch "medicines" index is empty. Triggering background indexing...');
-      seedBrandedMedicines().then(() => {
-        seedGenericMedicines().catch((e) => console.warn('Generic seed error:', e));
-      }).catch((e) => {
-        console.warn('Background Meilisearch seeding error:', e?.message || e);
-      });
+    if (!(await checkMeiliHealth())) return;
+    if (await medicinesIndexIsCurrent()) {
+      console.log('🔍 Meilisearch index is current.');
     } else {
-      console.log(`🔍 Meilisearch index healthy (${stats.numberOfDocuments} documents indexed).`);
+      console.log('🌱 Meilisearch index missing or outdated. Rebuilding in background...');
+      // The index records which brands have a generic, so wait for the matches.
+      matchesBuilt
+        .then(() => buildMedicinesIndex())
+        .catch((e) => console.warn('Meilisearch indexing error:', e?.message || e));
     }
   } catch (err: any) {
-    // If Meilisearch is unavailable or in fallback mode, don't crash
-    console.log('ℹ️  Meilisearch auto-seed skipped (engine offline or index initializing).');
+    console.log('ℹ️  Meilisearch index check skipped:', err?.message || err);
   }
 }

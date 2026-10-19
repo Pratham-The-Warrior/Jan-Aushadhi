@@ -20,7 +20,7 @@ import type { UserRole } from '../types';
  * delay before the role takes effect. This is an acceptable tradeoff for
  * the massive reduction in DB queries on high-traffic seller dashboards.
  */
-async function resolveUserRole(uid: string): Promise<{
+export async function resolveUserRole(uid: string): Promise<{
   role: UserRole;
   linked_pmbjk_code: string | null;
   is_suspended: boolean;

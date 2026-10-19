@@ -30,7 +30,12 @@ export default function useSearch() {
   const [activeIndex, setActiveIndex] = useState(-1);
 
   const abortRef = useRef(null);
-  const debouncedQuery = useDebounce(query, 250);
+  // Only the latest search may update the results (an earlier, slower one can't overwrite it)
+  const searchSeq = useRef(0);
+  // The query just searched: its suggestions must not pop open over the results
+  const lastSearched = useRef(null);
+  // Search answers in ~10 ms (cached: ~2 ms), so a short pause is enough
+  const debouncedQuery = useDebounce(query, 150);
 
   // Recent searches from cart store
   const recentSearches = useCartStore((s) => s.recentSearches);
@@ -40,8 +45,7 @@ export default function useSearch() {
   useEffect(() => {
     if (abortRef.current) abortRef.current.abort();
 
-    if (debouncedQuery.trim().length < 2) {
-      /* eslint-disable-next-line react-hooks/set-state-in-effect */
+    if (debouncedQuery.trim().length < 2 || debouncedQuery === lastSearched.current) {
       setSuggestions([]);
       setSuggestLoading(false);
       return;
@@ -88,6 +92,8 @@ export default function useSearch() {
     async (searchQuery) => {
       const q = searchQuery || query;
       if (!q.trim()) return;
+      const seq = ++searchSeq.current;
+      lastSearched.current = q;
 
       setLoading(true);
       setSearched(true);
@@ -98,8 +104,10 @@ export default function useSearch() {
 
       try {
         const data = await searchMedicines(q);
+        if (seq !== searchSeq.current) return;
         setResults(data || []);
       } catch (err) {
+        if (seq !== searchSeq.current) return;
         console.error('Search failed:', err);
         setResults([]);
         setError(err);

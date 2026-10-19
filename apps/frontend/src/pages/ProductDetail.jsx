@@ -16,6 +16,7 @@ import { formatINR, formatRupees } from '../utils/format';
 import { monthlyCosts } from '../utils/pack';
 import PerDayStepper from '../components/common/PerDayStepper';
 import usePageMeta from '../hooks/usePageMeta';
+import { cartItemFor } from '../utils/pack';
 
 function Row({ label, brand, generic, emphasize = false }) {
   return (
@@ -129,11 +130,7 @@ export default function ProductDetail() {
   const showSaving = comparable && savings?.percentage > 0;
 
   const handleAddToCart = () => {
-    addItem({
-      drug_code: generic.drug_code, name: generic.name, mrp: generic.mrp,
-      branded_name: branded.name, branded_mrp: comparable ? branded.mrp : undefined,
-      unit_size: generic.unit_size, group_name: generic.group_name,
-    });
+    addItem(cartItemFor(branded, generic));
     toast.success('Added to cart');
   };
 

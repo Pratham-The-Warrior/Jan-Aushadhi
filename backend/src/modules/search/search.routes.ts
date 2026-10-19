@@ -14,6 +14,13 @@ const searchService = new SearchService();
 const catalogService = new CatalogService();
 
 /**
+ * Autocomplete fires on nearly every keystroke, and many mobile users in India
+ * share one public IP (carrier-grade NAT), so search gets a roomier limit than
+ * the global default. Results are cached, so repeats are cheap.
+ */
+const SEARCH_RATE_LIMIT = { max: 600, timeWindow: '1 minute' };
+
+/**
  * Registers search-related routes on the Fastify instance.
  * Must be registered as a Fastify plugin.
  */
@@ -22,33 +29,32 @@ export default async function searchRoutes(server: FastifyInstance): Promise<voi
   // ---- Full Search with Generic Matching ----
   server.get(
     '/api/v1/search',
-    { schema: searchSchema },
+    { schema: searchSchema, config: { rateLimit: SEARCH_RATE_LIMIT } },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { query, limit } = request.query as { query: string; limit?: number };
+      const size = Math.min(limit ?? APP_CONSTANTS.SUGGESTIONS_DEDUP_LIMIT, APP_CONSTANTS.SUGGESTIONS_DEDUP_LIMIT);
 
-      const hits = await searchService.search(query, limit);
-      if (hits.length === 0) return reply.send([]);
-
-      // Enrich each hit with its precomputed generic match and savings
-      const matches = await catalogService.matchForBranded(hits.map((h: any) => Number(h.id)));
-      const fullResults = hits.map((branded: any) => {
+      const results = await searchService.cached(searchService.cacheKey('results', query, size), async () => {
+        // Hits arrive ranked and de-duplicated; add each one's generic match and savings.
+        const hits = await searchService.search(query, size);
+        if (hits.length === 0) return [];
+        const matches = await catalogService.matchForBranded(hits.map((h) => Number(h.id)));
+        return hits.map((branded) => {
           const matchResult = matches.get(Number(branded.id));
           const generic = matchResult?.generic ?? null;
-
           const savings = catalogService.calculateSavings(
-            parseFloat(branded.mrp) || 0,
+            parseFloat(String(branded.mrp)) || 0,
             generic?.mrp || 0,
             branded.pack_size,
             generic?.unit_size,
           );
-
           return {
             id: branded.id,
             branded: {
               id: branded.id,
               name: branded.name,
               manufacturer: branded.manufacturer,
-              mrp: parseFloat(branded.mrp) || 0,
+              mrp: parseFloat(String(branded.mrp)) || 0,
               pack_size: branded.pack_size,
               composition1: branded.composition1,
               composition2: branded.composition2,
@@ -68,55 +74,15 @@ export default async function searchRoutes(server: FastifyInstance): Promise<voi
             savings,
           };
         });
-
-      // Sort: how well the brand name matches what was typed comes first (a search for
-      // "telma" should show Telma 40 before Telma-AM H), then match quality, then the
-      // shorter (simpler) product name, then savings.
-      const q = query.trim().toLowerCase();
-      const firstWord = q.split(/\s+/)[0] || q;
-      const startsWithWord = (n: string, w: string) => n.startsWith(w) && !/[a-z0-9]/.test(n.charAt(w.length));
-      const nameRank = (name: string) => {
-        const n = name.toLowerCase();
-        // "telma" → "Telma 40" (whole word, 0) before "Telmac 40" (prefix, 1)
-        if (n.startsWith(q)) return startsWithWord(n, q) ? 0 : 1;
-        if (n.includes(` ${q}`)) return 2;
-        // multi-word queries: "atorva 10" → brand "Atorva …" before brands that only share the salt
-        if (startsWithWord(n, firstWord)) return 3;
-        if (n.startsWith(firstWord)) return 4;
-        return 5;
-      };
-      const TIER_RANK: Record<string, number> = { EXACT_MATCH: 0, CLOSE_MATCH: 1, SALT_EQUIVALENT: 2 };
-      const tierRank = (r: typeof fullResults[number]) => (r.generic ? TIER_RANK[r.generic.match_tier] ?? 3 : 3);
-      fullResults.sort((a, b) =>
-        nameRank(a.branded.name || '') - nameRank(b.branded.name || '') ||
-        tierRank(a) - tierRank(b) ||
-        (a.branded.name || '').length - (b.branded.name || '').length ||
-        (b.savings?.percentage || 0) - (a.savings?.percentage || 0),
-      );
-
-      // Deduplicate by name, prioritizing results with a generic match
-      const nameMap = new Map<string, typeof fullResults[number]>();
-      for (const result of fullResults) {
-        const nameKey = (result.branded.name || '').toLowerCase().trim();
-        if (!nameMap.has(nameKey)) {
-          nameMap.set(nameKey, result);
-        } else {
-          const existing = nameMap.get(nameKey)!;
-          if (!existing.generic && result.generic) {
-            nameMap.set(nameKey, result);
-          }
-        }
-      }
-
-      const deduped = Array.from(nameMap.values()).slice(0, APP_CONSTANTS.SUGGESTIONS_DEDUP_LIMIT);
-      return reply.send(deduped);
+      });
+      return reply.send(results);
     },
   );
 
   // ---- Live Autocomplete Suggestions ----
   server.get(
     '/api/v1/suggest',
-    { schema: suggestSchema },
+    { schema: suggestSchema, config: { rateLimit: SEARCH_RATE_LIMIT } },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { q, limit } = request.query as { q?: string; limit?: number };
 

@@ -5,6 +5,10 @@
 -- PMBJP generic with the same active ingredients.
 -- ============================================================
 
+-- Index builds over ~250k rows can outlast a pooler/role statement_timeout
+-- (e.g. Supabase); the migrator runs each file in a transaction, so this is scoped.
+SET LOCAL statement_timeout = 0;
+
 CREATE TABLE IF NOT EXISTS medicine_matches (
   branded_id       INTEGER PRIMARY KEY REFERENCES branded_meds(id) ON DELETE CASCADE,
   generic_id       INTEGER NOT NULL REFERENCES generic_meds(id) ON DELETE CASCADE,

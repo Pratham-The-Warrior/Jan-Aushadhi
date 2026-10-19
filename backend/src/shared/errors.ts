@@ -106,12 +106,15 @@ export interface ErrorResponse {
  */
 export function toErrorResponse(err: unknown, isProd: boolean): { statusCode: number; body: ErrorResponse } {
   if (err instanceof AppError) {
+    // Infrastructure failures can carry driver/SQL details: keep them out of
+    // production responses (they are logged server-side).
+    const masked = isProd && err.statusCode >= 500;
     return {
       statusCode: err.statusCode,
       body: {
         error: {
           code: err.code,
-          message: err.message,
+          message: masked ? 'The service is temporarily unavailable. Please try again.' : err.message,
           statusCode: err.statusCode,
         },
       },

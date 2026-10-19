@@ -93,7 +93,6 @@ export default function UsersPage() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [roleModal, setRoleModal] = useState(null); // stores user object
   const [newRole, setNewRole] = useState('CUSTOMER');
-  const [linkedStoreCode, setLinkedStoreCode] = useState('');
   const [toast, setToast] = useState(null);
 
   const showToast = useCallback((type, message) => {
@@ -122,13 +121,13 @@ export default function UsersPage() {
     }
   }, [searchQuery, roleFilter, page, showToast]);
 
+  // Reload whenever a filter, the search or the page changes
   useEffect(() => {
     const timer = setTimeout(() => {
       loadUsers(true);
     }, 0);
     return () => clearTimeout(timer);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [loadUsers]);
 
   // Debounce search
   useEffect(() => {
@@ -176,16 +175,15 @@ export default function UsersPage() {
 
   const handleRoleUpdateSubmit = async (e) => {
     e.preventDefault();
-    if (newRole === 'STORE_OWNER' && !linkedStoreCode) {
-      showToast('danger', 'Linked PMBJK store code is required');
+    if (newRole === roleModal.role) {
+      setRoleModal(null);
       return;
     }
     setActionLoading('role');
     try {
-      await updateUserRole(roleModal.firebase_uid, newRole, newRole === 'STORE_OWNER' ? linkedStoreCode.trim() : null);
+      await updateUserRole(roleModal.firebase_uid, newRole, null);
       showToast('success', 'User role updated successfully');
       setRoleModal(null);
-      setLinkedStoreCode('');
       loadUsers(false);
     } catch (err) {
       console.error('Role update error:', err);
@@ -332,7 +330,7 @@ export default function UsersPage() {
                             <Eye size={14} />
                           </button>
                           <button 
-                            onClick={() => { setRoleModal(u); setNewRole(u.role); setLinkedStoreCode(u.linked_pmbjk_code || ''); }} 
+                            onClick={() => { setRoleModal(u); setNewRole(u.role); }} 
                             className="btn-icon" 
                             style={{ color: 'var(--color-brand-400)' }}
                             title="Assign Credentials/Store"
@@ -402,29 +400,16 @@ export default function UsersPage() {
                   style={{ background: 'var(--color-surface-700)', cursor: 'pointer' }}
                 >
                   <option value="CUSTOMER">Customer (Default)</option>
-                  <option value="STORE_OWNER">Store Owner (Kendra Operator)</option>
+                  {/* Operators get a store-code login, which only Stores → Assign operator creates */}
+                  {roleModal?.role === 'STORE_OWNER' && <option value="STORE_OWNER">Store Owner (Kendra Operator)</option>}
                   <option value="SUPER_ADMIN">Super Admin (Operations)</option>
                 </select>
+                <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: 2 }}>
+                  To make someone a Kendra operator, use Stores → Assign operator: it creates the store-code login they use in Seller Central.
+                  {roleModal?.role === 'STORE_OWNER' && ' Changing an operator to another role frees their store for reassignment.'}
+                </p>
               </div>
 
-              {newRole === 'STORE_OWNER' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem', animation: 'fadeIn 0.2s ease' }}>
-                  <label style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--color-text-secondary)' }}>
-                    Linked Store PMBJK Code *
-                  </label>
-                  <input
-                    type="text"
-                    className="input"
-                    required
-                    value={linkedStoreCode}
-                    onChange={e => setLinkedStoreCode(e.target.value)}
-                    placeholder="e.g. PMBJK-01048"
-                  />
-                  <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: 2 }}>
-                    This binds this user's seller dashboard strictly to the sales and inventory data of this Kendra.
-                  </p>
-                </div>
-              )}
             </div>
 
             <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>

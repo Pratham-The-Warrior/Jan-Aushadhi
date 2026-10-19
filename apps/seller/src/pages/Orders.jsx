@@ -19,7 +19,7 @@ const STATUS_FILTERS = [
   { value: 'PREPARING', label: 'Preparing' },
   { value: 'READY_FOR_PICKUP', label: 'Ready' },
   { value: 'COMPLETED', label: 'Completed' },
-  { value: 'CANCELLED_BY_SELLER', label: 'Cancelled' },
+  { value: 'CANCELLED', label: 'Cancelled' },
 ];
 
 const STATUS_ACTIONS = {
@@ -36,6 +36,17 @@ const STATUS_ACTIONS = {
     { label: 'Complete', status: 'COMPLETED', icon: CheckCircle2, cls: 'btn-primary' },
   ],
 };
+
+// Orders the Kendra may still turn down (matches the server's transition rules)
+const REJECTABLE = ['PENDING_ACCEPTANCE', 'ACCEPTED', 'PREPARING'];
+
+/** wa.me needs the number as digits with country code, e.g. 919876543210 */
+function whatsappLink(phone) {
+  const digits = String(phone || '').replace(/\D/g, '').replace(/^0+/, '');
+  if (digits.length === 10) return `https://wa.me/91${digits}`;
+  if (digits.length === 12 && digits.startsWith('91')) return `https://wa.me/${digits}`;
+  return null;
+}
 
 function StatusBadge({ status }) {
   const map = {
@@ -147,6 +158,7 @@ export default function Orders() {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [actionError, setActionError] = useState('');
   const [actionLoading, setActionLoading] = useState('');
   const [rejectModal, setRejectModal] = useState(null);
   const [rejectReason, setRejectReason] = useState('');
@@ -194,6 +206,7 @@ export default function Orders() {
   };
 
   const handleStatusUpdate = async (orderId, newStatus) => {
+    setActionError('');
     setActionLoading(orderId + newStatus);
     try {
       await updateOrderStatus(orderId, newStatus);
@@ -202,14 +215,14 @@ export default function Orders() {
         openDetail(orderId);
       }
     } catch (err) {
-      alert(err.message || 'Failed to update status');
+      setActionError(err.message || 'Failed to update status');
     } finally {
       setActionLoading('');
     }
   };
 
   const handleReject = async () => {
-    if (!rejectReason || rejectReason.length < 5) return;
+    if (rejectReason.trim().length < 5) return;
     setActionLoading('reject');
     try {
       await rejectOrder(rejectModal, rejectReason);
@@ -217,7 +230,8 @@ export default function Orders() {
       setRejectReason('');
       await loadOrders(false);
     } catch (err) {
-      alert(err.message || 'Failed to reject order');
+      setRejectModal(null);
+      setActionError(err.message || 'Failed to reject order');
     } finally {
       setActionLoading('');
     }
@@ -238,6 +252,13 @@ export default function Orders() {
           {refreshing ? 'Refreshing...' : 'Refresh'}
         </button>
       </div>
+
+      {actionError && (
+        <div role="alert" className="card" style={{ marginBottom: '1rem', borderColor: 'var(--color-danger-500)', color: 'var(--color-danger-500)', display: 'flex', justifyContent: 'space-between', gap: '1rem' }}>
+          <span>{actionError}</span>
+          <button onClick={() => setActionError('')} className="btn-icon" aria-label="Dismiss"><XIcon size={14} /></button>
+        </div>
+      )}
 
       {/* Status Filter Tabs */}
       <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', overflowX: 'auto', paddingBottom: 4 }}>
@@ -315,6 +336,9 @@ export default function Orders() {
                           <div>
                             <p style={{ fontWeight: 600, color: 'var(--color-text-primary)', fontSize: '0.8125rem' }}>{order.customer_name || '—'}</p>
                             <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>{order.customer_phone || ''}</p>
+                            {order.fulfillment_type === 'DELIVERY' && (
+                              <span className="badge badge-preparing" style={{ marginTop: 4 }}>Home delivery</span>
+                            )}
                           </div>
                         </td>
                         <td style={{ fontWeight: 500 }}>{items.length}</td>
@@ -345,7 +369,7 @@ export default function Orders() {
                                 {a.label}
                               </button>
                             ))}
-                            {!order.status.startsWith('CANCELLED') && order.status !== 'COMPLETED' && (
+                            {REJECTABLE.includes(order.status) && (
                               <button
                                 onClick={() => setRejectModal(order.id)}
                                 className="btn-icon"
@@ -412,7 +436,7 @@ export default function Orders() {
             />
             <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.25rem', justifyContent: 'flex-end' }}>
               <button onClick={() => setRejectModal(null)} className="btn-secondary">Cancel</button>
-              <button onClick={handleReject} className="btn-danger" disabled={rejectReason.length < 5 || actionLoading === 'reject'}>
+              <button onClick={handleReject} className="btn-danger" disabled={rejectReason.trim().length < 5 || actionLoading === 'reject'}>
                 {actionLoading === 'reject' ? 'Rejecting...' : 'Reject Order'}
               </button>
             </div>
@@ -452,10 +476,32 @@ export default function Orders() {
                       <a href={`tel:${selectedOrder.order.customer_phone}`} className="btn-secondary" style={{ fontSize: '0.75rem', padding: '0.375rem 0.75rem' }}>
                         <Phone size={12} /> Call
                       </a>
-                      <a href={`https://wa.me/${selectedOrder.order.customer_phone}`} target="_blank" rel="noreferrer" className="btn-secondary" style={{ fontSize: '0.75rem', padding: '0.375rem 0.75rem' }}>
-                        <MessageCircle size={12} /> WhatsApp
-                      </a>
+                      {whatsappLink(selectedOrder.order.customer_phone) && (
+                        <a href={whatsappLink(selectedOrder.order.customer_phone)} target="_blank" rel="noreferrer" className="btn-secondary" style={{ fontSize: '0.75rem', padding: '0.375rem 0.75rem' }}>
+                          <MessageCircle size={12} /> WhatsApp
+                        </a>
+                      )}
                     </div>
+                  )}
+                </div>
+
+                {/* Fulfilment */}
+                <div className="card" style={{ marginBottom: '1rem' }}>
+                  <h4 style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: '0.5rem' }}>
+                    {selectedOrder.order.fulfillment_type === 'DELIVERY' ? 'HOME DELIVERY' : 'PICKUP AT KENDRA'}
+                  </h4>
+                  {selectedOrder.order.fulfillment_type === 'DELIVERY' ? (
+                    <p style={{ fontSize: '0.875rem', whiteSpace: 'pre-line' }}>{selectedOrder.order.delivery_address || 'No address given'}</p>
+                  ) : (
+                    <p style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)' }}>The customer will collect this order at your Kendra.</p>
+                  )}
+                  <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '0.5rem' }}>
+                    Payment: {selectedOrder.order.payment_mode === 'UPI' ? 'UPI' : 'Cash on collection'}
+                  </p>
+                  {selectedOrder.order.prescription_url && (
+                    <a href={selectedOrder.order.prescription_url} target="_blank" rel="noreferrer" className="btn-secondary" style={{ fontSize: '0.75rem', padding: '0.375rem 0.75rem', marginTop: '0.75rem' }}>
+                      View prescription
+                    </a>
                   )}
                 </div>
 
@@ -519,13 +565,15 @@ export default function Orders() {
                         <a.icon size={16} /> {a.label}
                       </button>
                     ))}
-                    <button
-                      onClick={() => { setRejectModal(selectedOrder.order.id); setSelectedOrder(null); }}
-                      className="btn-danger"
-                      style={{ flex: 1 }}
-                    >
-                      <XIcon size={16} /> Reject
-                    </button>
+                    {REJECTABLE.includes(selectedOrder.order.status) && (
+                      <button
+                        onClick={() => { setRejectModal(selectedOrder.order.id); setSelectedOrder(null); }}
+                        className="btn-danger"
+                        style={{ flex: 1 }}
+                      >
+                        <XIcon size={16} /> Reject
+                      </button>
+                    )}
                   </div>
                 )}
               </div>

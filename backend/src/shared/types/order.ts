@@ -7,8 +7,12 @@ export interface RequirementItem {
   code: string;
   quantity: number;
   name?: string;
+  /** Ignored: prices are always taken from the catalogue. */
   mrp?: number;
+  /** Ignored: the brand price is looked up from `branded_id`. */
   branded_mrp?: number;
+  /** The branded medicine this generic replaces; used to compute the saving. */
+  branded_id?: number;
 }
 
 /** Requirement ticket status lifecycle */
@@ -25,7 +29,7 @@ export type RequirementStatus =
 /** Valid status transitions map — enforces business rules */
 export const VALID_STATUS_TRANSITIONS: Record<string, string[]> = {
   PENDING_ACCEPTANCE: ['ACCEPTED', 'CANCELLED_BY_SELLER', 'CANCELLED_BY_CUSTOMER', 'CANCELLED_BY_ADMIN'],
-  ACCEPTED: ['PREPARING', 'CANCELLED_BY_SELLER', 'CANCELLED_BY_ADMIN'],
+  ACCEPTED: ['PREPARING', 'CANCELLED_BY_SELLER', 'CANCELLED_BY_CUSTOMER', 'CANCELLED_BY_ADMIN'],
   PREPARING: ['READY_FOR_PICKUP', 'CANCELLED_BY_SELLER', 'CANCELLED_BY_ADMIN'],
   READY_FOR_PICKUP: ['COMPLETED', 'CANCELLED_BY_ADMIN'],
   COMPLETED: [],

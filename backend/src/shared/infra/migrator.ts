@@ -2,12 +2,19 @@
 // Database Migration Engine
 // Transactional, ordered, and idempotent migration runner.
 // Tracks executed migrations in the 'schema_migrations' table.
+// Safe to run on every boot and from several instances at once: each
+// migration takes a transaction-scoped advisory lock and re-checks that it
+// is still pending. Transaction-scoped (not session) locks also work through
+// PgBouncer / Supabase transaction poolers.
 // ============================================================
 
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { getPool } from './database';
+
+/** Arbitrary constant identifying the migration lock. */
+const MIGRATION_LOCK_KEY = 726_150_001;
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -67,13 +74,21 @@ export async function runMigrations(maxRetries = 10, retryDelayMs = 2000): Promi
 
   try {
     // 1. Ensure tracking table exists
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS schema_migrations (
-        id SERIAL PRIMARY KEY,
-        name VARCHAR(255) UNIQUE NOT NULL,
-        executed_at TIMESTAMP DEFAULT NOW()
-      );
-    `);
+    try {
+      await client.query('BEGIN');
+      await client.query('SELECT pg_advisory_xact_lock($1)', [MIGRATION_LOCK_KEY]);
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS schema_migrations (
+          id SERIAL PRIMARY KEY,
+          name VARCHAR(255) UNIQUE NOT NULL,
+          executed_at TIMESTAMP DEFAULT NOW()
+        );
+      `);
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      throw err;
+    }
 
     // 2. Fetch list of already executed migrations
     const executedRes = await client.query('SELECT name FROM schema_migrations');
@@ -101,12 +116,19 @@ export async function runMigrations(maxRetries = 10, retryDelayMs = 2000): Promi
         continue;
       }
 
-      console.log(`📦 [Migrator] Applying migration: ${file}...`);
       const filePath = path.join(migrationsDir, file);
       const sql = fs.readFileSync(filePath, 'utf-8');
 
       try {
         await client.query('BEGIN');
+        await client.query('SELECT pg_advisory_xact_lock($1)', [MIGRATION_LOCK_KEY]);
+        // Another instance may have applied it while we waited for the lock
+        const done = await client.query('SELECT 1 FROM schema_migrations WHERE name = $1', [file]);
+        if (done.rowCount) {
+          await client.query('COMMIT');
+          continue;
+        }
+        console.log(`📦 [Migrator] Applying migration: ${file}...`);
         await client.query(sql);
         await client.query('INSERT INTO schema_migrations (name) VALUES ($1)', [file]);
         await client.query('COMMIT');

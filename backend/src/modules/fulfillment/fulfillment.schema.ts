@@ -14,29 +14,32 @@ export const createRequirementSchema = {
       drug_codes: {
         type: 'array' as const,
         minItems: 1,
+        maxItems: 50,
         items: {
           type: 'object' as const,
           required: ['code', 'quantity'],
           properties: {
-            code: { type: 'string' as const },
-            quantity: { type: 'integer' as const, minimum: 1 },
-            name: { type: 'string' as const },
+            code: { type: 'string' as const, minLength: 1, maxLength: 32 },
+            quantity: { type: 'integer' as const, minimum: 1, maximum: 100 },
+            branded_id: { type: 'integer' as const, minimum: 1 },
+            // Accepted for older clients but ignored: prices come from the catalogue
+            name: { type: 'string' as const, maxLength: 300 },
             mrp: { type: 'number' as const },
             branded_mrp: { type: 'number' as const },
           },
         },
       },
       legal_attestation: { type: 'boolean' as const },
-      delivery_address: { type: 'string' as const },
-      payment_mode: { type: 'string' as const },
-      prescription_url: { type: 'string' as const },
+      delivery_address: { type: 'string' as const, maxLength: 500 },
+      payment_mode: { type: 'string' as const, enum: ['COD', 'UPI', 'CASH'] },
+      prescription_url: { type: 'string' as const, maxLength: 1000, pattern: '^https://' },
       fulfillment_type: { type: 'string' as const, enum: ['PICKUP', 'DELIVERY'] },
       delivery_coords: {
         type: 'object' as const,
         required: ['lat', 'lng'],
         properties: {
-          lat: { type: 'number' as const },
-          lng: { type: 'number' as const }
+          lat: { type: 'number' as const, minimum: -90, maximum: 90 },
+          lng: { type: 'number' as const, minimum: -180, maximum: 180 }
         }
       }
     },

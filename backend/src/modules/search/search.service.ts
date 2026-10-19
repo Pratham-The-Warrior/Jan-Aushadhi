@@ -1,72 +1,100 @@
 // ============================================================
 // Search Module — Service Layer
-// Medicine search and autocomplete orchestration.
-// Pure business logic, results enrichment, and form extraction.
-// Delegates raw engine & fallback querying to SearchRepository.
+// 1. Understand the query (normalise, expand synonyms)   → query.ts
+// 2. Fetch candidates: Meilisearch, else PostgreSQL      → repository
+// 3. Rank them with one shared, typo-aware scorer        → query.ts
+// 4. Collapse duplicate listings, cache the answer       → Redis
 // ============================================================
 
 import { SearchRepository, type RawSearchHit } from './search.repository';
+import { parseQuery, normalizeText, rank, type ParsedQuery } from './query';
+import { familySize, loadBrandFamilies } from './brand-families';
+import { INDEX_VERSION } from './search.indexer';
 import { extractForm } from '../../shared/utils';
+import { getCached, setCache } from '../../shared/infra/redis';
 import type { SearchSuggestion } from '../../shared/types';
 
-export interface MeiliHit extends RawSearchHit {
+export interface SearchHit extends RawSearchHit {
   form?: string;
+  score: number;
 }
+
+/** Results change only when the catalogue is re-imported. */
+const CACHE_TTL_SECONDS = 15 * 60;
+
+/** How many candidates the engines return for ranking. */
+const CANDIDATES = { search: 60, suggest: 40 };
 
 export class SearchService {
   constructor(private readonly repository: SearchRepository = new SearchRepository()) {}
 
-  /**
-   * Full-text search against Meilisearch with automatic PostgreSQL fallback.
-   */
-  async search(query: string, limit: number = 30): Promise<MeiliHit[]> {
-    // 1. Try Meilisearch
-    const meiliHits = await this.repository.searchMeilisearch(query, limit);
-    if (meiliHits && meiliHits.length > 0) {
-      return meiliHits.map((hit) => ({
+  /** Ranked hits; callers cache the final response with `cached()`. */
+  async search(raw: string, limit: number = 30): Promise<SearchHit[]> {
+    return this.ranked(parseQuery(raw), CANDIDATES.search, limit);
+  }
+
+  /** Cache key for a query: equivalent spellings ("Dolo650", "dolo 650") share one entry. */
+  cacheKey(kind: string, raw: string, limit: number): string {
+    return `${kind}:${limit}:${parseQuery(raw).text}`;
+  }
+
+  async suggest(raw: string, limit: number = 6): Promise<SearchSuggestion[]> {
+    return this.cached(this.cacheKey('suggest', raw, limit), async () =>
+      (await this.ranked(parseQuery(raw), CANDIDATES.suggest, limit)).map((hit) => ({
+        id: hit.id,
+        name: hit.name,
+        manufacturer: hit.manufacturer,
+        mrp: typeof hit.mrp === 'number' ? hit.mrp : parseFloat(hit.mrp) || 0,
+        composition: hit.composition1 || null,
+      })),
+    );
+  }
+
+  private async ranked(query: ParsedQuery, candidates: number, limit: number): Promise<SearchHit[]> {
+    if (query.terms.length === 0) return [];
+
+    let hits = await this.repository.searchMeilisearch(query, candidates);
+    if (!hits?.length) hits = await this.repository.searchPostgres(query, candidates);
+    if (hits.length === 0) return [];
+
+    const families = await loadBrandFamilies();
+    const ranked = rank(
+      query,
+      hits.map((hit, i) => ({
         ...hit,
-        form: extractForm(hit.name || ''),
-      }));
+        engineRank: i,
+        familySize: familySize(families, hit.name),
+        hasGeneric: Boolean(hit.has_generic),
+      })),
+    );
+
+    // The catalogue lists many brands more than once (other packs or sellers):
+    // keep one per name, preferring a listing that has a generic match.
+    const byName = new Map<string, (typeof ranked)[number]>();
+    for (const hit of ranked) {
+      const key = normalizeText(hit.name);
+      const existing = byName.get(key);
+      if (!existing) byName.set(key, hit);
+      else if (!existing.has_generic && hit.has_generic) byName.set(key, { ...hit, score: existing.score });
     }
 
-    if (meiliHits === null) {
-      console.warn('⚠️  Meilisearch unavailable — falling back to PostgreSQL direct search.');
-    }
-
-    // 2. Fallback to PostgreSQL
-    const fallbackHits = await this.repository.searchPostgresFallback(query, limit);
-    return fallbackHits.map((hit) => ({
-      ...hit,
-      form: extractForm(hit.name || ''),
-    }));
+    return Array.from(byName.values())
+      .slice(0, limit)
+      .map(({ engineRank: _r, familySize: _f, hasGeneric: _g, ...hit }) => ({ ...hit, form: extractForm(hit.name || '') }));
   }
 
-  /**
-   * Lightweight autocomplete suggestions with automatic PostgreSQL fallback.
-   */
-  async suggest(query: string, limit: number = 6): Promise<SearchSuggestion[]> {
-    // The catalogue lists many brands more than once (different packs/sellers);
-    // over-fetch and keep the first of each name so suggestions are distinct.
-    const fetchLimit = limit * 3;
-
-    // 1. Try Meilisearch
-    const meiliSuggestions = await this.repository.suggestMeilisearch(query, fetchLimit);
-    if (meiliSuggestions && meiliSuggestions.length > 0) {
-      return this.dedupeByName(meiliSuggestions).slice(0, limit);
+  async cached<T>(key: string, compute: () => Promise<T>): Promise<T> {
+    const fullKey = `search:v${INDEX_VERSION}:${key}`;
+    const hit = await getCached(fullKey);
+    if (hit) {
+      try {
+        return JSON.parse(hit) as T;
+      } catch {
+        // fall through and recompute
+      }
     }
-
-    // 2. Fallback to PostgreSQL
-    const fallback = await this.repository.suggestPostgresFallback(query, fetchLimit);
-    return this.dedupeByName(fallback).slice(0, limit);
-  }
-
-  private dedupeByName(items: SearchSuggestion[]): SearchSuggestion[] {
-    const seen = new Set<string>();
-    return items.filter((item) => {
-      const key = (item.name || '').toLowerCase().trim();
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
+    const value = await compute();
+    if (Array.isArray(value) && value.length > 0) await setCache(fullKey, JSON.stringify(value), CACHE_TTL_SECONDS);
+    return value;
   }
 }

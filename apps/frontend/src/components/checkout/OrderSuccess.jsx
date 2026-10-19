@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ShieldCheck, MessageCircle, ArrowRight, PackageCheck } from 'lucide-react';
 import QRCode from 'qrcode';
 import { getWhatsAppLink } from '../../services/api';
-import { toast } from '../../store/toastStore';
+import { formatINR, orderStatus } from '../../utils/format';
 
 /**
  * @param {object} props
@@ -13,6 +13,16 @@ import { toast } from '../../store/toastStore';
 export default function OrderSuccess({ order, store }) {
   const navigate = useNavigate();
   const [qrDataUrl, setQrDataUrl] = useState('');
+  // Only Kendras with a phone on record can be messaged
+  const [whatsappUrl, setWhatsappUrl] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    getWhatsAppLink(order.ticketId)
+      .then((res) => { if (!cancelled) setWhatsappUrl(res?.whatsappUrl || null); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [order.ticketId]);
 
   useEffect(() => {
     if (order?.upi_vpa) {
@@ -22,15 +32,6 @@ export default function OrderSuccess({ order, store }) {
         .catch((err) => console.warn('Local QR generation error:', err));
     }
   }, [order?.upi_vpa, order?.totalGenericValue, order?.ticketId]);
-
-  const handleResendWhatsApp = async () => {
-    try {
-      const { whatsappUrl } = await getWhatsAppLink(order.ticketId);
-      window.open(whatsappUrl, '_blank');
-    } catch {
-      toast.error('Could not fetch WhatsApp link. Please try again.');
-    }
-  };
 
   return (
     <div className="flex-1 w-full bg-surface flex flex-col items-center justify-center py-16 md:py-24 px-4 min-h-[80vh]">
@@ -49,10 +50,11 @@ export default function OrderSuccess({ order, store }) {
           </div>
         </div>
 
-        <h2 className="font-display text-3xl md:text-4xl font-extrabold text-on-surface mb-4 tracking-tight">Requirement Routed!</h2>
+        <h2 className="font-display text-3xl md:text-4xl font-extrabold text-on-surface mb-4 tracking-tight">Order placed</h2>
         <p className="text-on-surface/70 mb-10 leading-relaxed text-lg">
-          Your ticket has been generated and routed to <strong className="text-on-surface">{store?.name || 'the selected Kendra'}</strong>. Please check
-          your WhatsApp to finalize fulfillment and delivery details.
+          Your order has been sent to <strong className="text-on-surface">{store?.name || 'the selected Kendra'}</strong>.
+          The pharmacist will check the medicines and accept it. Follow its status under Account → Orders.
+          {order.savings > 0 && <> You save about <strong className="text-success">{formatINR(order.savings)}</strong>.</>}
         </p>
 
         {/* Ticket Details */}
@@ -68,23 +70,27 @@ export default function OrderSuccess({ order, store }) {
               <div className="text-xs font-bold text-on-surface/70 mb-1">Status</div>
               <div className="inline-flex items-center gap-1.5 bg-success-soft text-success text-xs font-bold px-2.5 py-1 rounded-md">
                 <div className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
-                {order.status}
+                {orderStatus(order.status).label}
               </div>
             </div>
           </div>
           
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-6 pt-6 border-t border-outline-variant/50 relative z-10">
             <div>
-              <div className="text-xs font-bold text-on-surface/70 mb-1">Fulfillment Channel</div>
-              <div className="font-semibold text-sm text-on-surface">Direct Pharmacist WhatsApp</div>
+              <div className="text-xs font-bold text-on-surface/70 mb-1">Estimated total (pay at the Kendra)</div>
+              <div className="font-semibold text-sm text-on-surface">{formatINR(order.totalGenericValue)}</div>
             </div>
-            <button
-              onClick={handleResendWhatsApp}
-              className="bg-[#25D366]/10 hover:bg-[#25D366]/20 text-[#25D366] border border-[#25D366]/20 hover:border-[#25D366]/40 transition-all font-bold text-xs px-4 py-2.5 rounded-lg flex items-center justify-center gap-2"
-            >
-              <MessageCircle className="w-4 h-4" />
-              Re-Send Ticket
-            </button>
+            {whatsappUrl && (
+              <a
+                href={whatsappUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="bg-[#25D366]/10 hover:bg-[#25D366]/20 text-[#1a7f43] border border-[#25D366]/30 transition-all font-bold text-xs px-4 py-2.5 rounded-lg flex items-center justify-center gap-2"
+              >
+                <MessageCircle className="w-4 h-4" />
+                Message the Kendra on WhatsApp
+              </a>
+            )}
           </div>
         </div>
 
@@ -118,7 +124,7 @@ export default function OrderSuccess({ order, store }) {
             onClick={() => navigate('/account?tab=orders')}
             className="btn-primary py-4 px-8 w-full text-sm flex items-center justify-center gap-2 shadow-lg shadow-primary/20"
           >
-            Track Order in My Health <ArrowRight className="w-4 h-4" />
+            Track your order <ArrowRight className="w-4 h-4" />
           </button>
           <button
             onClick={() => navigate('/discovery')}

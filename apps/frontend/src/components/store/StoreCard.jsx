@@ -74,6 +74,9 @@ export default function StoreCard({ store, isSelected, onSelect }) {
       {locationNote(store) && (
         <p className="pl-[52px] -mt-2 mb-4 text-[11px] text-on-surface/70 font-medium">{locationNote(store)}</p>
       )}
+      <p className={`pl-[52px] -mt-2 mb-4 text-xs font-semibold ${store.accepts_orders ? 'text-success' : 'text-on-surface/70'}`}>
+        {store.accepts_orders ? '✓ Takes online orders for pickup' : 'Walk-in only — not taking online orders yet'}
+      </p>
 
       {/* Actions */}
       <div className="flex gap-2 pl-[52px]">

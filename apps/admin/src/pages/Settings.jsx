@@ -46,8 +46,7 @@ export default function Settings() {
       loadHealth(true);
     }, 0);
     return () => clearTimeout(timer);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [loadHealth]);
 
   const getServiceStatusIcon = (statusStr) => {
     if (!statusStr) return <AlertCircle size={16} className="text-rose-500" />;

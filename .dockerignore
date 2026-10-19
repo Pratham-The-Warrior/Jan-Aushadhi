@@ -4,9 +4,10 @@
 # from leaking into production container images.
 # =============================================
 
-# Environment files (secrets)
-.env
-.env.*
+# Environment files (secrets) — at any depth, e.g. backend/.env
+**/.env
+**/.env.*
+!**/.env.example
 deploy/.env.production
 
 # Version control
@@ -14,19 +15,19 @@ deploy/.env.production
 .github
 
 # Dependencies (rebuilt inside container)
-node_modules
+**/node_modules
 
 # Data files (large CSVs included for automated cloud seeding)
 *.pdf
 
 # Build artifacts (rebuilt inside container)
-dist/
-build/
+**/dist
+**/build
 
 # Development artifacts
 scratch/
-*.log
-*.txt
+**/*.log
+# (not *.txt: apps/frontend/public/robots.txt must reach the image)
 diff_admin.txt
 lint_seller.log
 lint_seller.txt

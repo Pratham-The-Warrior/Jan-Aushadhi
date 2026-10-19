@@ -8,8 +8,9 @@
 
 import crypto from 'crypto';
 import { FulfillmentRepository } from './fulfillment.repository';
-import { NotFoundError, ValidationError } from '../../shared/errors';
+import { ConflictError, NotFoundError, ValidationError } from '../../shared/errors';
 import { isTwilioReady, sendWhatsAppMessage } from '../../shared/infra/twilio';
+import { parsePackQuantity } from '../../shared/utils';
 import type {
   AuthUser,
   BasketItem,
@@ -73,7 +74,7 @@ export class FulfillmentService {
       const nearbyStores = await this.repository.findNearbyActiveStores(lng, lat, 10000);
 
       if (nearbyStores.length === 0) {
-        throw new ValidationError('No active stores found within delivery search radius (10km).');
+        throw new ConflictError('No Kendra within 10 km is taking online orders yet. Please choose self-pickup or visit a nearby Kendra.');
       }
 
       const storeCodes = nearbyStores.map((s) => s.pmbjk_code);
@@ -96,17 +97,34 @@ export class FulfillmentService {
     if (!storeDetails) {
       throw new ValidationError(`Store ${routedStoreCode} does not exist`);
     }
+    if (storeDetails.status !== 'ACTIVE') {
+      throw new ConflictError(`${storeDetails.name} is not open for orders. Please choose another Kendra.`);
+    }
+    if (!storeDetails.accepts_orders) {
+      // Nobody would see the order: the Kendra has no operator account yet.
+      throw new ConflictError(`${storeDetails.name} is not taking online orders yet. Please choose another Kendra or visit it directly.`);
+    }
+    if (fulfillmentType === 'PICKUP') {
+      const outOfStock = await this.repository.findOutOfStockStoreCodes([routedStoreCode], data.drug_codes.map((d) => d.code));
+      if (outOfStock.length > 0) {
+        throw new ConflictError(`${storeDetails.name} has marked some of these medicines out of stock. Please choose another Kendra.`);
+      }
+    }
 
     const storeUpiVpa = storeDetails.upi_vpa || null;
-    const storePhone = storeDetails.phone;
 
     // Generate unique ticket ID using cryptographically secure random
     const ticketId = `TKT-${crypto.randomUUID().replace(/-/g, '').slice(0, 12).toUpperCase()}`;
 
-    // SERVER-SIDE PRICE VALIDATION & INTEGRITY CHECK:
-    // Look up verified MRP directly from generic_meds table.
+    // SERVER-SIDE PRICING: every price comes from the catalogue, never from the
+    // client. The saving is counted only when the generic is the catalogue's
+    // exact or close match for the brand it replaces.
     const requestedCodes = data.drug_codes.map((d) => d.code);
-    const priceMap = await this.repository.findVerifiedGenericMeds(requestedCodes);
+    const brandedIds = data.drug_codes.map((d) => d.branded_id).filter((id): id is number => Number.isInteger(id));
+    const [priceMap, brandPrices] = await Promise.all([
+      this.repository.findVerifiedGenericMeds(requestedCodes),
+      this.repository.findComparableBrandPrices(brandedIds),
+    ]);
 
     let totalBrandedValue = 0;
     let totalGenericValue = 0;
@@ -114,15 +132,26 @@ export class FulfillmentService {
 
     for (const item of data.drug_codes) {
       const dbMed = priceMap.get(item.code);
-      const genericMrp = dbMed ? dbMed.mrp : (typeof item.mrp === 'number' ? item.mrp : 0);
-      const genericName = dbMed ? dbMed.name : (item.name || item.code);
+      if (!dbMed) {
+        throw new ValidationError(`Medicine ${item.code} is not in the Jan Aushadhi catalogue`);
+      }
+      if (!(dbMed.mrp > 0)) {
+        throw new ValidationError(`${dbMed.name} has no listed price yet — please ask at the Kendra`);
+      }
+      const genericMrp = dbMed.mrp;
       const qty = Math.max(1, parseInt(item.quantity as any, 10) || 1);
-      // No comparable brand price (e.g. different strength) → record no saving
-      // rather than guessing one.
-      const brandedMrp = Math.max(
-        genericMrp,
-        typeof item.branded_mrp === 'number' ? item.branded_mrp : genericMrp,
-      );
+
+      // Brand price for the same quantity as one generic pack
+      let brandedMrp = genericMrp;
+      const brand = item.branded_id ? brandPrices.get(item.branded_id) : undefined;
+      if (brand && brand.drugCode === item.code && brand.mrp > 0) {
+        const brandPack = parsePackQuantity(brand.packSize);
+        const genericPack = parsePackQuantity(dbMed.unitSize);
+        brandedMrp = brandPack && genericPack && brandPack.unit === genericPack.unit && brandPack.qty > 0
+          ? (brand.mrp / brandPack.qty) * genericPack.qty
+          : brand.mrp;
+        brandedMrp = Math.max(genericMrp, Math.round(brandedMrp * 100) / 100);
+      }
 
       totalBrandedValue += brandedMrp * qty;
       totalGenericValue += genericMrp * qty;
@@ -130,9 +159,13 @@ export class FulfillmentService {
       verifiedItems.push({
         drug_code: item.code,
         quantity: qty,
-        name: genericName,
+        name: dbMed.name,
+        unit_size: dbMed.unitSize,
+        group_name: dbMed.groupName,
         mrp: genericMrp,
         branded_mrp: brandedMrp,
+        // Kept so a reorder can claim the same saving
+        branded_id: brand ? item.branded_id : undefined,
         subtotal: Math.round(genericMrp * qty * 100) / 100,
       });
     }
@@ -167,7 +200,8 @@ export class FulfillmentService {
 
     // Auto-dispatch WhatsApp confirmation if Twilio is configured
     if (isTwilioReady()) {
-      const recipient = user.phone_number || storePhone;
+      // This message is for the customer; never send it anywhere else.
+      const recipient = user.phone_number;
       if (recipient) {
         const message = [
           `*Jan Aushadhi Order Confirmed!*`,
@@ -268,21 +302,12 @@ export class FulfillmentService {
    * Cancel an order by customer.
    */
   async cancelOrder(ticketId: string, user: AuthUser, reason?: string): Promise<{ success: boolean; message: string }> {
-    const row = await this.repository.findRequirementById(ticketId);
-    if (!row) {
-      throw new NotFoundError(`Requirement ${ticketId}`);
+    // Allowed until the Kendra starts preparing (see VALID_STATUS_TRANSITIONS)
+    const result = await this.repository.cancelRequirement(ticketId, user.uid, reason);
+    if (!result.ok) {
+      if (result.status === null) throw new NotFoundError(`Requirement ${ticketId}`);
+      throw new ConflictError(`This order can no longer be cancelled (it is ${result.status.toLowerCase().replace(/_/g, ' ')}).`);
     }
-
-    if (row.user_id !== user.uid) {
-      throw new NotFoundError(`Requirement ${ticketId}`);
-    }
-
-    // Can only cancel if pending or accepted
-    if (!['PENDING_ACCEPTANCE', 'ACCEPTED'].includes(row.status)) {
-      throw new ValidationError(`Cannot cancel an order in "${row.status}" status.`);
-    }
-
-    await this.repository.cancelRequirement(ticketId, user.uid, row.status, reason);
     return { success: true, message: 'Order cancelled successfully.' };
   }
 
@@ -294,15 +319,13 @@ export class FulfillmentService {
   /**
    * Generate a WhatsApp deep-link URL for an existing requirement.
    */
-  async getWhatsAppLink(ticketId: string, user: AuthUser): Promise<{ whatsappUrl: string; message: string }> {
+  async getWhatsAppLink(ticketId: string, user: AuthUser): Promise<{ whatsappUrl: string | null; message: string }> {
     const order = await this.getRequirementById(ticketId, user.uid);
     const store = order.store;
 
-    let phone = '919999999999';
-    if (store?.phone) {
-      const cleaned = store.phone.replace(/[^0-9]/g, '');
-      phone = cleaned.startsWith('91') ? cleaned : `91${cleaned}`;
-    }
+    // Most Kendras have no phone on record; then there is no one to message.
+    const digits = (store?.phone || '').replace(/[^0-9]/g, '').replace(/^0+/, '');
+    const phone = digits.length === 10 ? `91${digits}` : digits.length === 12 && digits.startsWith('91') ? digits : null;
 
     const items = order.items as any[];
     const itemsList = items.map((i: any) => `• ${i.name} (x${i.quantity || 1}) - Rs.${i.subtotal || i.mrp}`).join('\n');
@@ -323,7 +346,7 @@ export class FulfillmentService {
       `Hello Kendra Pharmacist, please verify availability and confirm my order.`,
     ].filter(Boolean).join('\n');
 
-    const whatsappUrl = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+    const whatsappUrl = phone ? `https://wa.me/${phone}?text=${encodeURIComponent(message)}` : null;
     return { whatsappUrl, message };
   }
 

@@ -28,7 +28,6 @@ if [ -z "${DOMAIN:-}" ]; then
 fi
 
 DOMAINS=("app.${DOMAIN}" "seller.${DOMAIN}" "admin.${DOMAIN}" "api.${DOMAIN}")
-CERT_PATH="certbot-conf/live/${DOMAIN}"
 
 echo "============================================================"
 echo "🔒 SSL Bootstrapper for domain: $DOMAIN"
@@ -44,12 +43,15 @@ fi
 echo "⚠️  No existing certificates found for $DOMAIN."
 echo "🔧 Step 1: Creating temporary dummy certificates so Nginx can start..."
 
-docker compose -f docker-compose.prod.yml run --rm --entrypoint "\
-  sh -c 'mkdir -p /etc/letsencrypt/live/${DOMAIN} && \
-         openssl req -x509 -nodes -newkey rsa:2048 -days 1 \
-         -keyout /etc/letsencrypt/live/${DOMAIN}/privkey.pem \
-         -out /etc/letsencrypt/live/${DOMAIN}/fullchain.pem \
-         -subj \"/CN=localhost\"'" certbot
+make_dummy_cert() {
+  docker compose -f docker-compose.prod.yml run --rm --entrypoint "\
+    sh -c 'mkdir -p /etc/letsencrypt/live/${DOMAIN} && \
+           openssl req -x509 -nodes -newkey rsa:2048 -days 1 \
+           -keyout /etc/letsencrypt/live/${DOMAIN}/privkey.pem \
+           -out /etc/letsencrypt/live/${DOMAIN}/fullchain.pem \
+           -subj \"/CN=localhost\"'" certbot
+}
+make_dummy_cert
 
 echo "   ✅ Dummy certificates generated."
 
@@ -66,14 +68,23 @@ for d in "${DOMAINS[@]}"; do
     DOMAIN_ARGS="$DOMAIN_ARGS -d $d"
 done
 
-# Request certificate using webroot method
-docker compose -f docker-compose.prod.yml run --rm --entrypoint "\
+# Request certificate using webroot method. --cert-name keeps it at
+# live/${DOMAIN}, the path nginx-proxy.conf expects (certbot would otherwise
+# name it after the first -d, i.e. app.${DOMAIN}).
+if ! docker compose -f docker-compose.prod.yml run --rm --entrypoint "\
   certbot certonly --webroot -w /var/www/certbot \
+    --cert-name ${DOMAIN} \
     $DOMAIN_ARGS \
     --email admin@${DOMAIN} \
     --agree-tos \
     --no-eff-email \
-    --force-renewal" certbot
+    --force-renewal" certbot; then
+    echo "❌ Let's Encrypt request failed (are the DNS records for ${DOMAINS[*]} pointing at this server?)."
+    echo "   Restoring a temporary certificate so nginx keeps running; fix DNS and re-run this script."
+    make_dummy_cert
+    docker compose -f docker-compose.prod.yml exec nginx nginx -s reload || true
+    exit 1
+fi
 
 echo "🔄 Step 5: Reloading Nginx with production certificates..."
 docker compose -f docker-compose.prod.yml exec nginx nginx -s reload

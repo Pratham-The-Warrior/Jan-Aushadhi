@@ -127,8 +127,10 @@ export const getAllOrdersSchema = {
     properties: {
       status: { type: 'string' as const },
       pmbjk_code: { type: 'string' as const },
-      date_from: { type: 'string' as const },
-      date_to: { type: 'string' as const },
+      // ISO dates or date-times, e.g. 2026-10-01 or 2026-10-01T00:00:00Z
+      date_from: { type: 'string' as const, pattern: '^\\d{4}-\\d{2}-\\d{2}' },
+      date_to: { type: 'string' as const, pattern: '^\\d{4}-\\d{2}-\\d{2}' },
+      search: { type: 'string' as const, maxLength: 100 },
       page: { type: 'integer' as const, minimum: 1, default: 1 },
       limit: { type: 'integer' as const, minimum: 1, maximum: 200, default: 50 },
     },

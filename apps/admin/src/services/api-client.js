@@ -8,6 +8,10 @@ import useAuthStore from '../store/authStore';
 import { auth } from '../firebase';
 
 function getSanitizedApiBase() {
+  if (import.meta.env.PROD && !import.meta.env.VITE_API_URL) {
+    // Without it every request goes to localhost and fails; make that obvious.
+    console.error('VITE_API_URL is not set for this build: API calls will fail. Set it in the hosting settings and redeploy.');
+  }
   let url = (import.meta.env.VITE_API_URL || 'http://localhost:5000').trim();
   if (url.includes('http://') || url.includes('https://')) {
     const match = url.match(/(https?:\/\/[^/\s]+)/g);
@@ -73,6 +77,16 @@ export async function apiGet(path) {
     signal: AbortSignal.timeout(TIMEOUT_MS),
   });
   return handle(res);
+}
+
+/**
+ * GET that also returns the body of an error response. The health endpoint
+ * answers 503 with the per-service report exactly when it matters most.
+ */
+export async function apiGetReport(path) {
+  const h = await headers();
+  const res = await fetch(`${API_BASE}${path}`, { headers: h, signal: AbortSignal.timeout(TIMEOUT_MS) });
+  return res.json();
 }
 
 export async function apiPost(path, body) {

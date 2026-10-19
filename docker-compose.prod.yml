@@ -1,12 +1,10 @@
-version: '3.8'
-
 # =============================================
 # JAN AUSHADHI — PRODUCTION DEPLOYMENT
 # =============================================
 # Prerequisites:
 #   1. Create deploy/.env.production with real credentials
-#   2. Run: set -a; source deploy/.env.production; set +a
-#   3. Run: docker compose -f docker-compose.prod.yml up --build -d
+#   2. Run: docker compose --env-file deploy/.env.production -f docker-compose.prod.yml up --build -d
+#      (or deploy/deploy.sh, which does this and more)
 # =============================================
 
 services:
@@ -84,6 +82,8 @@ services:
   # Runs schema migrations before the backend starts.
   # Exits with code 0 on success; backend will not start if this fails.
   migrator:
+    # Same image as the backend (built once)
+    image: janaushadhi-backend:latest
     build:
       context: .
       dockerfile: ./backend/Dockerfile
@@ -109,6 +109,7 @@ services:
         max-file: "3"
 
   backend:
+    image: janaushadhi-backend:latest
     build:
       context: .
       dockerfile: ./backend/Dockerfile
@@ -116,6 +117,10 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=5000
+      # The migrator service applies migrations before the backend starts
+      - RUN_MIGRATIONS_ON_START=false
+      # Exactly one proxy (nginx) in front: trust only its X-Forwarded-For hop
+      - TRUST_PROXY=1
       - DATABASE_URL=${DATABASE_URL}
       - POSTGRES_USER=${POSTGRES_USER}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
@@ -164,13 +169,13 @@ services:
       dockerfile: ./apps/frontend/Dockerfile
       args:
         VITE_API_URL: ${VITE_API_URL}
+        VITE_SITE_URL: ${VITE_SITE_URL:-https://app.${DOMAIN}}
         VITE_FIREBASE_API_KEY: ${VITE_FIREBASE_API_KEY}
         VITE_FIREBASE_AUTH_DOMAIN: ${VITE_FIREBASE_AUTH_DOMAIN}
         VITE_FIREBASE_PROJECT_ID: ${VITE_FIREBASE_PROJECT_ID}
         VITE_FIREBASE_STORAGE_BUCKET: ${VITE_FIREBASE_STORAGE_BUCKET}
         VITE_FIREBASE_MESSAGING_SENDER_ID: ${VITE_FIREBASE_MESSAGING_SENDER_ID}
         VITE_FIREBASE_APP_ID: ${VITE_FIREBASE_APP_ID}
-        VITE_FIREBASE_MEASUREMENT_ID: ${VITE_FIREBASE_MEASUREMENT_ID}
     container_name: janaushadhi-frontend-prod
     expose:
       - "80"
@@ -234,6 +239,8 @@ services:
   nginx:
     image: nginx:stable-alpine
     container_name: janaushadhi-proxy-prod
+    # Reload every 6 h so certificates renewed by the certbot service are picked up
+    command: "/bin/sh -c 'while :; do sleep 6h & wait $${!}; nginx -s reload; done & exec nginx -g \"daemon off;\"'"
     ports:
       - "80:80"
       - "443:443"

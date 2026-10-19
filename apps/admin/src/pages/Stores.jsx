@@ -129,13 +129,13 @@ export default function Stores() {
     }
   }, [searchQuery, statusFilter, stateFilter, page, showToast]);
 
+  // Reload whenever a filter, the search or the page changes
   useEffect(() => {
     const timer = setTimeout(() => {
       loadStores(true);
     }, 0);
     return () => clearTimeout(timer);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [loadStores]);
 
   // Debounce search
   useEffect(() => {
@@ -479,15 +479,18 @@ export default function Stores() {
               {/* Operator Email (Optional) */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
                 <label style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--color-text-secondary)' }}>
-                  Operator Email (Optional)
+                  Contact Email (Optional)
                 </label>
                 <input
                   type="email"
                   className="input"
                   value={operatorEmail}
                   onChange={e => setOperatorEmail(e.target.value)}
-                  placeholder={`e.g. name@domain.com (defaults to ${assignModal.toLowerCase()}@seller.janaushadhi.local)`}
+                  placeholder="e.g. name@domain.com"
                 />
+                <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: 2 }}>
+                  For contact only. The operator signs in to Seller Central with the store code <strong>{assignModal}</strong> and the password below.
+                </p>
               </div>
 
               {/* Account Password */}

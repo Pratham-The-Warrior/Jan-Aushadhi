@@ -50,11 +50,20 @@ export class SellerService {
       setClauses.push(`operating_hours = $${paramIdx++}`);
       values.push(JSON.stringify(updates.operating_hours));
     }
+    // A blank (or null) phone/UPI clears it; anything else must be valid.
     if (updates.phone !== undefined) {
+      const phone = (updates.phone || '').trim();
+      if (phone && !/^(\+?91[\s-]?)?[6-9]\d{9}$/.test(phone.replace(/[\s-]/g, ''))) {
+        throw new ValidationError('Enter a valid 10-digit Indian mobile number.');
+      }
       setClauses.push(`phone = $${paramIdx++}`);
-      values.push(updates.phone);
+      values.push(phone || null);
     }
-    if (updates.upi_vpa !== undefined) {
+    if (updates.upi_vpa !== undefined && !(updates.upi_vpa || '').trim()) {
+      setClauses.push(`upi_vpa = $${paramIdx++}`);
+      values.push(null);
+    } else if (updates.upi_vpa !== undefined) {
+      updates.upi_vpa = updates.upi_vpa.trim();
       // Strict allowlist: <localpart>@<provider>
       // Blocks ampersands, equals signs, and other characters that could be
       // used to inject additional parameters into the UPI deep-link URL.
@@ -97,7 +106,10 @@ export class SellerService {
     const params: unknown[] = [pmbjkCode];
     let paramIdx = 2;
 
-    if (options.status) {
+    if (options.status === 'CANCELLED') {
+      // Any cancellation: by the customer, the Kendra or an admin
+      whereClause += ` AND r.status LIKE 'CANCELLED%'`;
+    } else if (options.status) {
       whereClause += ` AND r.status = $${paramIdx++}`;
       params.push(options.status);
     }
@@ -252,6 +264,7 @@ export class SellerService {
     drugCode: string,
     inStock: boolean,
   ): Promise<{ success: boolean }> {
+    await this.assertKnownDrugCodes([drugCode]);
     await this.repository.upsertInventoryItem(pmbjkCode, drugCode, inStock);
     return { success: true };
   }
@@ -267,8 +280,17 @@ export class SellerService {
       throw new ValidationError('No inventory updates provided');
     }
 
+    await this.assertKnownDrugCodes(updates.map((u) => u.drug_code));
     const updated = await this.repository.bulkUpsertInventory(pmbjkCode, updates);
     return { success: true, updated };
+  }
+
+  private async assertKnownDrugCodes(codes: string[]): Promise<void> {
+    const known = await this.repository.findKnownDrugCodes(codes);
+    const unknown = codes.filter((c) => !known.has(c));
+    if (unknown.length > 0) {
+      throw new ValidationError(`Unknown medicine code(s): ${unknown.slice(0, 5).join(', ')}`);
+    }
   }
 
   // ================================================================

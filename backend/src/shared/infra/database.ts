@@ -6,7 +6,7 @@
 
 import { Pool, PoolClient, QueryResult } from 'pg';
 import { config } from '../config';
-import { ExternalServiceError } from '../errors';
+import { ConflictError, ExternalServiceError, ValidationError } from '../errors';
 
 /** Singleton connection pool */
 const isCloudDatabase = 
@@ -23,15 +23,40 @@ const useSSL =
   process.env.DB_SSL === 'true' || 
   (process.env.DB_SSL !== 'false' && isCloudDatabase);
 
+/**
+ * pg lets ?sslmode=… in the URL override the `ssl` object below, which would
+ * silently ignore DB_SSL_REJECT_UNAUTHORIZED / DB_SSL_CA. When we manage TLS
+ * ourselves, drop it from the URL.
+ */
+function withoutSslMode(url: string): string {
+  try {
+    const parsed = new URL(url);
+    parsed.searchParams.delete('sslmode');
+    return parsed.toString();
+  } catch {
+    return url;
+  }
+}
+
+/** Optional CA certificate (PEM, or base64-encoded PEM) to verify the server, e.g. Supabase's. */
+function sslCa(): string | undefined {
+  const raw = process.env.DB_SSL_CA?.trim();
+  if (!raw) return undefined;
+  return raw.includes('BEGIN CERTIFICATE') ? raw.replace(/\\n/g, '\n') : Buffer.from(raw, 'base64').toString('utf8');
+}
+
+const ca = sslCa();
+
 const pool = new Pool({
-  connectionString: config.databaseUrl,
+  connectionString: useSSL ? withoutSslMode(config.databaseUrl) : config.databaseUrl,
   max: config.dbPoolMax,
   idleTimeoutMillis: config.dbIdleTimeout,
   connectionTimeoutMillis: config.dbConnectionTimeout,
   // rejectUnauthorized is controlled via DB_SSL_REJECT_UNAUTHORIZED env var.
   // Default: true (verify cert) — secure for self-hosted Postgres.
   // Set to false for Supabase connection pooler which uses a shared cert.
-  ...(useSSL ? { ssl: { rejectUnauthorized: config.dbSslRejectUnauthorized } } : {}),
+  // With DB_SSL_CA the certificate is always verified.
+  ...(useSSL ? { ssl: ca ? { ca, rejectUnauthorized: true } : { rejectUnauthorized: config.dbSslRejectUnauthorized } } : {}),
 });
 
 // Log pool-level errors (e.g. unexpected disconnects)
@@ -48,6 +73,13 @@ export async function queryDB(text: string, params?: unknown[]): Promise<QueryRe
     return await pool.query(text, params);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown database error';
+    const sqlState: string = (err as { code?: string })?.code || '';
+    // Bad input (class 22: invalid number/date…) and constraint violations
+    // (class 23) are the caller's fault, not an outage.
+    if (sqlState === '23505') throw new ConflictError('This record already exists');
+    if (sqlState.startsWith('22') || sqlState.startsWith('23')) {
+      throw new ValidationError('Invalid request data');
+    }
     console.error('DB Query Error:', text, message);
     throw new ExternalServiceError('PostgreSQL', message);
   }

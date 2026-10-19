@@ -44,6 +44,12 @@ import adminRoutes from './modules/admin/admin.routes';
  * server.inject() inside our supertest/vitest suites. It eliminates the need to allocate physical ports on local 
  * or CI environments, completely bypassing pesky "EADDRINUSE: port already in use" errors during parallel runs.
  */
+function parseTrustProxy(value: string | undefined): boolean | number | string {
+  if (!value || value === 'true') return true;
+  if (value === 'false') return false;
+  return /^\d+$/.test(value) ? Number(value) : value; // hop count, or an IP/CIDR list
+}
+
 export async function buildApp(): Promise<FastifyInstance> {
   // Validate configuration before binding or connecting
   validateStartupConfig();
@@ -56,7 +62,12 @@ export async function buildApp(): Promise<FastifyInstance> {
     // Trust the X-Forwarded-For header set by Nginx so that request.ip resolves to
     // the real client IP rather than the Docker bridge network IP. Without this,
     // @fastify/rate-limit treats every user as the same IP and is completely ineffective.
-    trustProxy: true,
+    // Which reverse proxies to trust for the client IP (used by rate limiting).
+    // Set TRUST_PROXY=1 when exactly one proxy you control sits in front (the
+    // docker-compose nginx), so clients can't spoof X-Forwarded-For. The default
+    // trusts the whole chain, which is safe on managed hosts whose proxy chain
+    // length isn't fixed (Render) at the cost of spoofable rate-limit keys.
+    trustProxy: parseTrustProxy(process.env.TRUST_PROXY),
   });
 
   // ---- Global Middleware ----
@@ -98,7 +109,20 @@ export async function buildApp(): Promise<FastifyInstance> {
       return reply.status(statusCode).send(body);
     }
 
-    // 3. Fallback for unhandled syntax or generic Node system errors
+    // 3. Client errors raised by Fastify and its plugins (429 rate limit, 413 payload
+    //    too large, 415 media type…) keep their status instead of becoming a 500.
+    const status = (error as FastifyError).statusCode;
+    if (status && status >= 400 && status < 500) {
+      return reply.status(status).send({
+        error: {
+          code: status === 429 ? 'RATE_LIMITED' : error.code || 'BAD_REQUEST',
+          message: error.message,
+          statusCode: status,
+        },
+      });
+    }
+
+    // 4. Fallback for unhandled syntax or generic Node system errors
     // We log the raw stack trace for internal debugging but mask the JSON response in production
     // to avoid leaking database schemas, module structures, or variable secrets to the public.
     request.log.error(error, 'Unhandled error');
@@ -202,8 +226,8 @@ export async function buildApp(): Promise<FastifyInstance> {
         (SELECT COUNT(DISTINCT (state, district)) FROM stores WHERE status = 'ACTIVE') AS districts,
         (SELECT COUNT(DISTINCT state) FROM stores WHERE status = 'ACTIVE') AS states,
         (SELECT COUNT(*) FROM generic_meds) AS generics,
-        (SELECT COUNT(*) FROM branded_meds b WHERE NOT b.is_discontinued
-           AND EXISTS (SELECT 1 FROM generic_meds g WHERE g.salt_strength_hash = b.salt_strength_hash)) AS exact_matches
+        (SELECT COUNT(*) FROM medicine_matches m JOIN branded_meds b ON b.id = m.branded_id
+          WHERE NOT b.is_discontinued AND m.tier = 'EXACT_MATCH' AND m.review_status <> 'rejected') AS exact_matches
     `);
     const row = res.rows[0] || {};
     const body = Object.fromEntries(Object.entries(row).map(([k, v]) => [k, Number(v) || 0]));

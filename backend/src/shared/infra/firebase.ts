@@ -9,7 +9,8 @@ import { getAuth } from 'firebase-admin/auth';
 import { FastifyRequest, FastifyReply } from 'fastify';
 import { config } from '../config';
 import { queryDB } from './database';
-import { AuthenticationError, ExternalServiceError } from '../errors';
+import { AuthenticationError, AuthorizationError, ExternalServiceError } from '../errors';
+import { resolveUserRole } from './rbac';
 import type { AuthUser } from '../types';
 
 let firebaseInitialized = false;
@@ -65,25 +66,18 @@ export async function verifyAuth(request: FastifyRequest, reply: FastifyReply): 
     throw new ExternalServiceError('Firebase', 'Authentication service unavailable');
   }
 
+  let user: AuthUser;
   try {
     // checkRevoked: true performs a server-side token revocation check on every
     // request. Without this flag, calling revokeRefreshTokens() in Firebase has
     // no effect for up to 1 hour — the full remaining lifetime of the ID token.
     const decodedToken = await getAuth().verifyIdToken(token, true);
-
-    const user: AuthUser = {
+    user = {
       uid: decodedToken.uid,
       phone_number: decodedToken.phone_number,
       email: decodedToken.email,
       name: decodedToken.name,
     };
-
-    request.user = user;
-
-    // Sync user to local PostgreSQL on first login (non-blocking)
-    syncUserToDatabase(user).catch(() => {
-      // Non-blocking — user table might not exist yet
-    });
   } catch (error: any) {
     // Dedicated branch for revoked tokens — gives the client an actionable message
     // rather than the generic "invalid token" response.
@@ -94,11 +88,23 @@ export async function verifyAuth(request: FastifyRequest, reply: FastifyReply): 
     request.log.error(error as any, 'Firebase Auth verification failed');
     throw new AuthenticationError('Invalid or expired token');
   }
+
+  // Suspended accounts lose every authenticated route, not only the
+  // role-gated seller/admin ones.
+  const { is_suspended } = await resolveUserRole(user.uid);
+  if (is_suspended) {
+    throw new AuthorizationError('This account has been suspended. Please contact support.');
+  }
+
+  request.user = user;
+
+  // Make sure the user row exists before the handler runs: on a first login the
+  // very next call (e.g. GET /user/profile) would otherwise 404.
+  await syncUserToDatabase(user).catch((err) => request.log.warn({ err }, 'User sync failed'));
 }
 
 /**
- * Upsert user record in PostgreSQL.
- * Runs as fire-and-forget on each authenticated request.
+ * Upsert user record in PostgreSQL (a no-op once the row exists).
  */
 async function syncUserToDatabase(user: AuthUser): Promise<void> {
   await queryDB(

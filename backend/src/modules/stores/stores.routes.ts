@@ -6,13 +6,10 @@
 
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { StoreService } from './stores.service';
-import { verifyAuth } from '../../shared/infra/firebase';
-import { requireRole } from '../../shared/infra/rbac';
 import {
   storesByPincodeSchema,
   nearbyStoresSchema,
   storeByCodeSchema,
-  confirmRequirementSchema,
   storesByDistrictSchema,
 } from './stores.schema';
 
@@ -39,25 +36,16 @@ export default async function storeRoutes(server: FastifyInstance): Promise<void
     '/api/v1/stores/nearby',
     { schema: nearbyStoresSchema },
     async (request: FastifyRequest, reply: FastifyReply) => {
-      const { lat, lng, radius } = request.query as {
-        lat: string;
-        lng: string;
-        radius?: string;
-      };
+      const { lat, lng, radius } = request.query as { lat: number; lng: number; radius?: number };
 
       // Clamp radius to a safe range before it reaches the PostGIS query.
       // An unbounded radius causes ST_DWithin to ignore the GIST index and
       // perform a full sequential scan — a trivial DoS vector.
       const MIN_RADIUS_METERS = 500;
       const MAX_RADIUS_METERS = 50_000; // 50 km hard cap
-      const rawRadius = parseInt(radius || '10000', 10);
-      const safeRadius = Math.min(Math.max(rawRadius, MIN_RADIUS_METERS), MAX_RADIUS_METERS);
+      const safeRadius = Math.min(Math.max(radius ?? 10_000, MIN_RADIUS_METERS), MAX_RADIUS_METERS);
 
-      const result = await storeService.findNearby(
-        parseFloat(lat),
-        parseFloat(lng),
-        safeRadius,
-      );
+      const result = await storeService.findNearby(lat, lng, safeRadius);
 
       return reply.send(result);
     },
@@ -91,24 +79,6 @@ export default async function storeRoutes(server: FastifyInstance): Promise<void
       const { pmbjk_code } = request.params as { pmbjk_code: string };
       const store = await storeService.getByPmbjkCode(pmbjk_code);
       return reply.send(store);
-    },
-  );
-
-  // ---- Store Confirms a Requirement (Auth & Role Required) ----
-  server.post(
-    '/api/v1/stores/confirm/:requirement_id',
-    { preHandler: [verifyAuth, requireRole('STORE_OWNER', 'SUPER_ADMIN')], schema: confirmRequirementSchema },
-    async (request: FastifyRequest, reply: FastifyReply) => {
-      const { requirement_id } = request.params as { requirement_id: string };
-      const user = request.user!;
-      const storeCode = user.role === 'SUPER_ADMIN' ? undefined : user.linked_pmbjk_code;
-      const requirement = await storeService.confirmRequirement(requirement_id, storeCode);
-
-      return reply.send({
-        success: true,
-        message: 'Requirement successfully authorized by Kendra',
-        requirement,
-      });
     },
   );
 }

@@ -62,3 +62,9 @@ backend/fix_*.js
 /scripts/
 !backend/scripts/
 
+
+# Local Redis snapshots
+dump.rdb
+
+# Generated from deploy/nginx/nginx-proxy.conf.template by deploy/*.sh
+deploy/nginx/nginx-proxy.conf

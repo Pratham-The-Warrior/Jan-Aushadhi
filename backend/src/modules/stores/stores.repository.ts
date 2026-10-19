@@ -13,7 +13,8 @@ export class StoreRepository {
   async findByPincode(pincode: string, limit: number = 50): Promise<Store[]> {
     const res = await queryDB(
       `SELECT pmbjk_code, name, phone, address, pincode, state, district,
-              location_precision, ST_Y(location::geometry) AS latitude, ST_X(location::geometry) AS longitude
+              location_precision, ST_Y(location::geometry) AS latitude, ST_X(location::geometry) AS longitude,
+              (seller_uid IS NOT NULL) AS accepts_orders
        FROM stores
        WHERE pincode = $1 AND status = 'ACTIVE'
        ORDER BY name ASC
@@ -35,6 +36,7 @@ export class StoreRepository {
     const res = await queryDB(
       `SELECT pmbjk_code, name, phone, address, pincode, state, district,
               location_precision, ST_Y(location::geometry) AS latitude, ST_X(location::geometry) AS longitude,
+              (seller_uid IS NOT NULL) AS accepts_orders,
               ROUND((ST_Distance(location, ST_MakePoint($1, $2)::geography) / 1000)::numeric, 1) AS distance_km
        FROM stores
        WHERE status = 'ACTIVE'
@@ -57,7 +59,8 @@ export class StoreRepository {
   async findByPmbjkCode(pmbjkCode: string): Promise<Store | null> {
     const res = await queryDB(
       `SELECT pmbjk_code, name, phone, address, pincode, state, district,
-              location_precision, ST_Y(location::geometry) AS latitude, ST_X(location::geometry) AS longitude, status, operating_hours
+              location_precision, ST_Y(location::geometry) AS latitude, ST_X(location::geometry) AS longitude,
+              (seller_uid IS NOT NULL) AS accepts_orders, status, operating_hours
        FROM stores
        WHERE pmbjk_code = $1`,
       [pmbjkCode],
@@ -88,7 +91,8 @@ export class StoreRepository {
   async findByDistrict(district: string, state?: string, limit: number = 100): Promise<Store[]> {
     let query = `
       SELECT pmbjk_code, name, phone, address, pincode, state, district,
-             location_precision, ST_Y(location::geometry) AS latitude, ST_X(location::geometry) AS longitude
+             location_precision, ST_Y(location::geometry) AS latitude, ST_X(location::geometry) AS longitude,
+              (seller_uid IS NOT NULL) AS accepts_orders
       FROM stores
       WHERE LOWER(district) = LOWER($1) AND status = 'ACTIVE'
     `;
@@ -104,32 +108,5 @@ export class StoreRepository {
 
     const res = await queryDB(query, params);
     return res.rows as Store[];
-  }
-
-  /**
-   * Confirm requirement transition: PENDING_ACCEPTANCE -> ACCEPTED.
-   */
-  async confirmRequirement(requirementId: string, storeCode?: string): Promise<any | null> {
-    let query = `UPDATE requirements SET status = 'ACCEPTED', accepted_at = NOW(), updated_at = NOW()
-                 WHERE id = $1 AND status = 'PENDING_ACCEPTANCE'`;
-    const params: unknown[] = [requirementId];
-
-    if (storeCode) {
-      query += ` AND pmbjk_code = $2`;
-      params.push(storeCode);
-    }
-
-    query += ' RETURNING *';
-    const result = await queryDB(query, params);
-    if (result.rows.length === 0) return null;
-
-    // Log in order_status_log
-    await queryDB(
-      `INSERT INTO order_status_log (requirement_id, from_status, to_status, changed_by, changed_by_role, notes)
-       VALUES ($1, 'PENDING_ACCEPTANCE', 'ACCEPTED', $2, 'STORE_OWNER', 'Order confirmed by Kendra')`,
-      [requirementId, storeCode || 'STORE'],
-    ).catch(() => {});
-
-    return result.rows[0];
   }
 }

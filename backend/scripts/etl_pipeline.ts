@@ -5,32 +5,21 @@
 // and inserts everything into PostgreSQL + Meilisearch.
 // ============================================================
 
+import { getPool, closeDatabasePool } from '../src/shared/infra/database';
+import { buildMedicinesIndex } from '../src/modules/search/search.indexer';
+import { checkMeiliHealth } from '../src/shared/infra/meilisearch';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
-import { Pool } from 'pg';
-import { Meilisearch } from 'meilisearch';
-import * as dotenv from 'dotenv';
 import { buildMedicineMatches } from '../src/modules/catalog/match-builder';
 import { fileURLToPath } from 'url';
 
-dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const dbUrl = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/janaushadhi';
-const isCloudDB = dbUrl.includes('supabase') || dbUrl.includes('render') || process.env.NODE_ENV === 'production';
-
-const pool = new Pool({
-  connectionString: dbUrl,
-  ...(isCloudDB ? { ssl: { rejectUnauthorized: false } } : {}),
-});
-
-const meiliClient = new Meilisearch({
-  host: process.env.MEILI_HOST || 'http://localhost:7700',
-  apiKey: process.env.MEILI_MASTER_KEY || 'masterKey',
-});
+// Shared pool: honours DB_SSL / DB_SSL_REJECT_UNAUTHORIZED / DB_SSL_CA like the server.
+const pool = getPool();
 
 // ---- CSV Parser (zero dependencies) ----
 function parseCSV(filePath: string): Record<string, string>[] {
@@ -155,13 +144,14 @@ function generateSaltHash(composition: string, nameString: string = ''): string 
 }
 
 function resolveDataPath(filename: string): string {
-  const inDataDir = path.resolve(__dirname, '../../data', filename);
-  if (fs.existsSync(inDataDir)) return inDataDir;
-  const inRoot = path.resolve(__dirname, '../../', filename);
-  if (fs.existsSync(inRoot)) return inRoot;
-  const inApp = path.resolve('/app/data', filename);
-  if (fs.existsSync(inApp)) return inApp;
-  return inDataDir;
+  const candidates = [
+    path.resolve(__dirname, '../../data', filename), // tsx: backend/scripts
+    path.resolve(__dirname, '../../../data', filename), // built: backend/dist/scripts
+    path.resolve(process.cwd(), 'data', filename),
+    path.resolve(process.cwd(), '../data', filename),
+    path.resolve('/app/data', filename), // Docker image
+  ];
+  return candidates.find((c) => fs.existsSync(c)) ?? candidates[0];
 }
 
 // ---- BRANDED MEDICINES INGESTION ----
@@ -179,8 +169,12 @@ async function ingestBrandedMedicines() {
 
   const client = await pool.connect();
   try {
-    // Clear existing data for clean reload
-    await client.query('DELETE FROM branded_meds');
+    // Upsert on the dataset's own id so product ids stay stable across reloads
+    // (they appear in URLs, carts, orders and the search index), and reviewed
+    // matches are kept. Products dropped from the dataset are marked
+    // discontinued rather than deleted.
+    await client.query('BEGIN');
+    const seen: number[] = [];
 
     let inserted = 0;
     const BATCH_SIZE = 500;
@@ -202,11 +196,15 @@ async function ingestBrandedMedicines() {
         const priceKey = Object.keys(row).find(k => k.toLowerCase().includes('price')) || 'price';
         const price = parseFloat(row[priceKey]) || 0;
 
-        const offset = batchIdx * 10;
+        const id = parseInt(row['id'], 10);
+        if (!Number.isInteger(id)) return;
+        seen.push(id);
+        const offset = placeholders.length * 11;
         placeholders.push(
-          `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6}, $${offset + 7}, $${offset + 8}, $${offset + 9}, $${offset + 10})`
+          `(${Array.from({ length: 11 }, (_, k) => `$${offset + k + 1}`).join(', ')})`
         );
         values.push(
+          id,
           row['name'] || 'Unknown',
           price,
           row['Is_discontinued'] === 'TRUE',
@@ -222,8 +220,13 @@ async function ingestBrandedMedicines() {
 
       if (placeholders.length > 0) {
         await client.query(
-          `INSERT INTO branded_meds (name, mrp, is_discontinued, manufacturer, type, pack_size_label, composition1, composition2, salt_hash, salt_strength_hash)
-           VALUES ${placeholders.join(', ')}`,
+          `INSERT INTO branded_meds (id, name, mrp, is_discontinued, manufacturer, type, pack_size_label, composition1, composition2, salt_hash, salt_strength_hash)
+           VALUES ${placeholders.join(', ')}
+           ON CONFLICT (id) DO UPDATE SET
+             name = EXCLUDED.name, mrp = EXCLUDED.mrp, is_discontinued = EXCLUDED.is_discontinued,
+             manufacturer = EXCLUDED.manufacturer, type = EXCLUDED.type, pack_size_label = EXCLUDED.pack_size_label,
+             composition1 = EXCLUDED.composition1, composition2 = EXCLUDED.composition2,
+             salt_hash = EXCLUDED.salt_hash, salt_strength_hash = EXCLUDED.salt_strength_hash`,
           values
         );
         inserted += batch.length;
@@ -234,7 +237,17 @@ async function ingestBrandedMedicines() {
       }
     }
 
-    console.log(`🎉 All ${inserted} branded medicines ingested successfully!`);
+    const dropped = await client.query(
+      'UPDATE branded_meds SET is_discontinued = TRUE WHERE NOT is_discontinued AND NOT (id = ANY($1))',
+      [seen],
+    );
+    // Keep the sequence ahead of the explicit ids
+    await client.query(`SELECT setval('branded_meds_id_seq', GREATEST((SELECT MAX(id) FROM branded_meds), 1))`);
+    await client.query('COMMIT');
+    console.log(`🎉 ${inserted} branded medicines upserted (${dropped.rowCount} no longer listed, marked discontinued)`);
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
   } finally {
     client.release();
   }
@@ -255,7 +268,8 @@ async function ingestGenericMedicines() {
 
   const client = await pool.connect();
   try {
-    await client.query('DELETE FROM generic_meds');
+    // Upsert on drug_code: generic ids are referenced by medicine_matches
+    await client.query('BEGIN');
 
     let inserted = 0;
     const BATCH_SIZE = 500;
@@ -288,7 +302,10 @@ async function ingestGenericMedicines() {
       if (placeholders.length > 0) {
         await client.query(
           `INSERT INTO generic_meds (drug_code, generic_name, unit_size, mrp, group_name, salt_hash, salt_strength_hash)
-           VALUES ${placeholders.join(', ')}`,
+           VALUES ${placeholders.join(', ')}
+           ON CONFLICT (drug_code) DO UPDATE SET
+             generic_name = EXCLUDED.generic_name, unit_size = EXCLUDED.unit_size, mrp = EXCLUDED.mrp,
+             group_name = EXCLUDED.group_name, salt_hash = EXCLUDED.salt_hash, salt_strength_hash = EXCLUDED.salt_strength_hash`,
           values
         );
         inserted += batch.length;
@@ -299,57 +316,11 @@ async function ingestGenericMedicines() {
       }
     }
 
-    console.log(`🎉 All ${inserted} generic medicines ingested successfully!`);
-  } finally {
-    client.release();
-  }
-}
-
-// ---- MEILISEARCH INDEXING ----
-async function indexMeilisearch() {
-  console.log('\n🔍 Starting Meilisearch indexing...');
-
-  const client = await pool.connect();
-  try {
-    const result = await client.query(
-      `SELECT id, name, mrp, manufacturer, salt_hash, salt_strength_hash, pack_size_label, composition1, composition2
-       FROM branded_meds WHERE is_discontinued = FALSE`
-    );
-
-    const documents = result.rows.map(row => ({
-      id: row.id,
-      name: row.name,
-      mrp: parseFloat(row.mrp),
-      manufacturer: row.manufacturer,
-      salt_hash: row.salt_hash,
-      salt_strength_hash: row.salt_strength_hash,
-      pack_size: row.pack_size_label,
-      composition1: row.composition1,
-      composition2: row.composition2,
-    }));
-
-    console.log(`📦 Indexing ${documents.length} documents into Meilisearch...`);
-
-    const index = meiliClient.index('medicines');
-
-    // Configure index settings
-    await index.updateSettings({
-      searchableAttributes: ['name', 'manufacturer', 'composition1', 'composition2'],
-      filterableAttributes: ['salt_hash', 'salt_strength_hash', 'manufacturer'],
-      sortableAttributes: ['mrp', 'name'],
-    });
-
-    // Index in batches of 1000
-    const BATCH = 1000;
-    for (let i = 0; i < documents.length; i += BATCH) {
-      const batch = documents.slice(i, i + BATCH);
-      await index.addDocuments(batch);
-      if (i % 5000 === 0) {
-        console.log(`   ✅ Indexed ${Math.min(i + BATCH, documents.length)}/${documents.length}`);
-      }
-    }
-
-    console.log('🎉 Meilisearch indexing complete!');
+    await client.query('COMMIT');
+    console.log(`🎉 ${inserted} generic medicines upserted`);
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
   } finally {
     client.release();
   }
@@ -357,55 +328,46 @@ async function indexMeilisearch() {
 
 // ---- STATS ----
 async function printStats() {
-  const client = await pool.connect();
-  try {
-    const branded = await client.query('SELECT COUNT(*) FROM branded_meds');
-    const generic = await client.query('SELECT COUNT(*) FROM generic_meds');
-    const matched = await client.query(
-      `SELECT COUNT(DISTINCT b.salt_hash) 
-       FROM branded_meds b 
-       INNER JOIN generic_meds g ON b.salt_hash = g.salt_hash
-       WHERE b.salt_hash != '' AND b.salt_hash IS NOT NULL`
-    );
-
-    console.log('\n📊 ---- ETL Summary ----');
-    console.log(`   Branded Medicines:    ${branded.rows[0].count}`);
-    console.log(`   Generic Medicines:    ${generic.rows[0].count}`);
-    console.log(`   Matched Salt Hashes:  ${matched.rows[0].count}`);
-    console.log('   -----------------------');
-  } finally {
-    client.release();
-  }
+  const res = await pool.query(`
+    SELECT (SELECT COUNT(*) FROM branded_meds WHERE NOT is_discontinued) AS branded,
+           (SELECT COUNT(*) FROM generic_meds) AS generics,
+           (SELECT COUNT(*) FROM medicine_matches WHERE review_status <> 'rejected') AS matched`);
+  const r = res.rows[0];
+  console.log('\n📊 ---- ETL Summary ----');
+  console.log(`   Branded medicines (active): ${r.branded}`);
+  console.log(`   Generic medicines:          ${r.generics}`);
+  console.log(`   Brands with a generic:      ${r.matched}`);
+  console.log('   -----------------------');
 }
 
 // ---- MAIN ----
 export async function runETL() {
   console.log('=== JAN AUSHADHI ETL PIPELINE ===\n');
   console.log('Module 1B: Salt-Hash Engine');
-  console.log('Module 2:  Meilisearch Indexing\n');
+  console.log('Module 2:  Matching + search index\n');
 
   try {
     await ingestBrandedMedicines();
     await ingestGenericMedicines();
-    await printStats();
 
     // Structured branded → generic matching (replaces hash equality at query time)
     await buildMedicineMatches();
+    await printStats();
 
-    // Attempt Meilisearch indexing (may fail if service not running)
-    try {
-      await indexMeilisearch();
-    } catch (err) {
-      console.warn('⚠️  Meilisearch indexing skipped (service may not be running).');
-      console.warn('   Start Meilisearch and re-run this script to index.');
+    // Search index (optional: search falls back to PostgreSQL without it)
+    if (await checkMeiliHealth()) {
+      await buildMedicinesIndex();
+    } else {
+      console.warn('⚠️  Meilisearch not reachable: index skipped. Run `npm run meili:seed` once it is up.');
     }
 
   } catch (err) {
     console.error('❌ ETL Pipeline failed:', err);
+    process.exitCode = 1;
   }
 }
 
 // Execute directly if run as CLI script
 if (process.argv[1]?.includes('etl_pipeline')) {
-  runETL().finally(() => pool.end());
+  runETL().finally(() => closeDatabasePool());
 }

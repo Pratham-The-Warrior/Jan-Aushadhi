@@ -9,8 +9,21 @@ import { buildApp } from './app';
 import { closeDatabasePool } from './shared/infra/database';
 import { closeRedis } from './shared/infra/redis';
 import { autoSeedDatabaseIfNeeded } from './shared/infra/autoseed';
+import { runMigrations } from './shared/infra/migrator';
 
 async function start(): Promise<void> {
+  // Bring the schema up to date before serving traffic, so hosts without a
+  // separate migration step (Render, Railway…) never run new code against an
+  // old schema. Set RUN_MIGRATIONS_ON_START=false to manage migrations yourself.
+  if (process.env.RUN_MIGRATIONS_ON_START !== 'false') {
+    try {
+      await runMigrations();
+    } catch (err) {
+      console.error('❌ Database migrations failed — refusing to start:', err);
+      process.exit(1);
+    }
+  }
+
   const server = await buildApp();
 
   try {
@@ -57,9 +70,10 @@ async function start(): Promise<void> {
     shutdown('uncaughtException');
   });
 
+  // A stray rejected promise (e.g. a failed background job) is logged, not fatal:
+  // taking the whole API down for it would turn one failure into an outage.
   process.on('unhandledRejection', (reason) => {
     console.error('💥 Unhandled Rejection:', reason);
-    shutdown('unhandledRejection');
   });
 }
 

@@ -4,7 +4,8 @@
 // order status audit trails, and inventory lookups.
 // ============================================================
 
-import { queryDB } from '../../shared/infra/database';
+import { queryDB, withTransaction } from '../../shared/infra/database';
+import { VALID_STATUS_TRANSITIONS } from '../../shared/types/order';
 import type { RequirementItem } from '../../shared/types';
 
 export interface NearbyStoreRow {
@@ -27,6 +28,7 @@ export class FulfillmentRepository {
               ST_Distance(location, ST_MakePoint($1, $2)::geography) AS distance
        FROM stores
        WHERE status = 'ACTIVE'
+         AND seller_uid IS NOT NULL
          AND location IS NOT NULL
          AND ST_DWithin(location, ST_MakePoint($1, $2)::geography, $3)
        ORDER BY distance ASC
@@ -54,9 +56,12 @@ export class FulfillmentRepository {
   /**
    * Lookup store details (name, phone, UPI VPA).
    */
-  async findStoreDetails(pmbjkCode: string): Promise<{ name: string; phone: string; upi_vpa?: string } | null> {
+  async findStoreDetails(pmbjkCode: string): Promise<{
+    name: string; phone: string | null; upi_vpa?: string; status: string; accepts_orders: boolean;
+  } | null> {
     const res = await queryDB(
-      `SELECT name, phone, upi_vpa FROM stores WHERE pmbjk_code = $1`,
+      `SELECT name, phone, upi_vpa, status, (seller_uid IS NOT NULL) AS accepts_orders
+         FROM stores WHERE pmbjk_code = $1`,
       [pmbjkCode],
     );
     return res.rows[0] || null;
@@ -65,14 +70,39 @@ export class FulfillmentRepository {
   /**
    * Fetch verified MRP and generic name directly from generic_meds table.
    */
-  async findVerifiedGenericMeds(drugCodes: string[]): Promise<Map<string, { mrp: number; name: string }>> {
+  async findVerifiedGenericMeds(
+    drugCodes: string[],
+  ): Promise<Map<string, { mrp: number; name: string; unitSize: string | null; groupName: string | null }>> {
     const res = await queryDB(
-      `SELECT drug_code, generic_name, mrp FROM generic_meds WHERE drug_code = ANY($1)`,
+      `SELECT drug_code, generic_name, mrp, unit_size, group_name FROM generic_meds WHERE drug_code = ANY($1)`,
       [drugCodes],
     );
-    const map = new Map<string, { mrp: number; name: string }>();
+    const map = new Map<string, { mrp: number; name: string; unitSize: string | null; groupName: string | null }>();
     for (const r of res.rows) {
-      map.set(r.drug_code, { mrp: parseFloat(r.mrp), name: r.generic_name });
+      map.set(r.drug_code, { mrp: parseFloat(r.mrp), name: r.generic_name, unitSize: r.unit_size, groupName: r.group_name });
+    }
+    return map;
+  }
+
+  /**
+   * Brand prices for the brands a cart's generics replace, only where the
+   * catalogue matches that brand to that generic at a comparable strength.
+   */
+  async findComparableBrandPrices(
+    brandedIds: number[],
+  ): Promise<Map<number, { mrp: number; packSize: string | null; drugCode: string }>> {
+    const map = new Map<number, { mrp: number; packSize: string | null; drugCode: string }>();
+    if (brandedIds.length === 0) return map;
+    const res = await queryDB(
+      `SELECT b.id, b.mrp, b.pack_size_label, g.drug_code
+         FROM branded_meds b
+         JOIN medicine_matches m ON m.branded_id = b.id AND m.review_status <> 'rejected'
+         JOIN generic_meds g ON g.id = m.generic_id
+        WHERE b.id = ANY($1) AND m.tier IN ('EXACT_MATCH', 'CLOSE_MATCH')`,
+      [brandedIds],
+    );
+    for (const r of res.rows) {
+      map.set(r.id, { mrp: parseFloat(r.mrp), packSize: r.pack_size_label, drugCode: r.drug_code });
     }
     return map;
   }
@@ -177,22 +207,35 @@ export class FulfillmentRepository {
   /**
    * Cancel an order by customer.
    */
-  async cancelRequirement(requirementId: string, userId: string, fromStatus: string, reason?: string): Promise<void> {
-    await queryDB(
-      `UPDATE requirements
-       SET status = 'CANCELLED_BY_CUSTOMER',
-           cancelled_reason = $1,
-           cancelled_by = 'CUSTOMER',
-           updated_at = NOW()
-       WHERE id = $2`,
-      [reason || 'Cancelled by customer', requirementId],
-    );
-
-    await queryDB(
-      `INSERT INTO order_status_log (requirement_id, from_status, to_status, changed_by, changed_by_role, notes)
-       VALUES ($1, $2, 'CANCELLED_BY_CUSTOMER', $3, 'CUSTOMER', $4)`,
-      [requirementId, fromStatus, userId, reason || 'Cancelled by customer'],
-    );
+  async cancelRequirement(
+    requirementId: string,
+    userId: string,
+    reason?: string,
+  ): Promise<{ ok: true } | { ok: false; status: string | null }> {
+    const note = reason || 'Cancelled by customer';
+    return withTransaction(async (client) => {
+      // Lock the row so a seller update can't slip in between check and write
+      const cur = await client.query(
+        'SELECT status FROM requirements WHERE id = $1 AND user_id = $2 FOR UPDATE',
+        [requirementId, userId],
+      );
+      const status: string | undefined = cur.rows[0]?.status;
+      if (!status || !VALID_STATUS_TRANSITIONS[status]?.includes('CANCELLED_BY_CUSTOMER')) {
+        return { ok: false as const, status: status ?? null };
+      }
+      await client.query(
+        `UPDATE requirements
+            SET status = 'CANCELLED_BY_CUSTOMER', cancelled_reason = $1, cancelled_by = 'CUSTOMER', updated_at = NOW()
+          WHERE id = $2`,
+        [note, requirementId],
+      );
+      await client.query(
+        `INSERT INTO order_status_log (requirement_id, from_status, to_status, changed_by, changed_by_role, notes)
+         VALUES ($1, $2, 'CANCELLED_BY_CUSTOMER', $3, 'CUSTOMER', $4)`,
+        [requirementId, status, userId, note],
+      );
+      return { ok: true as const };
+    });
   }
 
   /**
@@ -209,7 +252,7 @@ export class FulfillmentRepository {
          COALESCE(SUM(total_branded_value), 0) as lifetime_branded,
          COUNT(*) as total_orders
        FROM requirements
-       WHERE user_id = $1 AND status != 'CANCELLED_BY_CUSTOMER' AND status != 'CANCELLED_BY_SELLER'`,
+       WHERE user_id = $1 AND status NOT LIKE 'CANCELLED%'`,
       [userId],
     );
     return res.rows[0];
@@ -222,7 +265,7 @@ export class FulfillmentRepository {
     const res = await queryDB(
       `SELECT COALESCE(SUM(savings), 0) as monthly_savings
        FROM requirements
-       WHERE user_id = $1 AND created_at >= NOW() - INTERVAL '30 days'`,
+       WHERE user_id = $1 AND created_at >= NOW() - INTERVAL '30 days' AND status NOT LIKE 'CANCELLED%'`,
       [userId],
     );
     return parseFloat(res.rows[0]?.monthly_savings || '0');
@@ -259,8 +302,7 @@ export class FulfillmentRepository {
        FROM requirements
        WHERE user_id = $1
          AND created_at >= NOW() - INTERVAL '6 months'
-         AND status != 'CANCELLED_BY_CUSTOMER'
-         AND status != 'CANCELLED_BY_SELLER'
+         AND status NOT LIKE 'CANCELLED%'
        GROUP BY DATE_TRUNC('month', created_at), TO_CHAR(created_at, 'Mon')
        ORDER BY month_sort ASC`,
       [userId],

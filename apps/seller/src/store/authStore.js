@@ -26,15 +26,18 @@ const useAuthStore = create((set) => ({
         if (user) {
           const token = await user.getIdToken();
           localStorage.setItem('seller_token', token);
-          set({ user, token, loading: false, initialized: true, roleError: null });
+          // Stay on the loader until the store-owner check finishes, so other
+          // accounts never see (or trigger requests from) the dashboard.
+          set({ user, token, loading: true, roleError: null });
 
           try {
             const profile = await apiGet('/api/v1/seller/profile');
-            set({ sellerProfile: profile });
+            set({ sellerProfile: profile, loading: false, initialized: true });
           } catch (err) {
-            if (err.statusCode === 403 || err.statusCode === 401) {
-              set({ roleError: err.message || 'Access denied. Your account is not registered as a store owner.' });
-            }
+            const roleError = err.statusCode === 403 || err.statusCode === 401
+              ? err.message || 'Access denied. Your account is not registered as a store owner.'
+              : 'Could not reach the server to verify your account. Please check your connection and reload.';
+            set({ roleError, loading: false, initialized: true });
           }
         } else {
           set({ user: null, token: null, sellerProfile: null, loading: false, initialized: true, roleError: null });

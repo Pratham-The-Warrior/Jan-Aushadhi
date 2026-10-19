@@ -6,7 +6,7 @@
 // ============================================================
 
 import { queryDB, withTransaction } from '../../shared/infra/database';
-import { NotFoundError } from '../../shared/errors';
+import { ConflictError, NotFoundError } from '../../shared/errors';
 import type {
   AuthUser,
   PlatformStats,
@@ -148,9 +148,18 @@ export class AdminRepository {
   async assignSellerTx(
     pmbjkCode: string,
     userUid: string,
-    payload: { name: string; phone: string; virtualEmail: string },
+    payload: { name: string; phone: string; email: string },
   ): Promise<void> {
     await withTransaction(async (client) => {
+      // Re-check under a row lock: another admin may have assigned it meanwhile
+      const store = await client.query('SELECT seller_uid FROM stores WHERE pmbjk_code = $1 FOR UPDATE', [pmbjkCode]);
+      const current = store.rows[0]?.seller_uid;
+      if (current && current !== userUid) {
+        throw new ConflictError(`Store ${pmbjkCode} already has an operator.`);
+      }
+      // One store per operator: release any store they ran before
+      await client.query('UPDATE stores SET seller_uid = NULL WHERE seller_uid = $1 AND pmbjk_code <> $2', [userUid, pmbjkCode]);
+
       // 1. Upsert the user into public.users
       await client.query(
         `INSERT INTO users (firebase_uid, name, phone, email, role, linked_pmbjk_code)
@@ -163,7 +172,7 @@ export class AdminRepository {
            role = 'STORE_OWNER', 
            linked_pmbjk_code = EXCLUDED.linked_pmbjk_code,
            is_suspended = FALSE`,
-        [userUid, payload.name, payload.phone, payload.virtualEmail, pmbjkCode],
+        [userUid, payload.name, payload.phone, payload.email, pmbjkCode],
       );
 
       // 2. Link store to operator
@@ -231,28 +240,23 @@ export class AdminRepository {
   /**
    * Update a user's role and optionally link a PMBJK store.
    */
-  async updateUserRole(
-    uid: string,
-    newRole: UserRole,
-    linkedPmbjkCode?: string,
-  ): Promise<boolean> {
-    const result = await queryDB(
-      'UPDATE users SET role = $1, linked_pmbjk_code = $2 WHERE firebase_uid = $3 RETURNING firebase_uid',
-      [newRole, newRole === 'STORE_OWNER' ? linkedPmbjkCode : null, uid],
-    );
-
-    if (result.rows.length === 0) {
-      return false;
-    }
-
-    if (newRole === 'STORE_OWNER' && linkedPmbjkCode) {
-      await queryDB(
-        'UPDATE stores SET seller_uid = $1, verified_at = NOW() WHERE pmbjk_code = $2',
-        [uid, linkedPmbjkCode],
+  async updateUserRole(uid: string, newRole: UserRole): Promise<boolean> {
+    return withTransaction(async (client) => {
+      const result = await client.query(
+        `UPDATE users
+            SET role = $1,
+                linked_pmbjk_code = CASE WHEN $1 = 'STORE_OWNER' THEN linked_pmbjk_code ELSE NULL END
+          WHERE firebase_uid = $2
+          RETURNING firebase_uid`,
+        [newRole, uid],
       );
-    }
-
-    return true;
+      if (result.rows.length === 0) return false;
+      // No longer an operator: free their store so it can be reassigned
+      if (newRole !== 'STORE_OWNER') {
+        await client.query('UPDATE stores SET seller_uid = NULL WHERE seller_uid = $1', [uid]);
+      }
+      return true;
+    });
   }
 
   /**
@@ -271,7 +275,11 @@ export class AdminRepository {
    */
   async countAllOrders(whereClause: string, params: unknown[]): Promise<number> {
     const countResult = await queryDB(
-      `SELECT COUNT(*) as total FROM requirements r ${whereClause}`,
+      `SELECT COUNT(*) as total
+         FROM requirements r
+         LEFT JOIN users u ON r.user_id = u.firebase_uid
+         LEFT JOIN stores s ON r.pmbjk_code = s.pmbjk_code
+         ${whereClause}`,
       params,
     );
     return parseInt(countResult.rows[0]?.total || '0', 10);
@@ -352,6 +360,9 @@ export class AdminRepository {
       const updateValues: unknown[] = [newStatus];
       let paramIdx = 2;
 
+      if (newStatus === 'ACCEPTED') {
+        updateFields.push('accepted_at = COALESCE(accepted_at, NOW())');
+      }
       if (newStatus === 'COMPLETED') {
         updateFields.push('completed_at = NOW()');
       }
@@ -383,29 +394,29 @@ export class AdminRepository {
    * Query catalog stats and match rates across branded & generic tables.
    */
   async getCatalogStats(): Promise<Record<string, unknown>> {
-    const [brandedRes, genericRes, matchedRes, totalBrandedSalts] = await Promise.all([
-      queryDB('SELECT COUNT(*) as total FROM branded_meds'),
-      queryDB('SELECT COUNT(*) as total FROM generic_meds'),
-      queryDB(
-        `SELECT COUNT(DISTINCT b.salt_hash) as matched
-         FROM branded_meds b
-         INNER JOIN generic_meds g ON b.salt_hash = g.salt_hash
-         WHERE b.salt_hash IS NOT NULL`,
-      ),
-      queryDB('SELECT COUNT(DISTINCT salt_hash) as total FROM branded_meds WHERE salt_hash IS NOT NULL'),
-    ]);
-
-    const totalBrandedSaltsCount = parseInt(totalBrandedSalts.rows[0]?.total || '0', 10);
-    const matchedCount = parseInt(matchedRes.rows[0]?.matched || '0', 10);
-
+    // Same source as what patients see: the precomputed medicine_matches.
+    const res = await queryDB(`
+      SELECT
+        (SELECT COUNT(*) FROM branded_meds WHERE NOT is_discontinued) AS branded,
+        (SELECT COUNT(*) FROM generic_meds) AS generics,
+        COUNT(*) FILTER (WHERE m.tier = 'EXACT_MATCH') AS exact,
+        COUNT(*) FILTER (WHERE m.tier = 'CLOSE_MATCH') AS close,
+        COUNT(*) FILTER (WHERE m.tier = 'SALT_EQUIVALENT') AS salt_only,
+        COUNT(*) AS matched
+      FROM medicine_matches m
+      JOIN branded_meds b ON b.id = m.branded_id AND NOT b.is_discontinued
+      WHERE m.review_status <> 'rejected'`);
+    const r = res.rows[0] || {};
+    const branded = Number(r.branded) || 0;
+    const matched = Number(r.matched) || 0;
     return {
-      branded_count: parseInt(brandedRes.rows[0]?.total || '0', 10),
-      generic_count: parseInt(genericRes.rows[0]?.total || '0', 10),
-      matched_salts: matchedCount,
-      total_branded_salts: totalBrandedSaltsCount,
-      match_rate: totalBrandedSaltsCount > 0
-        ? Math.round((matchedCount / totalBrandedSaltsCount) * 100 * 10) / 10
-        : 0,
+      branded_count: branded,
+      generic_count: Number(r.generics) || 0,
+      // Kept under the original keys the admin UI reads: brands with a generic / all brands
+      matched_salts: matched,
+      total_branded_salts: branded,
+      match_rate: branded > 0 ? Math.round((matched / branded) * 1000) / 10 : 0,
+      by_tier: { exact: Number(r.exact) || 0, close: Number(r.close) || 0, salt_equivalent: Number(r.salt_only) || 0 },
     };
   }
 }

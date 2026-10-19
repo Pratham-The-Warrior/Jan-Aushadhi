@@ -20,7 +20,18 @@ const ALL_ORDER_STATUSES = [
   'READY_FOR_PICKUP',
   'COMPLETED',
   'CANCELLED_BY_SELLER',
-  'CANCELLED_BY_CUSTOMER'
+  'CANCELLED_BY_CUSTOMER',
+  'CANCELLED_BY_ADMIN',
+];
+
+// Statuses an admin may force an order into (matches the API's override rules)
+const OVERRIDE_STATUSES = [
+  'PENDING_ACCEPTANCE',
+  'ACCEPTED',
+  'PREPARING',
+  'READY_FOR_PICKUP',
+  'COMPLETED',
+  'CANCELLED_BY_ADMIN',
 ];
 
 // Skeleton Components
@@ -113,6 +124,12 @@ export default function Orders() {
 
   // Filters
   const [search, setSearch] = useState(initialSearch);
+  // Search runs on the server across all orders; wait for a pause in typing
+  const [debouncedSearch, setDebouncedSearch] = useState(initialSearch);
+  useEffect(() => {
+    const t = setTimeout(() => { setDebouncedSearch(search.trim()); setPage(1); }, 300);
+    return () => clearTimeout(t);
+  }, [search]);
   const [statusFilter, setStatusFilter] = useState('');
   const [pmbjkFilter, setPmbjkFilter] = useState('');
   const [dateFrom, setDateFrom] = useState('');
@@ -147,8 +164,10 @@ export default function Orders() {
       const data = await getAllOrders({
         status: statusFilter || undefined,
         pmbjk_code: pmbjkFilter || undefined,
-        date_from: dateFrom ? new Date(dateFrom).toISOString() : undefined,
-        date_to: dateTo ? new Date(dateTo).toISOString() : undefined,
+        search: debouncedSearch || undefined,
+        // Whole days in the admin's timezone: "to" includes the chosen day
+        date_from: dateFrom ? new Date(`${dateFrom}T00:00:00`).toISOString() : undefined,
+        date_to: dateTo ? new Date(`${dateTo}T23:59:59.999`).toISOString() : undefined,
         page,
         limit: 20
       });
@@ -163,15 +182,15 @@ export default function Orders() {
         setRefreshing(false);
       }, 0);
     }
-  }, [statusFilter, pmbjkFilter, dateFrom, dateTo, page, showToast]);
+  }, [statusFilter, pmbjkFilter, dateFrom, dateTo, debouncedSearch, page, showToast]);
 
+  // Reload whenever a filter or the page changes
   useEffect(() => {
     const timer = setTimeout(() => {
       loadOrders(true);
     }, 0);
     return () => clearTimeout(timer);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [loadOrders]);
 
   const handleOpenDetail = async (id) => {
     setDetailLoading(true);
@@ -213,17 +232,7 @@ export default function Orders() {
     }
   };
 
-  // Client-side search matching for the page set (due to SQL wildcards being slightly heavier)
-  const filteredOrders = useMemo(() => {
-    if (!search) return orders;
-    const term = search.toLowerCase();
-    return orders.filter(o => 
-      o.id.toLowerCase().includes(term) ||
-      (o.customer_name || '').toLowerCase().includes(term) ||
-      (o.customer_phone || '').includes(term) ||
-      (o.store_name || '').toLowerCase().includes(term)
-    );
-  }, [orders, search]);
+
 
   const getStatusBadge = (status) => {
     const map = {
@@ -332,7 +341,7 @@ export default function Orders() {
 
       {/* Main Table */}
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-        {filteredOrders.length === 0 && !loading ? (
+        {orders.length === 0 && !loading ? (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 320, color: 'var(--color-text-muted)', gap: '1rem', padding: '2rem' }}>
             <div style={{
               width: 64, height: 64, borderRadius: '50%',
@@ -370,7 +379,7 @@ export default function Orders() {
                     <SkeletonOrderRow />
                   </>
                 ) : (
-                  filteredOrders.map((order) => (
+                  orders.map((order) => (
                     <tr key={order.id}>
                       <td>
                         <button
@@ -468,7 +477,7 @@ export default function Orders() {
                   onChange={e => setOverrideStatusVal(e.target.value)}
                   style={{ background: 'var(--color-surface-700)', cursor: 'pointer' }}
                 >
-                  {ALL_ORDER_STATUSES.map(s => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
+                  {OVERRIDE_STATUSES.map(s => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
                 </select>
               </div>
 

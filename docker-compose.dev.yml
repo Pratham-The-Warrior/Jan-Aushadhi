@@ -30,7 +30,7 @@ services:
       retries: 5
 
   meilisearch:
-    image: getmeili/meilisearch:v1.6
+    image: getmeili/meilisearch:v1.12
     container_name: janaushadhi-search
     environment:
       MEILI_MASTER_KEY: masterKey

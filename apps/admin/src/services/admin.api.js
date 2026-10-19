@@ -3,7 +3,7 @@
 // Wraps all backend Super Admin operations.
 // ============================================================
 
-import { apiGet, apiPost, apiPatch } from './api-client';
+import { apiGet, apiGetReport, apiPost, apiPatch } from './api-client';
 
 // ---- Dashboard ----
 export const getPlatformStats = () => apiGet('/api/v1/admin/dashboard/stats');
@@ -51,6 +51,7 @@ export const getAllOrders = (params = {}) => {
   if (params.pmbjk_code) qs.set('pmbjk_code', params.pmbjk_code);
   if (params.date_from) qs.set('date_from', params.date_from);
   if (params.date_to) qs.set('date_to', params.date_to);
+  if (params.search) qs.set('search', params.search);
   if (params.page) qs.set('page', String(params.page));
   if (params.limit) qs.set('limit', String(params.limit));
   const query = qs.toString();
@@ -65,5 +66,5 @@ export const overrideOrderStatus = (id, status, notes) => apiPatch(`/api/v1/admi
 export const getCatalogStats = () => apiGet('/api/v1/admin/catalog/stats');
 
 // ---- Health Check ----
-export const getSystemHealth = () => apiGet('/api/v1/health');
+export const getSystemHealth = () => apiGetReport('/api/v1/health');
 

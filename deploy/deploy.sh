@@ -120,14 +120,19 @@ echo "   ✅ All containers started in background."
 # ------------------------------------------------------------
 echo ""
 echo "🩺 Step 7: Verifying application readiness..."
-HEALTH_URL="http://localhost:5000/api/v1/health/ready"
+# The backend port isn't published to the host, so probe from inside its container.
+HEALTH_URL="http://localhost:5000/api/v1/health/ready (inside the backend container)"
 MAX_ATTEMPTS=20
 ATTEMPT=1
 IS_HEALTHY=false
 
 while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
     echo -n "   Probing $HEALTH_URL (attempt $ATTEMPT/$MAX_ATTEMPTS)... "
-    STATUS_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$HEALTH_URL" || echo "000")
+    if docker compose -f "$COMPOSE_FILE" exec -T backend wget -qO /dev/null http://localhost:5000/api/v1/health/ready 2>/dev/null; then
+        STATUS_CODE=200
+    else
+        STATUS_CODE=000
+    fi
 
     if [ "$STATUS_CODE" -eq 200 ]; then
         echo "HTTP 200 (READY)"
