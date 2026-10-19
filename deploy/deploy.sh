@@ -5,10 +5,17 @@
 #
 # USAGE:
 #   chmod +x deploy/deploy.sh
-#   ./deploy/deploy.sh
+#   ./deploy/deploy.sh            # pull the images CI published (default)
+#   ./deploy/deploy.sh --build    # build images on this server instead
+#                                 # (needs ~3 GB RAM; not for a 2 GB Droplet)
 # ============================================================
 
 set -euo pipefail
+
+BUILD_LOCALLY=false
+if [ "${1:-}" = "--build" ]; then
+    BUILD_LOCALLY=true
+fi
 
 ENV_FILE="deploy/.env.production"
 COMPOSE_FILE="docker-compose.prod.yml"
@@ -78,12 +85,25 @@ fi
 echo "   ✅ deploy/nginx/nginx-proxy.conf generated."
 
 # ------------------------------------------------------------
-# 3. Build Container Images
+# 3. Get Container Images
 # ------------------------------------------------------------
 echo ""
-echo "📦 Step 3: Building container images..."
-docker compose -f "$COMPOSE_FILE" build
-echo "   ✅ Container images built successfully."
+if [ "$BUILD_LOCALLY" = true ]; then
+    echo "📦 Step 3: Building container images on this server..."
+    docker compose -f "$COMPOSE_FILE" build
+    echo "   ✅ Container images built successfully."
+else
+    echo "📦 Step 3: Pulling the images published by CI (tag: ${IMAGE_TAG:-latest})..."
+    if ! docker compose -f "$COMPOSE_FILE" pull; then
+        echo "❌ ERROR: Could not pull the images."
+        echo "   • Has CI built them? (GitHub → Actions → the latest master run must be green)"
+        echo "   • Are the GHCR packages public? (GitHub → your profile → Packages → each one → visibility)"
+        echo "     Or log in first: echo <token> | docker login ghcr.io -u <github-user> --password-stdin"
+        echo "   • To build here instead (needs ~3 GB RAM): ./deploy/deploy.sh --build"
+        exit 1
+    fi
+    echo "   ✅ Images pulled."
+fi
 
 # ------------------------------------------------------------
 # 4. Start Storage & Run Migrations
@@ -98,6 +118,20 @@ docker compose -f "$COMPOSE_FILE" exec -T postgres sh -c 'until pg_isready -U "$
 echo "🔧 Running database schema migrations..."
 docker compose -f "$COMPOSE_FILE" run --rm migrator
 echo "   ✅ Migrations completed successfully."
+
+# First deploy on an empty database: load the medicine catalogue (with
+# generic matches) and the Kendra list from the CSVs inside the image.
+# The backend builds the search index itself when it starts.
+MEDICINES=$(docker compose -f "$COMPOSE_FILE" exec -T postgres \
+    psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "SELECT COUNT(*) FROM branded_meds" | tr -d '[:space:]')
+if [ "${MEDICINES:-0}" = "0" ]; then
+    echo "🌱 Empty database: loading medicines and Kendras (one-time, ~2 minutes)..."
+    docker compose -f "$COMPOSE_FILE" run --rm migrator node dist/scripts/etl_pipeline.js
+    docker compose -f "$COMPOSE_FILE" run --rm migrator node dist/scripts/store_geocoding.js
+    echo "   ✅ Catalogue and Kendras loaded."
+else
+    echo "   ✅ Catalogue present ($MEDICINES medicines); skipping data load."
+fi
 
 # ------------------------------------------------------------
 # 5. Bootstrap SSL / Certificates

@@ -77,7 +77,11 @@ npm run etl:stores   # Kendra list with locations
 
 Both are safe to re-run (they upsert; product ids never change).
 
-## 6. Self-hosted (docker-compose) instead
+## 6. Self-hosted on one server (docker-compose)
+
+**Step-by-step guide for DigitalOcean: [DEPLOY_DIGITALOCEAN.md](DEPLOY_DIGITALOCEAN.md)**
+(about $12/month for everything, Meilisearch included). In that setup the
+`VITE_*` values are GitHub Actions secrets, because CI builds the site images.
 
 Copy `deploy/.env.production.example` to `deploy/.env.production`, fill in
 `DOMAIN`, `POSTGRES_PASSWORD`, `REDIS_PASSWORD`, `MEILI_MASTER_KEY`,

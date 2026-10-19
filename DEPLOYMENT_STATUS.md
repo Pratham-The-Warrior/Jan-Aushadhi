@@ -6,6 +6,7 @@ This document provides a complete record of the deployment infrastructure, linke
 ---
 
 > Every environment variable, where it is set and why, is listed in **docs/ENVIRONMENT.md**.
+> To move everything onto one DigitalOcean server (~$12/month, Meilisearch included), follow **docs/DEPLOY_DIGITALOCEAN.md**.
 
 ## 2. Current Operational Status & Project State (Where Things Stand Right Now)
 

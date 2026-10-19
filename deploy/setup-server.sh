@@ -20,6 +20,22 @@ echo ""
 echo "📦 Step 1: Updating system packages..."
 sudo apt update && sudo apt upgrade -y
 
+# ---- Step 1b: Swap (lets a 2 GB Droplet absorb short memory peaks) ----
+echo "💾 Step 1b: Ensuring a 2 GB swapfile..."
+if [ "$(swapon --show --noheadings | wc -l)" -eq 0 ]; then
+    sudo fallocate -l 2G /swapfile
+    sudo chmod 600 /swapfile
+    sudo mkswap /swapfile
+    sudo swapon /swapfile
+    grep -q '^/swapfile ' /etc/fstab || echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab > /dev/null
+    # Prefer RAM; only swap under real pressure
+    echo 'vm.swappiness=10' | sudo tee /etc/sysctl.d/99-janaushadhi.conf > /dev/null
+    sudo sysctl -p /etc/sysctl.d/99-janaushadhi.conf > /dev/null
+    echo "   ✅ 2 GB swap enabled"
+else
+    echo "   ✅ Swap already configured"
+fi
+
 # ---- Step 2: Install Docker ----
 echo "🐳 Step 2: Installing Docker..."
 if ! command -v docker &> /dev/null; then
@@ -69,6 +85,14 @@ else
 fi
 
 cd "$APP_DIR"
+
+# ---- Step 7b: Nightly database backup (free; kept on this server) ----
+echo "🗄️  Step 7b: Scheduling nightly database backups..."
+sudo mkdir -p /opt/backups && sudo chown "$USER" /opt/backups
+chmod +x "$APP_DIR/deploy/backup.sh"
+CRON_LINE="30 2 * * * cd $APP_DIR && ./deploy/backup.sh >> /opt/backups/backup.log 2>&1"
+( crontab -l 2>/dev/null | grep -v 'deploy/backup.sh' ; echo "$CRON_LINE" ) | crontab -
+echo "   ✅ Backups run daily at 02:30 server time into /opt/backups (7 days kept)"
 
 # ---- Step 8: Create env file from template if missing ----
 echo "🔑 Step 8: Setting up environment file..."
